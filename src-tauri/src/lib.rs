@@ -107,13 +107,8 @@ fn read_media_artwork() -> Option<String> {
         if size == 0 || size > 2_000_000 {
             return None;
         }
-        let content_type = stream.ContentType().ok()?.to_string();
-        if !matches!(
-            content_type.as_str(),
-            "image/jpeg" | "image/png" | "image/webp"
-        ) {
-            return None;
-        }
+        let raw_content_type = stream.ContentType().ok()?.to_string();
+        let content_type = image_content_type(&raw_content_type)?;
         let reader = DataReader::CreateDataReader(&stream).ok()?;
         let loaded =
             futures::executor::block_on(reader.LoadAsync(size as u32).ok()?.into_future()).ok()?;
@@ -127,6 +122,30 @@ fn read_media_artwork() -> Option<String> {
     }
     #[cfg(not(target_os = "windows"))]
     None
+}
+
+#[cfg(target_os = "windows")]
+fn image_content_type(raw: &str) -> Option<&str> {
+    let mime = raw.split([',', ';']).next()?.trim();
+    matches!(mime, "image/jpeg" | "image/png" | "image/webp").then_some(mime)
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod media_tests {
+    use super::image_content_type;
+
+    #[test]
+    fn accepts_image_types_with_aliases_and_rejects_other_types() {
+        assert_eq!(
+            image_content_type("image/jpeg,image/jpe,image/jpg"),
+            Some("image/jpeg")
+        );
+        assert_eq!(
+            image_content_type("image/png; charset=binary"),
+            Some("image/png")
+        );
+        assert_eq!(image_content_type("text/html"), None);
+    }
 }
 
 #[tauri::command]
