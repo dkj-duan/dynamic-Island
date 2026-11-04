@@ -24,7 +24,7 @@
         "title": "Dynamic Island",
         "url": "index.html?window=island",
         "width": 360,
-        "height": 218,
+        "height": 280,
         "resizable": false,
         "decorations": false,
         "transparent": true,

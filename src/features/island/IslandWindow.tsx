@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
-  ChevronUp,
   Music2,
   Pause,
   Play,
@@ -245,26 +244,9 @@ export function IslandWindow() {
           aria-label={expanded ? "收起灵动岛" : "展开灵动岛"}
           onClick={() => void toggleExpanded()}
         >
-          {media?.title ? (
-            <span className="island-current island-media-current">
-              <Music2
-                className="timer-indicator"
-                size={15}
-                aria-hidden="true"
-              />
-              <span className="island-track-title">{media.title}</span>
-              <span className="media-playing-mark">
-                {media.playing ? <Pause size={12} /> : <Play size={12} />}
-              </span>
-              <ChevronDown
-                className="toggle-mark"
-                size={15}
-                aria-hidden="true"
-              />
-            </span>
-          ) : timer.status === "idle" ? (
-            <IslandContent appearance={appearance} />
-          ) : (
+          {expanded ? (
+            <span className="island-expanded-title">灵动岛</span>
+          ) : timer.status !== "idle" ? (
             <span className="island-current">
               <Timer className="timer-indicator" size={15} aria-hidden="true" />
               <span className="island-timer-value">
@@ -277,20 +259,31 @@ export function IslandWindow() {
                     ? "已暂停"
                     : "计时中"}
               </span>
-              {expanded ? (
-                <ChevronUp
-                  className="toggle-mark"
-                  size={15}
-                  aria-hidden="true"
-                />
-              ) : (
-                <ChevronDown
-                  className="toggle-mark"
-                  size={15}
-                  aria-hidden="true"
-                />
-              )}
+              <ChevronDown
+                className="toggle-mark"
+                size={15}
+                aria-hidden="true"
+              />
             </span>
+          ) : media?.title ? (
+            <span className="island-current island-media-current">
+              <Music2
+                className="timer-indicator"
+                size={15}
+                aria-hidden="true"
+              />
+              <span className="island-track-title">{media.title}</span>
+              <span className="media-playing-mark">
+                {media.playing ? "播放中" : "已暂停"}
+              </span>
+              <ChevronDown
+                className="toggle-mark"
+                size={15}
+                aria-hidden="true"
+              />
+            </span>
+          ) : (
+            <IslandContent appearance={appearance} />
           )}
         </button>
         <div

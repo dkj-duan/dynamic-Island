@@ -205,7 +205,7 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
         let old_position = window.outer_position().map_err(|e| e.to_string())?;
         let old_size = window.outer_size().map_err(|e| e.to_string())?;
         let (width, height) = if expanded {
-            (360.0, 218.0)
+            (360.0, 280.0)
         } else {
             (300.0, 64.0)
         };

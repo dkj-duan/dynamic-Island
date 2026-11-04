@@ -665,8 +665,17 @@ html.island-window #root {
 }
 .is-expanded .island-panel {
   width: 340px;
-  height: 190px;
+  height: 252px;
   border-radius: 25px;
+}
+.island-expanded-title {
+  display: block;
+  padding-left: 20px;
+  text-align: left;
+  color: #d9d9df;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 .island-toggle {
   display: block;
@@ -705,10 +714,11 @@ html.island-window #root {
   text-align: left;
 }
 .media-playing-mark {
-  display: grid;
-  place-items: center;
+  flex: none;
   margin-left: auto;
-  color: #c8c8ce;
+  color: #85858e;
+  font-size: 10px;
+  white-space: nowrap;
 }
 .island-timer-status {
   font-size: 10px;
@@ -740,7 +750,7 @@ html.island-window #root {
 .island-tabs {
   display: flex;
   gap: 5px;
-  margin-bottom: 8px;
+  margin-bottom: 14px;
 }
 .island-tabs button {
   display: flex;
@@ -760,7 +770,7 @@ html.island-window #root {
   background: #252529;
 }
 .media-view {
-  min-height: 105px;
+  min-height: 140px;
 }
 .media-track {
   display: flex;
@@ -804,7 +814,7 @@ html.island-window #root {
   justify-content: center;
   align-items: center;
   gap: 14px;
-  margin-top: 9px;
+  margin-top: 20px;
 }
 .media-controls button {
   width: 28px;
