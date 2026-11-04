@@ -1583,12 +1583,22 @@ html.island-window #root {
   z-index: 2;
   display: grid;
   justify-items: center;
-  gap: 0;
+  gap: 1px;
   color: #f1effa;
 }
 
+/* Inside the gauge the provider logo sits above the percentage. */
+.quota-ring-center .quota-ring-logo {
+  position: static;
+}
+
+.quota-ring-center .quota-ring-logo .provider-icon {
+  background: transparent;
+}
+
 .quota-ring-center strong {
-  font-size: 14px;
+  font-size: 11px;
+  color: #e9e9f0;
   font-weight: 650;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;

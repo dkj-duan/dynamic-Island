@@ -877,7 +877,11 @@ export function IslandWindow() {
                       key={selectedAi?.id ?? "none"}
                     >
                       {selectedRings.length ? (
-                        <QuotaRings items={selectedItems} compact={false} />
+                        <QuotaRings
+                          items={selectedItems}
+                          compact={false}
+                          provider={selectedAi?.provider}
+                        />
                       ) : (
                         <div className="quota-balance-icon">
                           <ProviderIcon
