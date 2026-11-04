@@ -5,7 +5,40 @@ describe("parseAppearance", () => {
   it("accepts supported settings", () => {
     expect(
       parseAppearance({ version: 1, scale: 1.1, showClock: false }),
-    ).toEqual({ scale: 1.1, showClock: false, autoCollapseSeconds: 3 });
+    ).toEqual({
+      theme: "system",
+      scale: 1.1,
+      showClock: false,
+      autoCollapseSeconds: 3,
+    });
+  });
+  it("migrates version 2 and validates the selected theme", () => {
+    expect(
+      parseAppearance({
+        version: 2,
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+      }).theme,
+    ).toBe("system");
+    expect(
+      parseAppearance({
+        version: 3,
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        theme: "light",
+      }).theme,
+    ).toBe("light");
+    expect(() =>
+      parseAppearance({
+        version: 3,
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        theme: "invalid",
+      }),
+    ).toThrow();
   });
   it.each([
     null,

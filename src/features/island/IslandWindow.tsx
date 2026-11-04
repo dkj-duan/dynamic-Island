@@ -18,14 +18,16 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Bot,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { defaultAppearance, parseAppearance } from "../../domain/settings";
 import { loadAppearance } from "../../services/settingsRepository";
-import { IslandContent } from "./IslandPreview";
+import { CompactClock, IslandContent } from "./IslandPreview";
 import {
   formatRemaining,
+  extendTimer,
   parseDuration,
   pauseTimer,
   remainingMilliseconds,
@@ -33,8 +35,14 @@ import {
   type TimerState,
 } from "../../domain/timer";
 import "../../App.css";
+import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
 import { useMail } from "../mail/useMail";
+import { lyricAt, parseLyrics } from "../../domain/lyrics";
+import { useAiQuota } from "../ai/useAiQuota";
+import { QuotaRings } from "../ai/QuotaRings";
+import { ProviderIcon } from "../ai/ProviderIcon";
+import { aiProviderName, quotaRings } from "../../domain/aiQuota";
 
 type MediaState = {
   title: string;
@@ -42,6 +50,7 @@ type MediaState = {
   playing: boolean;
   positionSeconds: number | null;
   durationSeconds: number | null;
+  canSeek: boolean;
 };
 
 function formatMediaTime(seconds: number) {
@@ -110,6 +119,18 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
 
 export function IslandWindow() {
   const notice = useSystemNotice();
+  const ai = useAiQuota();
+  const pinnedAi = ai.accounts.find((account) => account.pinned);
+  const pinnedAiResult = pinnedAi ? ai.results[pinnedAi.id] : undefined;
+  const pinnedAiItem = pinnedAiResult?.quota?.items[0];
+  const [selectedAiId, setSelectedAiId] = useState("");
+  const selectedAi =
+    ai.accounts.find((account) => account.id === selectedAiId) ??
+    pinnedAi ??
+    ai.accounts[0];
+  const selectedAiResult = selectedAi ? ai.results[selectedAi.id] : undefined;
+  const selectedItems = selectedAiResult?.quota?.items ?? [];
+  const selectedRings = quotaRings(selectedItems);
   const { recent: recentMail, highlight: mailHighlight } = useMail();
   const [copyStatus, setCopyStatus] = useState<{
     code: string;
@@ -124,19 +145,81 @@ export function IslandWindow() {
   const collapseTimeout = useRef<number | null>(null);
   const scheduleCollapseRef = useRef<() => void>(() => {});
   const [expanded, setExpanded] = useState(false);
+  const [largeDisplay, setLargeDisplay] = useState(
+    () => window.screen.width >= 2304,
+  );
+  useEffect(() => {
+    const update = () => setLargeDisplay(window.screen.width >= 2304);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
   const [transitioning, setTransitioning] = useState(false);
   const [timer, setTimer] = useState<TimerState>({ status: "idle" });
   const [minutes, setMinutes] = useState("");
   const [seconds, setSeconds] = useState("");
   const [durationError, setDurationError] = useState("");
   const [lastDuration, setLastDuration] = useState(0);
+  const [timerMode, setTimerMode] = useState<"timer" | "focus" | "break">(
+    "timer",
+  );
   const [now, setNow] = useState(() => Date.now());
   const [media, setMedia] = useState<MediaState | null>(null);
+  const mediaSample = useRef(Date.now());
+  const [mediaNow, setMediaNow] = useState(Date.now);
+  const [lyrics, setLyrics] = useState<{
+    key: string;
+    text: string;
+    synced: boolean;
+  } | null>(null);
+  const [lyricsError, setLyricsError] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
+  const [seekPreview, setSeekPreview] = useState<number | null>(null);
   const [artwork, setArtwork] = useState<{
     key: string;
     src: string | null;
   } | null>(null);
   const mediaKey = media ? JSON.stringify([media.title, media.artist]) : "";
+  useEffect(() => {
+    if (!media?.title || !media.artist) return;
+    let active = true;
+    const key = JSON.stringify([media.title, media.artist]);
+    void invoke<{ text: string; synced: boolean }>("get_lyrics", {
+      title: media.title,
+      artist: media.artist,
+      duration: media.durationSeconds,
+    })
+      .then((value) => {
+        if (active) setLyrics({ key, ...value });
+      })
+      .catch((error: unknown) => {
+        if (active) setLyricsError({ key, message: String(error) });
+      });
+    return () => {
+      active = false;
+    };
+  }, [media?.title, media?.artist, media?.durationSeconds]);
+  useEffect(() => {
+    if (!media?.playing) return;
+    const timer = window.setInterval(() => setMediaNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [media?.playing]);
+  const mediaPosition =
+    media?.positionSeconds == null
+      ? null
+      : Math.min(
+          media.durationSeconds ?? Infinity,
+          media.positionSeconds +
+            (media.playing
+              ? Math.max(0, mediaNow - mediaSample.current) / 1000
+              : 0),
+        );
+  const currentLyrics = lyrics?.key === mediaKey ? lyrics : null;
+  const currentLyric =
+    currentLyrics?.synced && mediaPosition !== null
+      ? lyricAt(parseLyrics(currentLyrics.text), mediaPosition)
+      : null;
   useEffect(() => {
     if (!mediaKey) return;
     let active = true;
@@ -151,7 +234,7 @@ export function IslandWindow() {
       active = false;
     };
   }, [mediaKey]);
-  const [activeTab, setActiveTab] = useState<"timer" | "music" | "mail">(
+  const [activeTab, setActiveTab] = useState<"timer" | "music" | "mail" | "ai">(
     "timer",
   );
   const [mediaError, setMediaError] = useState("");
@@ -160,7 +243,11 @@ export function IslandWindow() {
     const refresh = async () => {
       try {
         const state = await invoke<MediaState | null>("get_media_state");
-        if (active) setMedia(state?.title ? state : null);
+        if (active) {
+          mediaSample.current = Date.now();
+          setMediaNow(mediaSample.current);
+          setMedia(state?.title ? state : null);
+        }
       } catch (error) {
         console.error("Unable to read Windows media session", error);
       }
@@ -295,6 +382,12 @@ export function IslandWindow() {
     setDurationError("");
     setTimer({ status: "running", endsAt: current + durationMs });
   }
+  const display = selectIslandDisplay({
+    timer: timer.status,
+    mail: !!(mailHighlight && recentMail.length),
+    notice: !!notice,
+    media: !!media?.title,
+  });
   const remaining = formatRemaining(remainingMilliseconds(timer, now));
   async function controlMedia(action: "previous" | "toggle" | "next") {
     try {
@@ -309,6 +402,21 @@ export function IslandWindow() {
       }, 250);
     } catch {
       setMediaError("当前播放器暂不支持此操作");
+    }
+  }
+  async function seekMedia(positionSeconds: number) {
+    try {
+      const applied = await invoke<boolean>("seek_media", { positionSeconds });
+      if (!applied) throw new Error("Seek unsupported");
+      setMediaError("");
+      const state = await invoke<MediaState | null>("get_media_state");
+      mediaSample.current = Date.now();
+      setMediaNow(mediaSample.current);
+      setMedia(state);
+    } catch {
+      setMediaError("当前播放器暂不支持调整进度");
+    } finally {
+      setSeekPreview(null);
     }
   }
   async function copyCode(code: string, expiresAt: number) {
@@ -330,7 +438,9 @@ export function IslandWindow() {
       <div
         ref={panel}
         className="island-panel"
-        style={{ width: expanded ? 340 : 210 * appearance.scale }}
+        style={{
+          width: expanded ? 340 : (largeDisplay ? 240 : 210) * appearance.scale,
+        }}
         onMouseEnter={cancelAutoCollapse}
         onMouseLeave={scheduleAutoCollapse}
         onFocusCapture={cancelAutoCollapse}
@@ -344,13 +454,7 @@ export function IslandWindow() {
           aria-expanded={expanded}
           aria-label={expanded ? "收起灵动岛" : "展开灵动岛"}
           onClick={() => {
-            if (
-              !expanded &&
-              mailHighlight &&
-              recentMail.length &&
-              !notice &&
-              timer.status !== "finished"
-            ) {
+            if (!expanded && display === "mail") {
               setActiveTab("mail");
               setMailIndex(0);
               setCopyStatus(null);
@@ -360,15 +464,13 @@ export function IslandWindow() {
         >
           {expanded ? (
             <span className="island-expanded-title">灵动岛</span>
-          ) : notice && timer.status !== "finished" ? (
+          ) : display === "notice" && notice ? (
             <span className="island-current system-notice" role="status">
               <NoticeIcon kind={notice.kind} />
               <span className="system-notice-label">{notice.label}</span>
               <strong>{notice.value}</strong>
             </span>
-          ) : mailHighlight &&
-            recentMail.length > 0 &&
-            timer.status !== "finished" ? (
+          ) : display === "mail" ? (
             <span className="island-current system-notice" role="status">
               <Mail size={16} />
               <span className="system-notice-label">
@@ -376,66 +478,115 @@ export function IslandWindow() {
               </span>
               <ChevronDown className="toggle-mark" size={15} />
             </span>
-          ) : timer.status !== "idle" ? (
-            <span className="island-current">
+          ) : display === "timer" || display === "finished" ? (
+            <span className="island-current compact-timer">
               <Timer className="timer-indicator" size={15} aria-hidden="true" />
+              <span className="compact-copy">
+                <span className="compact-primary">
+                  {timerMode === "focus"
+                    ? "专注"
+                    : timerMode === "break"
+                      ? "休息"
+                      : "计时器"}{" "}
+                  ·{" "}
+                  {timer.status === "paused"
+                    ? "已暂停"
+                    : timer.status === "finished"
+                      ? "已结束"
+                      : "进行中"}
+                </span>
+                <span className="compact-secondary">
+                  {media?.title
+                    ? `♫ ${media.title}`
+                    : pinnedAi && pinnedAiItem
+                      ? `${pinnedAi.name} · ${pinnedAiItem.value}`
+                      : timer.status === "finished"
+                        ? "点击查看"
+                        : "点击管理计时"}
+                </span>
+              </span>
               <span className="island-timer-value">
                 {timer.status === "finished" ? "时间到" : remaining}
               </span>
-              <span className="island-timer-status">
-                {timer.status === "finished"
-                  ? "点击查看"
-                  : timer.status === "paused"
-                    ? "已暂停"
-                    : "计时中"}
-              </span>
-              <ChevronDown
-                className="toggle-mark"
-                size={15}
-                aria-hidden="true"
-              />
             </span>
-          ) : media?.title ? (
+          ) : display === "media" && media?.title ? (
             <span className="island-current island-media-current">
-              <Music2
-                className="timer-indicator"
-                size={15}
-                aria-hidden="true"
-              />
-              <span className="island-track-title">{media.title}</span>
-              <span className="media-playing-mark">
-                <MediaWave playing={media.playing} compact />
-                {media.playing ? "播放中" : "已暂停"}
+              <span className="compact-art">
+                {artwork?.key === mediaKey && artwork.src ? (
+                  <img src={artwork.src} alt="" />
+                ) : (
+                  <Music2 size={14} aria-hidden="true" />
+                )}
               </span>
-              <ChevronDown
-                className="toggle-mark"
-                size={15}
-                aria-hidden="true"
-              />
+              <span className="compact-copy">
+                <span className="compact-primary">{media.title}</span>
+                <span className="compact-secondary">
+                  {currentLyric || media.artist || "未知艺术家"}
+                </span>
+              </span>
+              <span className="media-playing-mark">
+                {mediaPosition !== null ? (
+                  formatMediaTime(mediaPosition)
+                ) : (
+                  <MediaWave playing={media.playing} compact />
+                )}
+                <span>
+                  {pinnedAi && pinnedAiItem
+                    ? `${pinnedAi.name} ${pinnedAiItem.value}`
+                    : media.playing
+                      ? "播放中"
+                      : "已暂停"}
+                </span>
+              </span>
+              {pinnedAiItem &&
+                quotaRings(pinnedAiResult?.quota?.items ?? []).length > 0 && (
+                  <QuotaRings
+                    items={pinnedAiResult?.quota?.items ?? []}
+                    compact
+                    provider={pinnedAi?.provider}
+                  />
+                )}
+            </span>
+          ) : pinnedAi ? (
+            <span className="island-current compact-timer compact-idle-quota">
+              {appearance.showClock && <CompactClock />}
+              {quotaRings(pinnedAiResult?.quota?.items ?? []).length ? (
+                <QuotaRings
+                  items={pinnedAiResult?.quota?.items ?? []}
+                  compact
+                  provider={pinnedAi.provider}
+                />
+              ) : (
+                <ProviderIcon provider={pinnedAi.provider} size="normal" />
+              )}
+              <span className="compact-copy">
+                <span className="compact-primary">{pinnedAi.name}</span>
+                <span className="compact-secondary">
+                  {pinnedAiItem?.label ??
+                    (pinnedAiResult?.error ? "查询失败" : "正在查询…")}
+                </span>
+              </span>
+              <span className="island-timer-value">
+                {pinnedAiItem?.value ?? "—"}
+              </span>
             </span>
           ) : (
             <IslandContent appearance={appearance} />
           )}
         </button>
-        {expanded && notice && timer.status !== "finished" && (
+        {expanded && display === "notice" && notice && (
           <div className="system-notice-banner" role="status">
             <NoticeIcon kind={notice.kind} />
             <span>{notice.label}</span>
             <strong>{notice.value}</strong>
           </div>
         )}
-        {expanded &&
-          !notice &&
-          mailHighlight &&
-          recentMail.length > 0 &&
-          timer.status !== "finished" && (
-            <div className="system-notice-banner" role="status">
-              <Mail size={13} />
-              <span>
-                {recentMail[0].code ? "收到邮箱验证码" : "收到新邮件"}
-              </span>
-            </div>
-          )}
+        {expanded && display === "mail" && (
+          <div className="system-notice-banner" role="status">
+            <Mail size={13} />
+            <span>{recentMail[0].code ? "收到邮箱验证码" : "收到新邮件"}</span>
+          </div>
+        )}
         <div
           className="island-details"
           aria-hidden={!expanded}
@@ -473,8 +624,108 @@ export function IslandWindow() {
               <Mail size={13} />
               邮件{recentMail.length > 0 && <span className="mail-tab-dot" />}
             </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "ai"}
+              className={activeTab === "ai" ? "active" : ""}
+              onClick={() => setActiveTab("ai")}
+            >
+              <Bot size={13} />
+              额度
+            </button>
           </div>
-          {activeTab === "mail" ? (
+          {activeTab === "ai" ? (
+            <div className="quota-view">
+              {ai.accounts.length === 0 ? (
+                <div className="media-empty">
+                  <Bot size={20} />
+                  <strong>尚未添加 AI 账户</strong>
+                  <span>在设置的 AI 额度页面添加。</span>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="quota-account-picker"
+                    role="group"
+                    aria-label="选择 AI 账户"
+                  >
+                    {ai.accounts.map((account) => (
+                      <button
+                        key={account.id}
+                        className={
+                          account.id === selectedAi?.id ? "selected" : ""
+                        }
+                        aria-pressed={account.id === selectedAi?.id}
+                        title={`${account.name} · ${aiProviderName(account.provider)}`}
+                        onClick={() => setSelectedAiId(account.id)}
+                      >
+                        <ProviderIcon
+                          provider={account.provider}
+                          size="normal"
+                        />
+                        <span>
+                          {account.name} · {aiProviderName(account.provider)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="quota-detail">
+                    {selectedRings.length ? (
+                      <QuotaRings items={selectedItems} />
+                    ) : (
+                      <div className="quota-balance-icon">
+                        <ProviderIcon
+                          provider={selectedAi?.provider ?? ""}
+                          size="large"
+                        />
+                      </div>
+                    )}
+                    <div className="quota-detail-copy">
+                      <div className="quota-detail-heading">
+                        <ProviderIcon
+                          provider={selectedAi?.provider ?? ""}
+                          size="normal"
+                        />
+                        {selectedAi?.name}{" "}
+                        <span>
+                          {selectedAi
+                            ? aiProviderName(selectedAi.provider)
+                            : ""}
+                          {selectedAi?.pinned ? " · 常驻" : ""}
+                        </span>
+                      </div>
+                      {selectedItems.length ? (
+                        <div className="quota-metrics">
+                          {selectedItems.map((item, index) => (
+                            <div
+                              className="quota-metric"
+                              key={`${item.label}-${index}`}
+                            >
+                              <span className="quota-metric-label">
+                                {selectedRings.some(
+                                  (ring) => ring.item === item,
+                                ) && (
+                                  <i
+                                    className={`quota-dot quota-dot-${selectedRings.findIndex((ring) => ring.item === item)}`}
+                                  />
+                                )}
+                                {item.label}
+                              </span>
+                              <strong>{item.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="quota-message">
+                          {selectedAiResult?.error ?? "正在查询额度…"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : activeTab === "mail" ? (
             <div className="island-mail-view">
               {selectedMail ? (
                 <>
@@ -563,26 +814,92 @@ export function IslandWindow() {
                       <span>{media.artist || "未知艺术家"}</span>
                     </div>
                   </div>
-                  <MediaWave playing={media.playing} />
+                  <div className="music-lyric" aria-live="off">
+                    {currentLyric ||
+                      (currentLyrics?.synced
+                        ? mediaPosition === null
+                          ? "暂无播放进度，无法同步歌词"
+                          : currentLyric === ""
+                            ? "♪ 间奏"
+                            : "♪ 前奏"
+                        : currentLyrics
+                          ? "暂无同步歌词"
+                          : lyricsError?.key === mediaKey
+                            ? lyricsError.message
+                            : "正在查找歌词…")}
+                  </div>
                   {media.durationSeconds != null &&
                     media.positionSeconds != null && (
                       <div
                         className="media-timeline"
                         aria-label={`播放进度 ${formatMediaTime(media.positionSeconds)} / ${formatMediaTime(media.durationSeconds)}`}
                       >
-                        <div className="media-progress">
-                          <span
-                            style={{
-                              width: `${Math.min(100, Math.max(0, (media.positionSeconds / media.durationSeconds) * 100))}%`,
+                        {media.canSeek && media.durationSeconds > 0 ? (
+                          <input
+                            className="media-seek"
+                            type="range"
+                            min={0}
+                            max={media.durationSeconds}
+                            step={1}
+                            value={Math.min(
+                              media.durationSeconds,
+                              seekPreview ??
+                                mediaPosition ??
+                                media.positionSeconds,
+                            )}
+                            aria-label="调整播放进度"
+                            onChange={(event) =>
+                              setSeekPreview(Number(event.currentTarget.value))
+                            }
+                            onPointerUp={(event) =>
+                              void seekMedia(Number(event.currentTarget.value))
+                            }
+                            onKeyUp={(event) => {
+                              if (
+                                [
+                                  "ArrowLeft",
+                                  "ArrowRight",
+                                  "ArrowUp",
+                                  "ArrowDown",
+                                  "Home",
+                                  "End",
+                                  "PageUp",
+                                  "PageDown",
+                                ].includes(event.key)
+                              )
+                                void seekMedia(
+                                  Number(event.currentTarget.value),
+                                );
                             }}
+                            onPointerCancel={() => setSeekPreview(null)}
                           />
-                        </div>
+                        ) : (
+                          <div className="media-progress">
+                            <span
+                              style={{
+                                width: `${Math.min(100, Math.max(0, ((mediaPosition ?? media.positionSeconds) / media.durationSeconds) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                        )}
                         <div className="media-times">
-                          <span>{formatMediaTime(media.positionSeconds)}</span>
+                          <span>
+                            {formatMediaTime(
+                              seekPreview ??
+                                mediaPosition ??
+                                media.positionSeconds,
+                            )}
+                          </span>
                           <span>{formatMediaTime(media.durationSeconds)}</span>
                         </div>
                       </div>
                     )}
+                  {(media.durationSeconds == null ||
+                    media.positionSeconds == null) && (
+                    <div className="media-timeline-unavailable">
+                      播放器未提供播放进度
+                    </div>
+                  )}
                   <div className="media-controls">
                     <button
                       aria-label="上一首"
@@ -626,7 +943,13 @@ export function IslandWindow() {
             <>
               <div className="timer-heading">
                 <div>
-                  <strong>计时器</strong>
+                  <strong>
+                    {timerMode === "focus"
+                      ? "专注"
+                      : timerMode === "break"
+                        ? "休息"
+                        : "计时器"}
+                  </strong>
                   <span>
                     {timer.status === "finished"
                       ? "倒计时已结束"
@@ -644,12 +967,21 @@ export function IslandWindow() {
               {timer.status === "idle" ? (
                 <>
                   <div className="timer-controls">
-                    {[1, 5, 25].map((minutes) => (
+                    {(
+                      [
+                        { minutes: 1, mode: "timer", label: "1 分钟" },
+                        { minutes: 5, mode: "break", label: "休息 5 分" },
+                        { minutes: 25, mode: "focus", label: "专注 25 分" },
+                      ] as const
+                    ).map((preset) => (
                       <button
-                        key={minutes}
-                        onClick={() => startTimer(minutes * 60_000, Date.now())}
+                        key={preset.mode}
+                        onClick={() => {
+                          setTimerMode(preset.mode);
+                          startTimer(preset.minutes * 60_000, Date.now());
+                        }}
                       >
-                        {minutes} 分钟
+                        {preset.label}
                       </button>
                     ))}
                   </div>
@@ -663,6 +995,7 @@ export function IslandWindow() {
                         setDurationError("请输入有效时间（秒数为 0–59）");
                         return;
                       }
+                      setTimerMode("timer");
                       startTimer(duration, Date.now());
                     }}
                   >
@@ -711,6 +1044,20 @@ export function IslandWindow() {
                   <button onClick={() => startTimer(lastDuration, Date.now())}>
                     再计一次
                   </button>
+                  {timerMode !== "timer" && (
+                    <button
+                      onClick={() => {
+                        const next = timerMode === "focus" ? "break" : "focus";
+                        setTimerMode(next);
+                        startTimer(
+                          (next === "focus" ? 25 : 5) * 60_000,
+                          Date.now(),
+                        );
+                      }}
+                    >
+                      {timerMode === "focus" ? "开始休息" : "开始专注"}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="timer-controls">
@@ -729,6 +1076,14 @@ export function IslandWindow() {
                   </button>
                   <button onClick={() => setTimer({ status: "idle" })}>
                     取消
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTimer((current) => extendTimer(current, 60_000));
+                      setLastDuration((current) => current + 60_000);
+                    }}
+                  >
+                    +1 分钟
                   </button>
                 </div>
               )}

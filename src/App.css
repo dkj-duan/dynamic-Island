@@ -1,5 +1,5 @@
 :root {
-  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
   color: #e9e9ef;
   background: #101014;
   font-synthesis: none;
@@ -793,6 +793,8 @@ html.island-window #root {
 .island-toggle .island {
   border: 0;
   width: 100%;
+  gap: 6px;
+  padding: 0 12px;
 }
 .island-current {
   display: flex;
@@ -846,6 +848,101 @@ html.island-window #root {
 .island-media-current {
   min-width: 0;
 }
+.compact-timer,
+.island-media-current {
+  height: 38px;
+  gap: 8px;
+  padding: 0 12px;
+}
+.compact-art {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #242428;
+  color: #b7b7bf;
+}
+.compact-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.compact-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.compact-idle-quota {
+  gap: 4px;
+  padding: 0 8px;
+}
+.compact-clock {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 2px;
+  width: 44px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.compact-idle-quota .quota-rings-compact {
+  width: 22px;
+  height: 22px;
+}
+.compact-idle-quota .island-timer-value {
+  font-size: 12px;
+}
+.compact-clock > span:first-child {
+  color: #f0f0f3;
+  font-size: 12px;
+  font-weight: 600;
+}
+.compact-clock > span:last-child {
+  color: #a0a0aa;
+  font-size: 9px;
+  white-space: nowrap;
+}
+:root[data-large-display="true"] .compact-clock > span:first-child {
+  font-size: 13px;
+}
+:root[data-large-display="true"] .compact-clock > span:last-child {
+  font-size: 10px;
+}
+.compact-primary,
+.compact-secondary {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.compact-primary {
+  color: #f0f0f3;
+  font-size: 11px;
+  font-weight: 600;
+}
+.compact-secondary {
+  color: #a0a0aa;
+  font-size: 9px;
+}
+.compact-idle-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+.compact-idle-copy span:first-child {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.compact-idle-copy span:last-child {
+  color: #a0a0aa;
+  font-size: 10px;
+}
 .island-track-title {
   min-width: 0;
   overflow: hidden;
@@ -855,13 +952,19 @@ html.island-window #root {
 }
 .media-playing-mark {
   display: flex;
-  align-items: center;
-  gap: 5px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   flex: none;
   margin-left: auto;
   color: #85858e;
   font-size: 10px;
   white-space: nowrap;
+}
+.media-playing-mark > span {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .island-timer-status {
   font-size: 10px;
@@ -983,6 +1086,14 @@ html.island-window #root {
 }
 .media-timeline {
   margin-top: 6px;
+}
+.media-seek {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: -4px 0;
+  accent-color: #e3e3e8;
+  cursor: pointer;
 }
 .media-progress {
   height: 3px;
@@ -1459,4 +1570,570 @@ input:focus-visible {
     transition-duration: 0.01ms !important;
     animation: none !important;
   }
+}
+
+/* Theme colors for the settings and the island. */
+.theme-card {
+  margin-bottom: 20px;
+}
+:root[data-settings-theme="light"] .settings-shell {
+  background: #f5f5f7;
+  color: #202127;
+}
+:root[data-settings-theme="light"] .settings-sidebar {
+  background: #eeeef1;
+  border-color: #d9d9df;
+}
+:root[data-settings-theme="light"] .settings-nav-item {
+  color: #555761;
+}
+:root[data-settings-theme="light"] .settings-nav-item:hover,
+:root[data-settings-theme="light"] .settings-nav-item.selected {
+  background: #dedee5;
+  color: #18191e;
+}
+:root[data-settings-theme="light"] .settings-card,
+:root[data-settings-theme="light"] .appearance-preview-card {
+  background: #fff;
+  border-color: #dedee4;
+}
+:root[data-settings-theme="light"] .settings-shell h1,
+:root[data-settings-theme="light"] .settings-shell h2,
+:root[data-settings-theme="light"] .settings-shell strong {
+  color: #202127;
+}
+:root[data-settings-theme="light"] .settings-shell p,
+:root[data-settings-theme="light"] .settings-shell small {
+  color: #666873;
+}
+:root[data-settings-theme="light"] .preference-row,
+:root[data-settings-theme="light"] .status-row,
+:root[data-settings-theme="light"] .settings-footer {
+  border-color: #e2e2e8;
+}
+:root[data-settings-theme="light"]
+  .settings-shell
+  button:not(.settings-nav-item),
+:root[data-settings-theme="light"]
+  .settings-shell
+  input:not([type="range"]):not([type="checkbox"]),
+:root[data-settings-theme="light"] .settings-shell select {
+  background: #f0f0f3;
+  color: #292a30;
+  border-color: #d5d5dd;
+}
+:root[data-settings-theme="light"] .delay-options button.active {
+  background: #292a30;
+  color: white;
+  border-color: #292a30;
+}
+
+.media-timeline-unavailable {
+  margin-top: 5px;
+  color: #9999a3;
+  font-size: 10px;
+}
+.music-lyric {
+  margin-top: 9px;
+  height: 20px;
+  overflow: hidden;
+  color: #e5e5ec;
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-settings {
+  padding: 22px;
+}
+.ai-empty {
+  padding: 12px 0;
+}
+.ai-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #303035;
+  padding: 14px 0;
+}
+.ai-account-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+.ai-account-copy strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.ai-account-copy small,
+.ai-account-copy span {
+  font-size: 11px;
+  color: #a8a8b1;
+  overflow-wrap: anywhere;
+}
+.ai-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-account-actions button {
+  color: #d1d1d6;
+  background: #242428;
+  border: 1px solid #36363c;
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ai-account-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.island-ai-list {
+  max-height: 145px;
+  overflow-y: auto;
+}
+.island-ai-row {
+  display: grid;
+  gap: 4px;
+  padding: 9px 2px;
+  border-bottom: 1px solid #28282f;
+}
+.island-ai-name {
+  font-size: 12px;
+  color: #ededf1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.island-ai-value {
+  font-size: 11px;
+  color: #aaaab4;
+  overflow-wrap: anywhere;
+}
+.quota-view {
+  min-width: 0;
+}
+.quota-account-picker {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 0 4px;
+  scrollbar-width: thin;
+}
+.quota-account-picker::-webkit-scrollbar {
+  height: 3px;
+}
+.quota-account-picker::-webkit-scrollbar-track {
+  background: transparent;
+}
+.quota-account-picker::-webkit-scrollbar-thumb {
+  background: #565363;
+  border: 0;
+}
+.quota-account-picker button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  max-width: 140px;
+  padding: 5px 9px;
+  border: 1px solid #34343b;
+  border-radius: 8px;
+  background: #18181d;
+  color: #aaaab4;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.quota-account-picker button > span:not(.provider-icon) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quota-account-picker button.selected {
+  color: #e7e3ff;
+  background: #262333;
+  border-color: #544d74;
+}
+.quota-detail {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 6px 2px 0;
+  min-width: 0;
+}
+.quota-rings {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 92px;
+  height: 92px;
+}
+.quota-rings svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.quota-ring-track,
+.quota-ring-progress {
+  fill: none;
+  stroke-width: 6;
+}
+.quota-ring-track {
+  stroke: #292931;
+}
+.quota-ring-progress {
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.35s ease;
+}
+.quota-ring-0 {
+  stroke: #a99af4;
+}
+.quota-ring-1 {
+  stroke: #70d1bf;
+}
+.quota-ring-center {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  color: #f1effa;
+}
+.quota-ring-center strong {
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.quota-ring-center small {
+  color: #92919f;
+  font-size: 9px;
+}
+.quota-rings-compact {
+  width: 25px;
+  height: 25px;
+}
+.quota-rings-compact .quota-ring-track,
+.quota-rings-compact .quota-ring-progress {
+  stroke-width: 9;
+}
+.quota-detail-copy {
+  min-width: 0;
+  flex: 1;
+}
+.quota-detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #f1f1f4;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 8px;
+}
+.quota-detail-heading > span:not(.provider-icon) {
+  color: #898995;
+  font-size: 10px;
+  font-weight: 400;
+}
+.provider-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+  color: white;
+}
+.provider-icon img,
+.provider-icon svg {
+  display: block;
+  width: 70%;
+  height: 70%;
+}
+.provider-icon img {
+  filter: brightness(0) invert(1);
+}
+.provider-icon-tiny {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.provider-icon-tiny img,
+.provider-icon-tiny svg {
+  width: 9px;
+  height: 9px;
+}
+.provider-icon-normal {
+  width: 18px;
+  height: 18px;
+}
+.provider-icon-large {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+.provider-icon-codex {
+  background: #375d53;
+}
+.provider-icon-kimi {
+  background: #425b86;
+}
+.provider-icon-deepseek {
+  background: #5366ae;
+}
+.provider-icon-minimax {
+  background: #9a555e;
+}
+.provider-icon-openrouter {
+  background: #5c5670;
+}
+.provider-icon-unknown {
+  background: #494952;
+}
+.quota-ring-logo {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+.quota-ring-logo .provider-icon {
+  background: #101015;
+}
+.quota-metrics {
+  display: grid;
+  gap: 8px;
+  max-height: 83px;
+  overflow-y: auto;
+}
+.quota-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  color: #abaab5;
+  font-size: 10px;
+}
+.quota-metric-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.quota-metric strong {
+  color: #f3f2f7;
+  font-size: 13px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.quota-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  vertical-align: 1px;
+  border-radius: 50%;
+}
+.quota-dot-0 {
+  background: #a99af4;
+}
+.quota-dot-1 {
+  background: #70d1bf;
+}
+.quota-message {
+  color: #aaaab4;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.quota-balance-icon {
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid #303038;
+  border-radius: 22px;
+  background: #19191f;
+  color: #a9a1ca;
+}
+.quota-balance-icon .provider-icon-large {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+:root[data-large-display="true"] .quota-account-picker button,
+:root[data-large-display="true"] .quota-metric,
+:root[data-large-display="true"] .quota-message {
+  font-size: 11px;
+}
+:root[data-large-display="true"] .quota-detail-heading {
+  font-size: 13px;
+}
+:root[data-settings-theme="light"] .ai-account {
+  border-color: #dedee5;
+}
+:root[data-settings-theme="light"] .ai-account-copy small,
+:root[data-settings-theme="light"] .ai-account-copy span {
+  color: #60616b;
+}
+:root[data-large-display="true"] .ai-account-copy strong {
+  font-size: 14px;
+}
+:root[data-large-display="true"] .ai-account-copy small,
+:root[data-large-display="true"] .ai-account-copy span,
+:root[data-large-display="true"] .ai-account-actions button,
+:root[data-large-display="true"] .island-ai-value {
+  font-size: 12px;
+}
+:root[data-large-display="true"] .island-ai-name {
+  font-size: 13px;
+}
+
+/* Extra room is based on logical screen size, after OS scaling. */
+:root[data-large-display="true"] .settings-shell {
+  font-size: 14px;
+}
+:root[data-large-display="true"] .settings-nav-item,
+:root[data-large-display="true"] .settings-header p,
+:root[data-large-display="true"] .preference-row strong,
+:root[data-large-display="true"] .status-row-copy strong,
+:root[data-large-display="true"] .mail-form label,
+:root[data-large-display="true"] .mail-form input,
+:root[data-large-display="true"] .mail-form select,
+:root[data-large-display="true"] .storage-path {
+  font-size: 14px;
+}
+:root[data-large-display="true"] .settings-card-heading h2,
+:root[data-large-display="true"] .card-topline h2,
+:root[data-large-display="true"] .status-settings-heading h2 {
+  font-size: 15px;
+}
+:root[data-large-display="true"] .settings-nav-caption,
+:root[data-large-display="true"] .sidebar-bottom,
+:root[data-large-display="true"] .sidebar-bottom small,
+:root[data-large-display="true"] .settings-eyebrow,
+:root[data-large-display="true"] .card-kicker,
+:root[data-large-display="true"] .autosave-status,
+:root[data-large-display="true"] .preview-live,
+:root[data-large-display="true"] .preview-caption,
+:root[data-large-display="true"] .preference-row small,
+:root[data-large-display="true"] .range-control,
+:root[data-large-display="true"] .behavior-card .settings-card-heading p,
+:root[data-large-display="true"] .behavior-hint,
+:root[data-large-display="true"] .delay-options button,
+:root[data-large-display="true"] .status-row-copy small,
+:root[data-large-display="true"] .status-row-copy span,
+:root[data-large-display="true"] .status-settings-heading p,
+:root[data-large-display="true"] .status-settings-hint,
+:root[data-large-display="true"] .status-refresh,
+:root[data-large-display="true"] .status-preview-button,
+:root[data-large-display="true"] .storage-card > p,
+:root[data-large-display="true"] .storage-card .storage-hint,
+:root[data-large-display="true"] .mail-settings > p,
+:root[data-large-display="true"] .mail-form > p,
+:root[data-large-display="true"] .mail-account small,
+:root[data-large-display="true"] .mail-form-footer span,
+:root[data-large-display="true"] .mail-form-footer button,
+:root[data-large-display="true"] .about-card p,
+:root[data-large-display="true"] .about-version,
+:root[data-large-display="true"] .settings-footer,
+:root[data-large-display="true"] .settings-footer button {
+  font-size: 12px;
+}
+:root[data-large-display="true"] .is-expanded .island-panel {
+  height: 292px;
+}
+:root[data-large-display="true"] .island-tabs button,
+:root[data-large-display="true"] .compact-primary,
+:root[data-large-display="true"] .music-lyric,
+:root[data-large-display="true"] .media-copy strong,
+:root[data-large-display="true"] .timer-heading span,
+:root[data-large-display="true"] .custom-timer label,
+:root[data-large-display="true"] .island-mail-subject {
+  font-size: 13px;
+}
+:root[data-large-display="true"] .compact-secondary,
+:root[data-large-display="true"] .compact-idle-copy span:last-child,
+:root[data-large-display="true"] .media-playing-mark,
+:root[data-large-display="true"] .media-copy span,
+:root[data-large-display="true"] .media-times,
+:root[data-large-display="true"] .media-timeline-unavailable,
+:root[data-large-display="true"] .system-notice-banner,
+:root[data-large-display="true"] .island-mail-heading,
+:root[data-large-display="true"] .island-mail-heading small,
+:root[data-large-display="true"] .island-mail-empty,
+:root[data-large-display="true"] .island-mail-navigation,
+:root[data-large-display="true"] .duration-error {
+  font-size: 11px;
+}
+:root[data-large-display="true"] .timer-controls button,
+:root[data-large-display="true"] .custom-timer input,
+:root[data-large-display="true"] .custom-timer button,
+:root[data-large-display="true"] .island-expanded-title {
+  font-size: 13px;
+}
+:root[data-large-display="true"] .music-lyric {
+  height: 24px;
+}
+
+/* Explicit light surfaces and text for every settings section. */
+:root[data-settings-theme="light"] .settings-brand-mark,
+:root[data-settings-theme="light"] .behavior-icon,
+:root[data-settings-theme="light"] .status-row-icon {
+  color: #53545d;
+  background: #ededf1;
+  border-color: #d9d9e0;
+}
+:root[data-settings-theme="light"] .sidebar-bottom,
+:root[data-settings-theme="light"] .mail-account,
+:root[data-settings-theme="light"] .about-version {
+  border-color: #dedee5;
+}
+:root[data-settings-theme="light"] .settings-nav-caption,
+:root[data-settings-theme="light"] .settings-eyebrow,
+:root[data-settings-theme="light"] .card-kicker,
+:root[data-settings-theme="light"] .autosave-status,
+:root[data-settings-theme="light"] .preview-caption,
+:root[data-settings-theme="light"] .preview-live,
+:root[data-settings-theme="light"] .range-control,
+:root[data-settings-theme="light"] .status-row-copy span,
+:root[data-settings-theme="light"] .status-settings-hint,
+:root[data-settings-theme="light"] .storage-hint,
+:root[data-settings-theme="light"] .mail-form label,
+:root[data-settings-theme="light"] .mail-form-footer span,
+:root[data-settings-theme="light"] .about-version,
+:root[data-settings-theme="light"] .about-version span,
+:root[data-settings-theme="light"] .settings-footer,
+:root[data-settings-theme="light"] .sidebar-bottom {
+  color: #60616b;
+}
+:root[data-settings-theme="light"] .behavior-hint,
+:root[data-settings-theme="light"] .storage-path {
+  color: #464751;
+  background: #f5f5f8;
+  border-color: #dedee5;
+}
+:root[data-settings-theme="light"] .toggle-input {
+  background: #c4c5cd;
+  border-color: #b4b5be;
+}
+:root[data-settings-theme="light"] .toggle-input::after {
+  background: white;
+}
+:root[data-settings-theme="light"] .toggle-input:checked {
+  background: #34353d;
+  border-color: #34353d;
+}
+:root[data-settings-theme="light"] .toggle-input:checked::after {
+  background: white;
+}
+:root[data-settings-theme="light"] .settings-shell input[type="range"] {
+  accent-color: #454650;
 }

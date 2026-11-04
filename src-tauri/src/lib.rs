@@ -3,7 +3,13 @@ use serde::Serialize;
 use tauri::LogicalSize;
 use tauri::{Manager, PhysicalPosition, WindowEvent};
 
+mod ai_quota;
+mod lyrics;
 mod mail;
+#[cfg(target_os = "windows")]
+mod netease_log;
+#[cfg(target_os = "windows")]
+mod netease_timeline;
 mod storage;
 mod system_status;
 
@@ -15,6 +21,7 @@ struct MediaState {
     playing: bool,
     position_seconds: Option<f64>,
     duration_seconds: Option<f64>,
+    can_seek: bool,
 }
 
 #[cfg(target_os = "windows")]
@@ -53,15 +60,51 @@ fn get_media_state() -> Result<Option<MediaState>, String> {
             .and_then(|info| info.PlaybackStatus())
             .map_err(|e| e.to_string())?;
         let timeline = session.GetTimelineProperties().ok();
-        let position = timeline
+        let mut position = timeline
             .as_ref()
             .and_then(|t| t.Position().ok())
             .map(|t| t.Duration as f64 / 10_000_000.0);
-        let duration = timeline
+        let mut duration = timeline
             .as_ref()
             .and_then(|t| t.EndTime().ok())
             .map(|t| t.Duration as f64 / 10_000_000.0)
             .filter(|t| *t > 0.0);
+        if status == PlaybackStatus::Playing
+            && duration.is_some()
+            && let (Some(pos), Some(updated)) = (
+                position.as_mut(),
+                timeline.as_ref().and_then(|t| t.LastUpdatedTime().ok()),
+            )
+        {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|t| t.as_secs_f64() + 11_644_473_600.0);
+            if let Some(lag) = now
+                .map(|n| n - updated.UniversalTime as f64 / 10_000_000.0)
+                .filter(|lag| (0.0..86_400.0).contains(lag))
+            {
+                *pos = (*pos + lag).min(duration.unwrap_or(*pos));
+            }
+        }
+        let source = session
+            .SourceAppUserModelId()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let mut used_fallback = false;
+        if source.eq_ignore_ascii_case("cloudmusic.exe") && duration.is_none() {
+            let title = properties
+                .Title()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            if let Some((current, total)) =
+                netease_timeline::timeline().or_else(|| netease_log::timeline(&title))
+            {
+                position = Some(current);
+                duration = Some(total);
+                used_fallback = true;
+            }
+        }
         Ok(Some(MediaState {
             title: properties
                 .Title()
@@ -74,10 +117,46 @@ fn get_media_state() -> Result<Option<MediaState>, String> {
             playing: status == PlaybackStatus::Playing,
             position_seconds: position,
             duration_seconds: duration,
+            can_seek: !used_fallback
+                && session
+                    .GetPlaybackInfo()
+                    .and_then(|info| info.Controls())
+                    .and_then(|controls| controls.IsPlaybackPositionEnabled())
+                    .unwrap_or(false),
         }))
     }
     #[cfg(not(target_os = "windows"))]
     Ok(None)
+}
+
+#[tauri::command]
+async fn seek_media(position_seconds: f64) -> Result<bool, String> {
+    if !position_seconds.is_finite()
+        || !(0.0..=i64::MAX as f64 / 10_000_000.0).contains(&position_seconds)
+    {
+        return Err("invalid media position".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            use std::future::IntoFuture;
+            let session = current_media_session()?;
+            let timeline = session.GetTimelineProperties().map_err(|e| e.to_string())?;
+            let end = timeline.EndTime().map_err(|e| e.to_string())?.Duration;
+            let ticks = (position_seconds * 10_000_000.0).round() as i64;
+            if end <= 0 || ticks > end {
+                return Err("media position outside timeline".into());
+            }
+            let operation = session
+                .TryChangePlaybackPositionAsync(ticks)
+                .map_err(|e| e.to_string())?;
+            futures::executor::block_on(operation.into_future()).map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "windows"))]
+    Err("media controls are only available on Windows".into())
 }
 
 #[tauri::command]
@@ -295,7 +374,7 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
         let old_position = window.outer_position().map_err(|e| e.to_string())?;
         let old_size = window.outer_size().map_err(|e| e.to_string())?;
         let (width, height) = if expanded {
-            (360.0, 280.0)
+            (360.0, 320.0)
         } else {
             (300.0, 64.0)
         };
@@ -329,6 +408,13 @@ pub fn run() {
             get_media_state,
             get_media_artwork,
             control_media,
+            seek_media,
+            lyrics::get_lyrics,
+            ai_quota::list_ai_accounts,
+            ai_quota::add_ai_account,
+            ai_quota::remove_ai_account,
+            ai_quota::pin_ai_account,
+            ai_quota::query_ai_quota,
             system_status::get_system_status,
             system_status::get_device_status,
             storage::load_appearance,

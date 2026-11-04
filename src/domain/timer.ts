@@ -33,6 +33,19 @@ export function resumeTimer(timer: TimerState, now: number): TimerState {
     : timer;
 }
 
+/** Extend an active timer without changing whether it is paused. */
+export function extendTimer(
+  timer: TimerState,
+  milliseconds: number,
+): TimerState {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return timer;
+  if (timer.status === "running")
+    return { ...timer, endsAt: timer.endsAt + milliseconds };
+  if (timer.status === "paused")
+    return { ...timer, remainingMs: timer.remainingMs + milliseconds };
+  return timer;
+}
+
 export function formatRemaining(milliseconds: number): string {
   const seconds = Math.ceil(Math.max(0, milliseconds) / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;

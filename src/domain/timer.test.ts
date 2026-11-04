@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatRemaining,
+  extendTimer,
   parseDuration,
   pauseTimer,
   remainingMilliseconds,
@@ -39,6 +40,22 @@ describe("countdown", () => {
   it("finishes if paused after the deadline", () => {
     expect(pauseTimer({ status: "running", endsAt: 1000 }, 2000)).toEqual({
       status: "finished",
+    });
+  });
+  it("extends active timers without resuming a paused timer", () => {
+    expect(extendTimer({ status: "running", endsAt: 5000 }, 60000)).toEqual({
+      status: "running",
+      endsAt: 65000,
+    });
+    expect(extendTimer({ status: "paused", remainingMs: 3000 }, 60000)).toEqual(
+      { status: "paused", remainingMs: 63000 },
+    );
+    expect(extendTimer({ status: "finished" }, 60000)).toEqual({
+      status: "finished",
+    });
+    expect(extendTimer({ status: "running", endsAt: 5000 }, NaN)).toEqual({
+      status: "running",
+      endsAt: 5000,
     });
   });
 });

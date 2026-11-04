@@ -9,7 +9,7 @@ use std::{
 use tauri::{Manager, State};
 
 const DB_NAME: &str = "dynamic-island.sqlite3";
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Serialize, Deserialize)]
 struct Bootstrap {
@@ -21,6 +21,16 @@ pub struct Inner {
     pub(crate) connection: Connection,
     directory: PathBuf,
     bootstrap: PathBuf,
+}
+
+#[cfg(test)]
+pub(crate) fn memory_storage() -> Storage {
+    let connection = initialize_connection(Connection::open_in_memory().unwrap()).unwrap();
+    Storage(Mutex::new(Inner {
+        connection,
+        directory: PathBuf::new(),
+        bootstrap: PathBuf::new(),
+    }))
 }
 
 fn open_database(path: &Path) -> Result<Connection, String> {
@@ -45,6 +55,11 @@ fn initialize_connection(mut conn: Connection) -> Result<Connection, String> {
     } else if version == 1 {
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         tx.execute_batch("ALTER TABLE mail_accounts ADD COLUMN uid_validity INTEGER NOT NULL DEFAULT 0; ALTER TABLE mail_accounts ADD COLUMN last_uid INTEGER NOT NULL DEFAULT 0; PRAGMA user_version = 2;").map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+    if version < 3 {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch("CREATE TABLE ai_accounts (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, name TEXT NOT NULL, secret BLOB NOT NULL, pinned INTEGER NOT NULL DEFAULT 0); PRAGMA user_version = 3;").map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
     }
     Ok(conn)
@@ -154,7 +169,11 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_u64())
         .filter(|v| [0, 1, 3, 5, 10, 15].contains(v));
-    if value.get("version").and_then(|v| v.as_u64()) != Some(2)
+    if value.get("version").and_then(|v| v.as_u64()) != Some(3)
+        || !matches!(
+            value.get("theme").and_then(|v| v.as_str()),
+            Some("system" | "light" | "dark")
+        )
         || scale.is_none()
         || delay.is_none()
         || value.get("showClock").and_then(|v| v.as_bool()).is_none()
@@ -307,6 +326,11 @@ fn open_existing_directory(storage: &Storage, directory: String) -> Result<Strin
     check
         .prepare(account_columns)
         .map_err(|_| "数据库结构无效，未切换数据目录")?;
+    if version >= 3 {
+        check
+            .prepare("SELECT id,provider,name,secret,pinned FROM ai_accounts LIMIT 0")
+            .map_err(|_| "数据库结构无效，未切换数据目录")?;
+    }
     drop(check);
     let connection = initialize_connection(
         Connection::open_with_flags(&target, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
@@ -390,8 +414,8 @@ mod tests {
             .unwrap();
         drop(conn);
         assert!(open_database(&path).is_err());
-        assert!(validate_appearance(&serde_json::json!({"version": 2, "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_ok());
-        assert!(validate_appearance(&serde_json::json!({"version": 3, "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_ok());
+        assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "invalid", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
     }
 
     #[test]
@@ -414,12 +438,35 @@ mod tests {
                 .connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            2
+            3
         );
         let conn = Connection::open(broken.join(DB_NAME)).unwrap();
         conn.execute_batch("CREATE TABLE settings (bad TEXT); CREATE TABLE mail_accounts (bad TEXT); PRAGMA user_version = 2;").unwrap();
         drop(conn);
         assert!(open_existing_directory(&storage, broken.to_string_lossy().into_owned()).is_err());
         assert!(broken.join(DB_NAME).exists());
+    }
+
+    #[test]
+    fn upgrades_v2_without_losing_existing_settings() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL); CREATE TABLE mail_accounts (id TEXT PRIMARY KEY NOT NULL, email TEXT NOT NULL, host TEXT NOT NULL, port INTEGER NOT NULL, uid_validity INTEGER NOT NULL, last_uid INTEGER NOT NULL); INSERT INTO settings VALUES ('example', 'kept'); PRAGMA user_version = 2;").unwrap();
+        let conn = initialize_connection(conn).unwrap();
+        assert_eq!(
+            conn.query_row("SELECT value FROM settings WHERE key='example'", [], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap(),
+            "kept"
+        );
+        assert_eq!(
+            conn.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        assert!(
+            conn.prepare("SELECT id,provider,name,secret,pinned FROM ai_accounts")
+                .is_ok()
+        );
     }
 }

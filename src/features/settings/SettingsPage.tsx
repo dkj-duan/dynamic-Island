@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AppWindow,
   ChevronRight,
@@ -9,13 +9,16 @@ import {
   Bell,
   Database,
   Mail,
+  Bot,
 } from "lucide-react";
 import type { AppearanceSettings } from "../../domain/settings";
 import { StatusSettings } from "./StatusSettings";
 import { StorageSettings } from "./StorageSettings";
 import { MailSettings } from "./MailSettings";
+import { AiSettings } from "./AiSettings";
 
-type Page = "appearance" | "behavior" | "status" | "mail" | "storage" | "about";
+type Page =
+  "appearance" | "behavior" | "status" | "mail" | "ai" | "storage" | "about";
 interface Props {
   appearance: AppearanceSettings;
   onAppearanceChange: (value: AppearanceSettings) => void;
@@ -33,6 +36,7 @@ const navItems: { id: Page; label: string; icon: typeof Palette }[] = [
   { id: "behavior", label: "交互与行为", icon: MousePointer2 },
   { id: "status", label: "状态提醒", icon: Bell },
   { id: "mail", label: "邮箱提醒", icon: Mail },
+  { id: "ai", label: "AI 额度", icon: Bot },
   { id: "storage", label: "数据与存储", icon: Database },
   { id: "about", label: "应用信息", icon: CircleHelp },
 ];
@@ -49,6 +53,22 @@ export function SettingsPage({
   onStorageChanged,
 }: Props) {
   const [page, setPage] = useState<Page>("appearance");
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () =>
+      (document.documentElement.dataset.settingsTheme =
+        appearance.theme === "system"
+          ? media.matches
+            ? "dark"
+            : "light"
+          : appearance.theme);
+    update();
+    media.addEventListener("change", update);
+    return () => {
+      media.removeEventListener("change", update);
+      delete document.documentElement.dataset.settingsTheme;
+    };
+  }, [appearance.theme]);
   return (
     <div className="settings-shell">
       <aside className="settings-sidebar">
@@ -96,7 +116,9 @@ export function SettingsPage({
                       ? "DATA"
                       : page === "mail"
                         ? "MAIL"
-                        : "ABOUT"}
+                        : page === "ai"
+                          ? "AI QUOTA"
+                          : "ABOUT"}
             </div>
             <h1>
               {page === "appearance"
@@ -109,7 +131,9 @@ export function SettingsPage({
                       ? "数据与存储"
                       : page === "mail"
                         ? "邮箱提醒"
-                        : "应用信息"}
+                        : page === "ai"
+                          ? "AI 额度"
+                          : "应用信息"}
             </h1>
             <p>
               {page === "appearance"
@@ -122,7 +146,9 @@ export function SettingsPage({
                       ? "管理应用数据的存放位置。"
                       : page === "mail"
                         ? "管理邮箱账户和验证码提醒。"
-                        : "关于灵动岛桌面工具。"}
+                        : page === "ai"
+                          ? "管理 AI 账户并查看余额与额度。"
+                          : "关于灵动岛桌面工具。"}
             </p>
           </div>
           <div className="autosave-status" role="status">
@@ -136,6 +162,35 @@ export function SettingsPage({
         </header>
         {page === "appearance" && (
           <>
+            <section className="settings-card theme-card">
+              <div className="settings-card-heading">
+                <div>
+                  <span className="card-kicker">THEME</span>
+                  <h2>界面主题</h2>
+                </div>
+              </div>
+              <div className="delay-options" role="group" aria-label="界面主题">
+                {(
+                  [
+                    ["system", "跟随系统"],
+                    ["light", "浅色"],
+                    ["dark", "深色"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    disabled={!canEdit}
+                    aria-pressed={appearance.theme === value}
+                    className={appearance.theme === value ? "active" : ""}
+                    onClick={() =>
+                      onAppearanceChange({ ...appearance, theme: value })
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
             <section className="appearance-preview-card">
               <div className="card-topline">
                 <div>
@@ -266,6 +321,7 @@ export function SettingsPage({
           />
         )}
         {page === "mail" && <MailSettings />}
+        {page === "ai" && <AiSettings />}
         {page === "about" && (
           <section className="settings-card about-card">
             <div className="about-mark">

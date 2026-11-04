@@ -33,6 +33,7 @@ rusqlite = { version = "0.37", features = ["bundled", "backup"] }
 tauri-plugin-dialog = "2"
 tempfile = "3"
 zeroize = "1"
+ureq = { version = "2.12", default-features = false, features = ["native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
 base64 = "0.22"
@@ -40,7 +41,7 @@ keyring = { version = "3", features = ["windows-native"] }
 tauri-plugin-single-instance = "2"
 wmi = "0.18"
 windows-collections = "0.3"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Security_Cryptography"] }
 windows = { version = "0.62", features = ["Media_Control", "Storage_Streams", "Devices_Bluetooth", "Devices_Enumeration", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Power"] }
 
 

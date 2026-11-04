@@ -4,3 +4,4 @@ src-tauri/target
 src-tauri/gen
 package-lock.json
 src-tauri/Cargo.lock
+src/assets/ai/SIMPLE-ICONS-LICENSE.md

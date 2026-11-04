@@ -61,7 +61,7 @@ export default function App() {
     revision.current += 1;
     setStatus("正在同步…");
     try {
-      await emitTo("island", "appearance-changed", { version: 2, ...value });
+      await emitTo("island", "appearance-changed", { version: 3, ...value });
     } catch {
       setStatus("预览已更新，灵动岛将在保存后同步");
     }
@@ -72,7 +72,7 @@ export default function App() {
       await saveAppearance(appearance);
       try {
         await emitTo("island", "appearance-changed", {
-          version: 2,
+          version: 3,
           ...appearance,
         });
         setDirty(false);
@@ -93,8 +93,9 @@ export default function App() {
     setDirty(false);
     setStatus("已切换数据目录");
     await Promise.all([
-      emitTo("island", "appearance-changed", { version: 2, ...value }),
+      emitTo("island", "appearance-changed", { version: 3, ...value }),
       emitTo("island", "mail-accounts-changed"),
+      emitTo("island", "ai-accounts-changed"),
     ]);
   }
   return (
