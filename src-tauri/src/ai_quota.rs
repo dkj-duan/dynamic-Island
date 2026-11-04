@@ -343,23 +343,58 @@ fn parse_quota(provider: &str, data: &serde_json::Value) -> Result<Vec<QuotaItem
     }
 }
 
+#[cfg(windows)]
+fn codex_installations(local_app_data: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let bin = local_app_data.join("OpenAI").join("Codex").join("bin");
+    let mut candidates: Vec<_> = std::fs::read_dir(bin)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .map(|entry| {
+            (
+                entry.metadata().and_then(|m| m.modified()).ok(),
+                entry.path().join("codex.exe"),
+            )
+        })
+        .filter(|(_, path)| path.is_file())
+        .collect();
+    candidates.sort_by_key(|entry| std::cmp::Reverse(entry.0));
+    let mut paths: Vec<_> = candidates.into_iter().map(|(_, path)| path).collect();
+    let alias = local_app_data
+        .join("Microsoft")
+        .join("WindowsApps")
+        .join("codex.exe");
+    if alias.is_file() {
+        paths.push(alias);
+    }
+    paths
+}
+
 fn read_local_codex() -> Result<Vec<QuotaItem>, String> {
     use std::io::{BufRead, BufReader, Write};
     use std::process::{Command, Stdio};
-    let mut command = Command::new("codex");
-    command
-        .args(["app-server", "--listen", "stdio://"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+    let mut executables = vec![std::path::PathBuf::from("codex")];
     #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        executables.extend(codex_installations(std::path::Path::new(&local)));
     }
-    let mut child = command
-        .spawn()
-        .map_err(|_| "找不到 Codex CLI，请安装并登录".to_string())?;
+    let mut child = executables
+        .into_iter()
+        .find_map(|executable| {
+            let mut command = Command::new(executable);
+            command
+                .args(["app-server", "--listen", "stdio://"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null());
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                command.creation_flags(0x08000000);
+            }
+            command.spawn().ok()
+        })
+        .ok_or("无法启动 Codex CLI，请检查安装及登录状态")?;
     let result = (|| {
         let mut input = child.stdin.take().ok_or("无法启动 Codex 额度查询")?;
         let output = child.stdout.take().ok_or("无法启动 Codex 额度查询")?;
@@ -497,6 +532,17 @@ pub async fn query_ai_quota(
 mod tests {
     use super::*;
     use serde_json::json;
+    #[cfg(windows)]
+    #[test]
+    fn finds_codex_desktop_install_without_path() {
+        let root = tempfile::tempdir().unwrap();
+        let bin = root.path().join("OpenAI/Codex/bin");
+        std::fs::create_dir_all(bin.join("version-a")).unwrap();
+        std::fs::write(bin.join("version-a/codex.exe"), b"test").unwrap();
+        std::fs::create_dir_all(bin.join("unrelated")).unwrap();
+        let found = codex_installations(root.path());
+        assert_eq!(found, vec![bin.join("version-a/codex.exe")]);
+    }
     #[test]
     fn codex_windows_are_reported_as_remaining() {
         let items = parse_quota("codex-local", &json!({"result":{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"secondary":{"usedPercent":100,"windowDurationMins":10080}}}})).unwrap();
