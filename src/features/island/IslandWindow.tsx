@@ -51,7 +51,14 @@ function MediaWave({
       aria-hidden="true"
     >
       {Array.from({ length: compact ? 4 : 32 }, (_, index) => (
-        <i key={index} />
+        <i
+          key={index}
+          style={{
+            height: `${32 + ((index * 37 + 19) % 65)}%`,
+            animationDuration: `${0.8 + ((index * 29 + 13) % 85) / 100}s`,
+            animationDelay: `${-((index * 47 + 11) % 130) / 100}s`,
+          }}
+        />
       ))}
     </span>
   );

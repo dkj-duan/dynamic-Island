@@ -815,29 +815,11 @@ html.island-window #root {
   background: currentColor;
   transform-origin: center;
 }
-.media-wave i:nth-child(4n + 2) {
-  height: 68%;
-  animation-delay: -0.45s;
-}
-.media-wave i:nth-child(4n + 3) {
-  height: 92%;
-  animation-delay: -0.8s;
-}
-.media-wave i:nth-child(4n) {
-  height: 48%;
-  animation-delay: -0.2s;
-}
 .media-wave.is-playing i {
-  animation: media-wave-pulse 1.15s ease-in-out infinite alternate;
-}
-.media-wave.is-playing i:nth-child(4n + 2) {
-  animation-delay: -0.45s;
-}
-.media-wave.is-playing i:nth-child(4n + 3) {
-  animation-delay: -0.8s;
-}
-.media-wave.is-playing i:nth-child(4n) {
-  animation-delay: -0.2s;
+  animation-name: media-wave-pulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
 }
 .media-wave-compact {
   width: 13px;
@@ -846,10 +828,16 @@ html.island-window #root {
   margin: 0;
 }
 @keyframes media-wave-pulse {
-  from {
-    transform: scaleY(0.4);
+  0% {
+    transform: scaleY(0.3);
   }
-  to {
+  32% {
+    transform: scaleY(0.85);
+  }
+  57% {
+    transform: scaleY(0.5);
+  }
+  100% {
     transform: scaleY(1);
   }
 }
