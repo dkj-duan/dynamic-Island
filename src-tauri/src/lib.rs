@@ -528,6 +528,20 @@ fn schedule_position_save(app: &tauri::AppHandle) {
     });
 }
 
+/// Follows the settings window chrome to the chosen light/dark theme.
+#[tauri::command]
+fn set_window_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不支持该操作".into());
+    }
+    let theme = match theme.as_str() {
+        "light" => Some(tauri::Theme::Light),
+        "dark" => Some(tauri::Theme::Dark),
+        _ => None,
+    };
+    window.set_theme(theme).map_err(|e| e.to_string())
+}
+
 /// Puts the island back above the primary monitor's centre (settings window only).
 #[tauri::command]
 fn reset_island_position(
@@ -637,6 +651,7 @@ pub fn run() {
             set_island_expanded,
             start_island_drag,
             reset_island_position,
+            set_window_theme,
             get_media_state,
             get_media_artwork,
             control_media,

@@ -11,6 +11,7 @@ describe("parseAppearance", () => {
       showClock: false,
       autoCollapseSeconds: 3,
       expandTrigger: "click",
+      language: "zh-CN",
     });
   });
   it("migrates version 2 and validates the selected theme", () => {

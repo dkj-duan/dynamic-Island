@@ -12,14 +12,34 @@ import {
   loadAppearance,
   saveAppearance,
 } from "./services/settingsRepository";
+import { setLanguage, t } from "./services/i18n";
 import "./styles/index.css";
 
 export default function App() {
   const [appearance, setAppearance] = useState(defaultAppearance);
-  const [status, setStatus] = useState("正在读取设置…");
+  const [status, setStatus] = useState(() => t("正在读取设置…"));
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // Language feeds the shared string table; the theme drives the native
+  // title bar so it follows the light/dark setting (including "system").
+  setLanguage(appearance.language);
+  useEffect(() => {
+    if (!hasDesktopStorage) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const theme =
+        appearance.theme === "system"
+          ? media.matches
+            ? "dark"
+            : "light"
+          : appearance.theme;
+      void invoke("set_window_theme", { theme }).catch(() => undefined);
+    };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [appearance.theme]);
   const revision = useRef(0);
   // The preview mirrors what the island actually shows: the pinned account's
   // ring. One read when settings open, no polling.
@@ -59,12 +79,14 @@ export default function App() {
         setAppearance(value);
         setReady(true);
         setStatus(
-          hasDesktopStorage ? "设置已读取" : "浏览器预览：设置不会保存",
+          hasDesktopStorage ? t("设置已读取") : t("浏览器预览：设置不会保存"),
         );
       })
       .catch(() => {
         if (active)
-          setStatus("设置读取失败，已暂停保存以保护原有数据。请检查配置文件。");
+          setStatus(
+            t("设置读取失败，已暂停保存以保护原有数据。请检查配置文件。"),
+          );
       });
     return () => {
       active = false;
@@ -79,10 +101,10 @@ export default function App() {
         await saveAppearance(appearance);
         if (revision.current === currentRevision) {
           setDirty(false);
-          setStatus("已自动保存并同步");
+          setStatus(t("已自动保存并同步"));
         }
       } catch {
-        setStatus("自动保存失败，请重试");
+        setStatus(t("自动保存失败，请重试"));
       } finally {
         setSaving(false);
       }
@@ -93,11 +115,11 @@ export default function App() {
     setAppearance(value);
     setDirty(true);
     revision.current += 1;
-    setStatus("正在同步…");
+    setStatus(t("正在同步…"));
     try {
-      await emitTo("island", "appearance-changed", { version: 4, ...value });
+      await emitTo("island", "appearance-changed", { version: 5, ...value });
     } catch {
-      setStatus("预览已更新，灵动岛将在保存后同步");
+      setStatus(t("预览已更新，灵动岛将在保存后同步"));
     }
   }
   async function reloadFromStorage() {
@@ -105,9 +127,9 @@ export default function App() {
     revision.current += 1;
     setAppearance(value);
     setDirty(false);
-    setStatus("已切换数据目录");
+    setStatus(t("已切换数据目录"));
     await Promise.all([
-      emitTo("island", "appearance-changed", { version: 4, ...value }),
+      emitTo("island", "appearance-changed", { version: 5, ...value }),
       emitTo("island", "mail-accounts-changed"),
       emitTo("island", "ai-accounts-changed"),
     ]);

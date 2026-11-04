@@ -17,7 +17,7 @@ export async function saveAppearance(
   appearance: AppearanceSettings,
 ): Promise<void> {
   if (!hasDesktopStorage) throw new Error("浏览器预览不支持保存设置");
-  const value = { version: 4, ...appearance };
+  const value = { version: 5, ...appearance };
   parseAppearance(value);
   await invoke("save_appearance", { value });
 }

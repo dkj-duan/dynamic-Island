@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { useAiQuota } from "../ai/useAiQuota";
 import { ProviderIcon } from "../ai/ProviderIcon";
 import { Select } from "./Select";
+import { t } from "../../services/i18n";
 
 const providers = [
   {
@@ -51,7 +52,7 @@ export function AiSettings() {
     try {
       await emitTo("island", "ai-accounts-changed");
     } catch {
-      setMessage("已保存；灵动岛将在下次刷新时更新");
+      setMessage(t("已保存；灵动岛将在下次刷新时更新"));
     }
     await reload();
   }
@@ -72,7 +73,7 @@ export function AiSettings() {
       });
       setSecret("");
       setName("");
-      setMessage("账户已保存并开始查询");
+      setMessage(t("账户已保存并开始查询"));
       await changed();
     } catch (error) {
       setMessage(String(error));
@@ -96,22 +97,24 @@ export function AiSettings() {
     <div className="settings-columns">
       <section className="settings-card">
         <div className="card-head">
-          <h2>账户与额度</h2>
+          <h2>{t("账户与额度")}</h2>
           <button
             className="btn btn-quiet"
             disabled={!desktop || busy}
             onClick={() => void reload()}
           >
             <RefreshCw size={13} />
-            刷新
+            {t("刷新")}
           </button>
         </div>
         <p className="card-desc">
-          每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。
+          {t("每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。")}
         </p>
-        {!desktop && <p className="empty-state">请在桌面应用中配置账户。</p>}
+        {!desktop && (
+          <p className="empty-state">{t("请在桌面应用中配置账户。")}</p>
+        )}
         {desktop && accounts.length === 0 && (
-          <p className="empty-state">尚未添加账户。</p>
+          <p className="empty-state">{t("尚未添加账户。")}</p>
         )}
         {error && (
           <p className="form-note is-error" role="alert">
@@ -126,18 +129,22 @@ export function AiSettings() {
                 <div className="settings-list-copy">
                   <strong>
                     {account.name}
-                    {account.pinned && <span className="tag">常驻</span>}
+                    {account.pinned && <span className="tag">{t("常驻")}</span>}
                   </strong>
                   <small>
-                    {providers.find((p) => p.id === account.provider)?.label ??
-                      account.provider}
+                    {(() => {
+                      const found = providers.find(
+                        (p) => p.id === account.provider,
+                      );
+                      return found ? t(found.label) : account.provider;
+                    })()}
                   </small>
                   <span className="settings-list-value">
                     {results[account.id]?.quota?.items
                       .map((item) => `${item.label} ${item.value}`)
                       .join(" · ") ??
                       results[account.id]?.error ??
-                      "正在查询…"}
+                      t("正在查询…")}
                   </span>
                 </div>
                 <div className="settings-list-actions">
@@ -146,14 +153,14 @@ export function AiSettings() {
                     disabled={busy || account.pinned}
                     onClick={() => void action("pin_ai_account", account.id)}
                   >
-                    {account.pinned ? "已常驻" : "常驻"}
+                    {account.pinned ? t("已常驻") : t("常驻")}
                   </button>
                   <button
                     className="btn btn-quiet"
                     disabled={busy}
                     onClick={() => void action("remove_ai_account", account.id)}
                   >
-                    删除
+                    {t("删除")}
                   </button>
                 </div>
               </div>
@@ -164,16 +171,19 @@ export function AiSettings() {
 
       <section className="settings-card">
         <div className="card-head">
-          <h2>添加账户</h2>
+          <h2>{t("添加账户")}</h2>
         </div>
         <form className="form" onSubmit={(event) => void add(event)}>
           <div className="field">
-            <span>服务</span>
+            <span>{t("服务")}</span>
             <Select
-              ariaLabel="AI 服务"
+              ariaLabel={t("AI 服务")}
               value={provider}
               disabled={!desktop || busy}
-              options={providers.map((p) => ({ value: p.id, label: p.label }))}
+              options={providers.map((p) => ({
+                value: p.id,
+                label: t(p.label),
+              }))}
               onChange={(next) => {
                 setProvider(next);
                 setSecret("");
@@ -181,19 +191,19 @@ export function AiSettings() {
             />
           </div>
           <label className="field">
-            <span>账户名称</span>
+            <span>{t("账户名称")}</span>
             <input
               value={name}
               maxLength={40}
               disabled={!desktop || busy}
               onChange={(event) => setName(event.target.value)}
-              placeholder="例如：个人账户"
+              placeholder={t("例如：个人账户")}
               required
             />
           </label>
           {provider === "kimi-local" && (
             <label className="field">
-              <span>本地服务端口</span>
+              <span>{t("本地服务端口")}</span>
               <input
                 type="number"
                 min="1"
@@ -208,7 +218,7 @@ export function AiSettings() {
           {provider !== "codex-local" && (
             <label className="field">
               <span>
-                {provider === "kimi-local" ? "本地访问令牌" : "查询密钥"}
+                {provider === "kimi-local" ? t("本地访问令牌") : t("查询密钥")}
               </span>
               <input
                 type="password"
@@ -216,15 +226,20 @@ export function AiSettings() {
                 autoComplete="off"
                 disabled={!desktop || busy}
                 onChange={(event) => setSecret(event.target.value)}
-                placeholder="输入该服务的密钥"
+                placeholder={t("输入该服务的密钥")}
                 required
               />
             </label>
           )}
           <p className="form-note">
-            {providers.find((p) => p.id === provider)?.hint}
+            {(() => {
+              const hint = providers.find((p) => p.id === provider)?.hint;
+              return hint ? t(hint) : "";
+            })()}
             {provider !== "codex-local" &&
-              " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。"}
+              t(
+                " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。",
+              )}
           </p>
           <div className="form-footer">
             <span role="status">{message}</span>
@@ -237,7 +252,7 @@ export function AiSettings() {
                 (provider !== "codex-local" && !secret)
               }
             >
-              添加账户
+              {t("添加账户")}
             </button>
           </div>
         </form>

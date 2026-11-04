@@ -49,6 +49,7 @@ import { useAiQuota } from "../ai/useAiQuota";
 import { QuotaRings } from "../ai/QuotaRings";
 import { ProviderIcon } from "../ai/ProviderIcon";
 import { aiProviderName, quotaRings } from "../../domain/aiQuota";
+import { setLanguage, t } from "../../services/i18n";
 
 type MediaState = {
   title: string;
@@ -158,13 +159,14 @@ export function IslandWindow() {
   const capsuleCopied =
     !!capsuleMail?.code &&
     copyStatus?.code === capsuleMail.code &&
-    copyStatus.message === "已复制";
+    copyStatus.message === t("已复制");
   const mailKey = capsuleMail
     ? `${capsuleMail.accountId}|${capsuleMail.subject}|${capsuleMail.code ?? ""}`
     : "";
   const currentCopyStatus =
     selectedMail?.code === copyStatus?.code ? copyStatus?.message : "";
   const [appearance, setAppearance] = useState(defaultAppearance);
+  setLanguage(appearance.language);
   const panel = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<number | null>(null);
   const hoverTimeout = useRef<number | null>(null);
@@ -406,7 +408,7 @@ export function IslandWindow() {
     try {
       await invoke(command);
     } catch {
-      setError("操作失败，请重试");
+      setError(t("操作失败，请重试"));
     }
   }
   function cancelHoverExpand() {
@@ -489,7 +491,7 @@ export function IslandWindow() {
       }
     } catch {
       setExpanded(expanded);
-      setError("窗口调整失败，请重试");
+      setError(t("窗口调整失败，请重试"));
     } finally {
       setTransitioning(false);
     }
@@ -539,7 +541,7 @@ export function IslandWindow() {
     }
     try {
       const applied = await invoke<boolean>("control_media", { action });
-      if (!applied) throw new Error("播放器未响应此操作");
+      if (!applied) throw new Error(t("播放器未响应此操作"));
       setMediaError("");
       window.setTimeout(() => void refreshMedia(), 120);
       window.setTimeout(() => void refreshMedia(), 600);
@@ -550,7 +552,7 @@ export function IslandWindow() {
           ? error
           : error instanceof Error
             ? error.message
-            : "媒体控制失败",
+            : t("媒体控制失败"),
       );
     }
   }
@@ -564,23 +566,23 @@ export function IslandWindow() {
       setMediaNow(mediaSample.current);
       setMedia(state);
     } catch {
-      setMediaError("当前播放器暂不支持调整进度");
+      setMediaError(t("当前播放器暂不支持调整进度"));
     } finally {
       setSeekPreview(null);
     }
   }
   async function copyCode(code: string, expiresAt: number) {
     if (Date.now() >= expiresAt) {
-      setCopyStatus({ code, message: "已过期" });
+      setCopyStatus({ code, message: t("已过期") });
       return;
     }
     try {
       await invoke("copy_mail_code", { code });
-      setCopyStatus({ code, message: "已复制" });
+      setCopyStatus({ code, message: t("已复制") });
       // Let the check mark land before the capsule returns to its normal state.
       window.setTimeout(dismissHighlight, 900);
     } catch {
-      setCopyStatus({ code, message: "复制失败" });
+      setCopyStatus({ code, message: t("复制失败") });
     }
   }
   // Copy feedback is transient; the button falls back to "复制验证码".
@@ -609,7 +611,7 @@ export function IslandWindow() {
         <button
           className="island-toggle"
           aria-expanded={expanded}
-          aria-label={expanded ? "收起灵动岛" : "展开灵动岛"}
+          aria-label={expanded ? t("收起灵动岛") : t("展开灵动岛")}
           onPointerDown={beginDrag}
           onPointerMove={moveDrag}
           onPointerUp={endDrag}
@@ -672,7 +674,7 @@ export function IslandWindow() {
                       <span className="sr-only">{capsuleMail.code}</span>
                     </>
                   ) : (
-                    capsuleMail.subject || "新邮件"
+                    capsuleMail.subject || t("新邮件")
                   )}
                 </span>
               </span>
@@ -682,21 +684,25 @@ export function IslandWindow() {
               <Timer className="timer-indicator" size={15} aria-hidden="true" />
               <span className="compact-copy">
                 <span className="compact-primary">
-                  {timerMode === "focus"
-                    ? "专注"
-                    : timerMode === "break"
-                      ? "休息"
-                      : "计时器"}{" "}
+                  {t(
+                    timerMode === "focus"
+                      ? "专注"
+                      : timerMode === "break"
+                        ? "休息"
+                        : "计时器",
+                  )}{" "}
                   ·{" "}
-                  {timer.status === "paused"
-                    ? "已暂停"
-                    : timer.status === "finished"
-                      ? "已结束"
-                      : "进行中"}
+                  {t(
+                    timer.status === "paused"
+                      ? "已暂停"
+                      : timer.status === "finished"
+                        ? "已结束"
+                        : "进行中",
+                  )}
                 </span>
               </span>
               <span className="island-timer-value">
-                {timer.status === "finished" ? "时间到" : remaining}
+                {timer.status === "finished" ? t("时间到") : remaining}
               </span>
             </span>
           ) : display === "media" && media?.title ? (
@@ -711,7 +717,7 @@ export function IslandWindow() {
               <span className="compact-copy">
                 <span className="compact-primary">{media.title}</span>
                 <span className="compact-secondary">
-                  {currentLyric || media.artist || "未知艺术家"}
+                  {currentLyric || media.artist || t("未知艺术家")}
                 </span>
               </span>
               <span className="media-playing-mark">
@@ -745,8 +751,8 @@ export function IslandWindow() {
         {!expanded && display === "mail" && capsuleMail?.code && (
           <button
             className={`island-copy ${capsuleCopied ? "is-copied" : ""}`}
-            aria-label={capsuleCopied ? "验证码已复制" : "复制验证码"}
-            title={capsuleCopied ? "已复制" : "复制验证码"}
+            aria-label={capsuleCopied ? t("已复制") : t("复制验证码")}
+            title={capsuleCopied ? t("已复制") : t("复制验证码")}
             onClick={() =>
               void copyCode(capsuleMail.code!, capsuleMail.expiresAt)
             }
@@ -771,7 +777,9 @@ export function IslandWindow() {
         {expanded && display === "mail" && (
           <div className="system-notice-banner" role="status">
             <Mail size={13} />
-            <span>{recentMail[0].code ? "收到邮箱验证码" : "收到新邮件"}</span>
+            <span>
+              {recentMail[0].code ? t("收到邮箱验证码") : t("收到新邮件")}
+            </span>
           </div>
         )}
         <div
@@ -787,42 +795,43 @@ export function IslandWindow() {
             onPointerCancel={endDrag}
           >
             <span className={`island-page-title is-${activeTab}`}>
-              {activeTab === "timer"
-                ? "计时器"
-                : activeTab === "music"
-                  ? "音乐"
-                  : activeTab === "mail"
-                    ? "邮件"
-                    : "AI 额度"}
+              {t(
+                ISLAND_PAGES.find((page) => page.id === activeTab)?.label ??
+                  "计时器",
+              )}
             </span>
             <span className="island-head-clock">
-              {new Date(now).getMonth() + 1}月{new Date(now).getDate()}日{" "}
-              {new Date(now).toLocaleDateString("zh-CN", {
-                weekday: "short",
-              })}{" "}
-              {new Date(now).toLocaleTimeString("zh-CN", {
+              {appearance.language === "en-US"
+                ? new Date(now).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    weekday: "short",
+                  })
+                : `${new Date(now).getMonth() + 1}月${new Date(now).getDate()}日 ${new Date(now).toLocaleDateString("zh-CN", { weekday: "short" })}`}{" "}
+              {new Date(now).toLocaleTimeString(appearance.language, {
                 hour: "2-digit",
                 minute: "2-digit",
+                hour12: appearance.language !== "en-US",
               })}
             </span>
             <div className="island-actions">
               <button
-                aria-label="收起灵动岛"
-                title="收起"
+                aria-label={t("收起灵动岛")}
+                title={t("收起灵动岛")}
                 onClick={() => void toggleExpanded()}
               >
                 <ChevronUp size={15} aria-hidden="true" />
               </button>
               <button
-                aria-label="打开设置"
-                title="打开设置"
+                aria-label={t("打开设置")}
+                title={t("打开设置")}
                 onClick={() => void run("open_settings")}
               >
                 <Settings2 size={15} aria-hidden="true" />
               </button>
               <button
-                aria-label="退出应用"
-                title="退出应用"
+                aria-label={t("退出应用")}
+                title={t("退出应用")}
                 onClick={() => void run("quit_app")}
               >
                 <Power size={15} aria-hidden="true" />
@@ -835,15 +844,15 @@ export function IslandWindow() {
                 {ai.accounts.length === 0 ? (
                   <div className="media-empty">
                     <Bot size={20} />
-                    <strong>尚未添加 AI 账户</strong>
-                    <span>在设置的 AI 额度页面添加。</span>
+                    <strong>{t("尚未添加 AI 账户")}</strong>
+                    <span>{t("在设置的 AI 额度页面添加。")}</span>
                   </div>
                 ) : (
                   <>
                     <div
                       className="quota-switcher"
                       role="group"
-                      aria-label="选择 AI 账户"
+                      aria-label={t("选择 AI 账户")}
                     >
                       {ai.accounts.map((account) => (
                         <button
@@ -887,7 +896,7 @@ export function IslandWindow() {
                             ).toLowerCase() !== selectedAi.name.toLowerCase()
                               ? aiProviderName(selectedAi.provider)
                               : ""}
-                            {selectedAi?.pinned && <em>常驻</em>}
+                            {selectedAi?.pinned && <em>{t("常驻")}</em>}
                           </span>
                         </div>
                         <div className="quota-metrics">
@@ -936,7 +945,7 @@ export function IslandWindow() {
                             })
                           ) : (
                             <div className="quota-message">
-                              {selectedAiResult?.error ?? "正在查询额度…"}
+                              {selectedAiResult?.error ?? t("正在查询额度…")}
                             </div>
                           )}
                         </div>
@@ -955,7 +964,7 @@ export function IslandWindow() {
                       </span>
                       <div className="island-mail-heading">
                         <strong className="island-mail-subject">
-                          {selectedMail.subject || "新邮件"}
+                          {selectedMail.subject || t("新邮件")}
                         </strong>
                         <span>{selectedMail.account} · 最近提醒</span>
                       </div>
@@ -973,17 +982,17 @@ export function IslandWindow() {
                               )
                             }
                           >
-                            {currentCopyStatus === "已复制" ? (
+                            {currentCopyStatus === t("已复制") ? (
                               <Check size={14} />
                             ) : (
                               <Copy size={14} />
                             )}
-                            {currentCopyStatus || "复制验证码"}
+                            {currentCopyStatus || t("复制验证码")}
                           </button>
                         </div>
                       ) : (
                         <p className="island-mail-empty">
-                          这封邮件未识别到验证码
+                          {t("这封邮件未识别到验证码")}
                         </p>
                       )}
                     </div>
@@ -991,7 +1000,7 @@ export function IslandWindow() {
                       {recentMail.length > 1 && (
                         <>
                           <button
-                            aria-label="上一条提醒"
+                            aria-label={t("上一条提醒")}
                             disabled={mailIndex <= 0}
                             onClick={() => {
                               setMailIndex((value) => Math.max(0, value - 1));
@@ -1005,7 +1014,7 @@ export function IslandWindow() {
                             {recentMail.length}
                           </span>
                           <button
-                            aria-label="下一条提醒"
+                            aria-label={t("下一条提醒")}
                             disabled={mailIndex >= recentMail.length - 1}
                             onClick={() => {
                               setMailIndex((value) =>
@@ -1023,8 +1032,8 @@ export function IslandWindow() {
                 ) : (
                   <div className="media-empty">
                     <Mail size={20} />
-                    <strong>暂无新邮件提醒</strong>
-                    <span>在设置中添加邮箱后，新邮件会显示在这里。</span>
+                    <strong>{t("暂无新邮件提醒")}</strong>
+                    <span>{t("在设置中添加邮箱后，新邮件会显示在这里。")}</span>
                   </div>
                 )}
               </div>
@@ -1043,22 +1052,22 @@ export function IslandWindow() {
                         </div>
                         <div className="media-copy">
                           <strong>{media.title}</strong>
-                          <span>{media.artist || "未知艺术家"}</span>
+                          <span>{media.artist || t("未知艺术家")}</span>
                         </div>
                       </div>
                       <div className="music-lyric" aria-live="off">
                         {currentLyric ||
                           (currentLyrics?.synced
                             ? mediaPosition === null
-                              ? "暂无播放进度，无法同步歌词"
+                              ? t("暂无播放进度，无法同步歌词")
                               : currentLyric === ""
-                                ? "♪ 间奏"
-                                : "♪ 前奏"
+                                ? t("♪ 间奏")
+                                : t("♪ 前奏")
                             : currentLyrics
-                              ? "暂无同步歌词"
+                              ? t("暂无同步歌词")
                               : lyricsError?.key === mediaKey
                                 ? lyricsError.message
-                                : "正在查找歌词…")}
+                                : t("正在查找歌词…"))}
                       </div>
                     </div>
                     {media.durationSeconds != null &&
@@ -1080,7 +1089,7 @@ export function IslandWindow() {
                                   mediaPosition ??
                                   media.positionSeconds,
                               )}
-                              aria-label="调整播放进度"
+                              aria-label={t("调整播放进度")}
                               onChange={(event) =>
                                 setSeekPreview(
                                   Number(event.currentTarget.value),
@@ -1141,13 +1150,13 @@ export function IslandWindow() {
                     )}
                     <div className="media-controls">
                       <button
-                        aria-label="上一首"
+                        aria-label={t("上一首")}
                         onClick={() => void controlMedia("previous")}
                       >
                         <SkipBack size={16} fill="currentColor" />
                       </button>
                       <button
-                        aria-label={media.playing ? "暂停" : "播放"}
+                        aria-label={media.playing ? t("暂停") : t("播放")}
                         className="media-play"
                         onClick={() => void controlMedia("toggle")}
                       >
@@ -1163,7 +1172,7 @@ export function IslandWindow() {
                         </span>
                       </button>
                       <button
-                        aria-label="下一首"
+                        aria-label={t("下一首")}
                         onClick={() => void controlMedia("next")}
                       >
                         <SkipForward size={16} fill="currentColor" />
@@ -1178,8 +1187,10 @@ export function IslandWindow() {
                 ) : (
                   <div className="media-empty">
                     <Music2 size={21} />
-                    <strong>没有正在播放的媒体</strong>
-                    <span>开始播放音乐后，这里会显示曲目信息和控制按钮。</span>
+                    <strong>{t("没有正在播放的媒体")}</strong>
+                    <span>
+                      {t("开始播放音乐后，这里会显示曲目信息和控制按钮。")}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1187,26 +1198,30 @@ export function IslandWindow() {
               <div className="timer-view">
                 <div className="timer-status">
                   <span>
-                    {timerMode === "focus"
-                      ? "专注"
-                      : timerMode === "break"
-                        ? "休息"
-                        : "计时器"}
+                    {t(
+                      timerMode === "focus"
+                        ? "专注"
+                        : timerMode === "break"
+                          ? "休息"
+                          : "计时器",
+                    )}
                   </span>
                   <i aria-hidden="true" />
                   <span>
-                    {timer.status === "finished"
-                      ? "已结束"
-                      : timer.status === "paused"
-                        ? "已暂停"
-                        : timer.status === "running"
-                          ? "进行中"
-                          : "选择时长"}
+                    {t(
+                      timer.status === "finished"
+                        ? "已结束"
+                        : timer.status === "paused"
+                          ? "已暂停"
+                          : timer.status === "running"
+                            ? "进行中"
+                            : "选择时长",
+                    )}
                   </span>
                 </div>
                 <div className={`timer-clock is-${timer.status}`}>
                   {timer.status === "finished"
-                    ? "时间到"
+                    ? t("时间到")
                     : timer.status === "idle"
                       ? formatRemaining(parseDuration(minutes, seconds) ?? 0)
                       : remaining}
@@ -1221,7 +1236,9 @@ export function IslandWindow() {
                           event.preventDefault();
                           const duration = parseDuration(minutes, seconds);
                           if (duration === null) {
-                            setDurationError("请输入有效时间（秒数为 0–59）");
+                            setDurationError(
+                              t("请输入有效时间（秒数为 0–59）"),
+                            );
                             return;
                           }
                           setTimerMode("timer");
@@ -1231,7 +1248,7 @@ export function IslandWindow() {
                       >
                         <label>
                           <input
-                            aria-label="分钟"
+                            aria-label={t("分钟")}
                             inputMode="numeric"
                             placeholder="00"
                             value={minutes}
@@ -1246,7 +1263,7 @@ export function IslandWindow() {
                         <span className="time-separator">:</span>
                         <label>
                           <input
-                            aria-label="秒"
+                            aria-label={t("秒")}
                             inputMode="numeric"
                             placeholder="00"
                             value={seconds}
@@ -1258,13 +1275,13 @@ export function IslandWindow() {
                           />
                           <span>秒</span>
                         </label>
-                        <button type="submit">开始</button>
+                        <button type="submit">{t("开始")}</button>
                         <button
                           type="button"
                           className="is-ghost"
                           onClick={() => setCustomTimerOpen(false)}
                         >
-                          返回
+                          {t("返回")}
                         </button>
                       </form>
                     ) : (
@@ -1273,7 +1290,11 @@ export function IslandWindow() {
                           [
                             { minutes: 1, mode: "timer", label: "1 分钟" },
                             { minutes: 5, mode: "break", label: "休息 5 分" },
-                            { minutes: 25, mode: "focus", label: "专注 25 分" },
+                            {
+                              minutes: 25,
+                              mode: "focus",
+                              label: "专注 25 分",
+                            },
                           ] as const
                         ).map((preset) => (
                           <button
@@ -1284,14 +1305,14 @@ export function IslandWindow() {
                               setCustomTimerOpen(false);
                             }}
                           >
-                            {preset.label}
+                            {t(preset.label)}
                           </button>
                         ))}
                         <button
                           className="is-ghost"
                           onClick={() => setCustomTimerOpen(true)}
                         >
-                          自定义
+                          {t("自定义")}
                         </button>
                       </div>
                     )}
@@ -1304,12 +1325,12 @@ export function IslandWindow() {
                 ) : timer.status === "finished" ? (
                   <div className="timer-controls">
                     <button onClick={() => setTimer({ status: "idle" })}>
-                      知道了
+                      {t("知道了")}
                     </button>
                     <button
                       onClick={() => startTimer(lastDuration, Date.now())}
                     >
-                      再计一次
+                      {t("再计一次")}
                     </button>
                     {timerMode !== "timer" && (
                       <button
@@ -1323,7 +1344,7 @@ export function IslandWindow() {
                           );
                         }}
                       >
-                        {timerMode === "focus" ? "开始休息" : "开始专注"}
+                        {timerMode === "focus" ? t("开始休息") : t("开始专注")}
                       </button>
                     )}
                   </div>
@@ -1340,10 +1361,10 @@ export function IslandWindow() {
                         );
                       }}
                     >
-                      {timer.status === "running" ? "暂停" : "继续"}
+                      {timer.status === "running" ? t("暂停") : t("继续")}
                     </button>
                     <button onClick={() => setTimer({ status: "idle" })}>
-                      取消
+                      {t("取消")}
                     </button>
                     <button
                       onClick={() => {
@@ -1351,7 +1372,7 @@ export function IslandWindow() {
                         setLastDuration((current) => current + 60_000);
                       }}
                     >
-                      +1 分钟
+                      {t("+1 分钟")}
                     </button>
                   </div>
                 )}
@@ -1361,20 +1382,24 @@ export function IslandWindow() {
           <div className="island-pager">
             <button
               className="pager-arrow is-left"
-              aria-label="上一页"
-              title="上一页"
+              aria-label={t("上一页")}
+              title={t("上一页")}
               onClick={() => cyclePage(-1)}
             >
               <ChevronLeft size={14} aria-hidden="true" />
             </button>
-            <div className="pager-dots" role="tablist" aria-label="灵动岛页面">
+            <div
+              className="pager-dots"
+              role="tablist"
+              aria-label={t("灵动岛页面")}
+            >
               {ISLAND_PAGES.map((page) => (
                 <button
                   key={page.id}
                   role="tab"
                   aria-selected={activeTab === page.id}
-                  aria-label={page.label}
-                  title={page.label}
+                  aria-label={t(page.label)}
+                  title={t(page.label)}
                   className={activeTab === page.id ? "active" : ""}
                   onClick={() => selectPage(page.id)}
                 />
@@ -1382,8 +1407,8 @@ export function IslandWindow() {
             </div>
             <button
               className="pager-arrow is-right"
-              aria-label="下一页"
-              title="下一页"
+              aria-label={t("下一页")}
+              title={t("下一页")}
               onClick={() => cyclePage(1)}
             >
               <ChevronRight size={14} aria-hidden="true" />
@@ -1397,7 +1422,7 @@ export function IslandWindow() {
         </span>
       )}
       <span className="sr-only" role="status" aria-live="polite">
-        {timer.status === "finished" ? "倒计时结束" : ""}
+        {timer.status === "finished" ? t("倒计时结束") : ""}
       </span>
     </div>
   );

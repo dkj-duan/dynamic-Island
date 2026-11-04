@@ -1,3 +1,5 @@
+import { t } from "../services/i18n";
+
 export type SystemStatus = {
   volume: number | null;
   muted: boolean | null;
@@ -32,7 +34,7 @@ export function systemChanges(
   ) {
     notices.push({
       kind: "volume",
-      label: current.muted ? "静音" : "音量",
+      label: current.muted ? t("静音") : t("音量"),
       value: current.muted ? "" : `${current.volume}%`,
     });
   }
@@ -46,9 +48,9 @@ export function systemChanges(
       kind: "power",
       label: current.onAc
         ? current.charging
-          ? "充电中"
-          : "已接通电源"
-        : "电源已断开",
+          ? t("充电中")
+          : t("已接通电源")
+        : t("电源已断开"),
       value: `${current.battery}%`,
     });
   }
@@ -67,14 +69,16 @@ export function deviceChanges(
         kind: "bluetooth" as const,
         label: device.name,
         value:
-          device.battery === null ? "已连接" : `已连接 · ${device.battery}%`,
+          device.battery === null
+            ? t("已连接")
+            : `${t("已连接 · ")}${device.battery}%`,
       })),
     ...previous
       .filter((device) => !current.some((item) => item.id === device.id))
       .map((device) => ({
         kind: "bluetooth" as const,
         label: device.name,
-        value: "已断开",
+        value: t("已断开"),
       })),
   ];
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { t } from "../../services/i18n";
 import {
   deviceChanges,
   systemChanges,
@@ -85,7 +86,7 @@ export function useSystemNotice() {
           )
             show({
               kind: "brightness",
-              label: "亮度",
+              label: t("亮度"),
               value: `${state.brightness}%`,
             });
           previousBrightness = state.brightness;

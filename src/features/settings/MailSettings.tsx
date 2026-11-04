@@ -4,6 +4,7 @@ import { emitTo } from "@tauri-apps/api/event";
 import { Mail, Trash2 } from "lucide-react";
 import type { MailAccount } from "../mail/types";
 import { Select } from "./Select";
+import { t } from "../../services/i18n";
 
 const providers = [
   { id: "163", name: "网易 163", host: "imap.163.com" },
@@ -30,7 +31,7 @@ export function MailSettings() {
     try {
       setAccounts(await invoke<MailAccount[]>("list_mail_accounts"));
     } catch {
-      setMessage("无法读取邮箱账户，请检查数据目录。");
+      setMessage(t("无法读取邮箱账户，请检查数据目录。"));
     }
   }
   useEffect(() => {
@@ -41,7 +42,7 @@ export function MailSettings() {
         if (active) setAccounts(value);
       })
       .catch(() => {
-        if (active) setMessage("无法读取邮箱账户，请检查数据目录。");
+        if (active) setMessage(t("无法读取邮箱账户，请检查数据目录。"));
       });
     return () => {
       active = false;
@@ -88,11 +89,11 @@ export function MailSettings() {
       parsedPort < 1 ||
       parsedPort > 65535
     ) {
-      setMessage("请填写有效的邮箱、服务器、端口和授权码。");
+      setMessage(t("请填写有效的邮箱、服务器、端口和授权码。"));
       return;
     }
     setBusy(true);
-    setMessage("正在连接邮箱并验证授权码…");
+    setMessage(t("正在连接邮箱并验证授权码…"));
     try {
       await invoke("add_mail_account", {
         input: {
@@ -106,24 +107,28 @@ export function MailSettings() {
       setEmail("");
       await refresh();
       await signalChange();
-      setMessage("邮箱已添加，将提醒之后收到的新邮件。");
+      setMessage(t("邮箱已添加，将提醒之后收到的新邮件。"));
     } catch (error) {
-      setMessage(`添加失败：${String(error)}`);
+      setMessage(`${t("添加失败：")}${String(error)}`);
     } finally {
       setBusy(false);
     }
   }
   async function remove(account: MailAccount) {
-    if (!window.confirm(`移除 ${account.email}？已保存的授权码也会删除。`))
+    if (
+      !window.confirm(
+        `${t("移除 ")}${account.email}${t("？已保存的授权码也会删除。")}`,
+      )
+    )
       return;
     setBusy(true);
     try {
       await invoke("remove_mail_account", { id: account.id });
       await refresh();
       await signalChange();
-      setMessage("邮箱已移除。");
+      setMessage(t("邮箱已移除。"));
     } catch (error) {
-      setMessage(`移除失败：${String(error)}`);
+      setMessage(`${t("移除失败：")}${String(error)}`);
     } finally {
       setBusy(false);
     }
@@ -132,13 +137,13 @@ export function MailSettings() {
     <div className="settings-columns">
       <section className="settings-card">
         <div className="card-head">
-          <h2>已添加的邮箱</h2>
+          <h2>{t("已添加的邮箱")}</h2>
           <span className="card-note">
-            {accounts.length ? `${accounts.length} 个` : "未添加"}
+            {accounts.length ? `${accounts.length} ${t("个")}` : t("未添加")}
           </span>
         </div>
         <p className="card-desc">
-          约每 8 秒检查一次收件箱，不改变邮件已读状态。
+          {t("约每 8 秒检查一次收件箱，不改变邮件已读状态。")}
         </p>
         {accounts.length ? (
           <div className="settings-list">
@@ -151,15 +156,15 @@ export function MailSettings() {
                   <strong>{account.email}</strong>
                   <small>
                     {account.host}:{account.port} ·{" "}
-                    {monitorStatus[account.id] || "等待首次检查"}
+                    {monitorStatus[account.id] || t("等待首次检查")}
                   </small>
                 </div>
                 <button
                   className="icon-button danger"
                   disabled={busy}
                   onClick={() => void remove(account)}
-                  aria-label={`移除 ${account.email}`}
-                  title="移除邮箱"
+                  aria-label={`${t("移除 ")}${account.email}`}
+                  title={t("移除邮箱")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -169,21 +174,21 @@ export function MailSettings() {
         ) : (
           <p className="empty-state">
             {desktop
-              ? "还没有邮箱账户。添加后会在这里显示检查状态。"
-              : "请在桌面应用中添加邮箱。"}
+              ? t("还没有邮箱账户。添加后会在这里显示检查状态。")
+              : t("请在桌面应用中添加邮箱。")}
           </p>
         )}
       </section>
 
       <section className="settings-card">
         <div className="card-head">
-          <h2>添加邮箱</h2>
+          <h2>{t("添加邮箱")}</h2>
         </div>
         <form onSubmit={(event) => void add(event)} className="form">
           <div className="field">
-            <span>邮箱服务商</span>
+            <span>{t("邮箱服务商")}</span>
             <Select
-              ariaLabel="邮箱服务商"
+              ariaLabel={t("邮箱服务商")}
               value={provider}
               disabled={busy || !desktop}
               options={providers.map((item) => ({
@@ -199,7 +204,7 @@ export function MailSettings() {
             />
           </div>
           <label className="field">
-            <span>邮箱地址</span>
+            <span>{t("邮箱地址")}</span>
             <input
               type="email"
               required
@@ -212,7 +217,7 @@ export function MailSettings() {
           </label>
           <div className="field-row">
             <label className="field">
-              <span>IMAP 服务器</span>
+              <span>{t("IMAP 服务器")}</span>
               <input
                 required
                 value={host}
@@ -222,7 +227,7 @@ export function MailSettings() {
               />
             </label>
             <label className="field field-port">
-              <span>SSL 端口</span>
+              <span>{t("SSL 端口")}</span>
               <input
                 required
                 type="number"
@@ -235,7 +240,7 @@ export function MailSettings() {
             </label>
           </div>
           <label className="field">
-            <span>邮箱授权码</span>
+            <span>{t("邮箱授权码")}</span>
             <input
               type="password"
               required
@@ -243,17 +248,18 @@ export function MailSettings() {
               value={secret}
               disabled={busy || !desktop}
               onChange={(event) => setSecret(event.target.value)}
-              placeholder="邮箱服务商生成的授权码"
+              placeholder={t("邮箱服务商生成的授权码")}
             />
           </label>
           <p className="form-note">
-            需在服务商开启 IMAP 并使用授权码；仅支持 SSL/TLS，需要 OAuth
-            的账户暂不支持。授权码存放在 Windows 凭据管理器。
+            {t(
+              "需在服务商开启 IMAP 并使用授权码；仅支持 SSL/TLS，需要 OAuth 的账户暂不支持。授权码存放在 Windows 凭据管理器。",
+            )}
           </p>
           <div className="form-footer">
             <span role="status">{message}</span>
             <button className="btn btn-primary" disabled={busy || !desktop}>
-              {busy ? "处理中…" : "连接并添加"}
+              {busy ? t("处理中…") : t("连接并添加")}
             </button>
           </div>
         </form>

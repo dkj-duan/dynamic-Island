@@ -169,7 +169,8 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_u64())
         .filter(|v| [0, 1, 3, 5, 10, 15].contains(v));
-    if value.get("version").and_then(|v| v.as_u64()) != Some(4)
+    let language = value.get("language").and_then(|v| v.as_str());
+    if value.get("version").and_then(|v| v.as_u64()) != Some(5)
         || !matches!(
             value.get("theme").and_then(|v| v.as_str()),
             Some("system" | "light" | "dark")
@@ -178,6 +179,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
             value.get("expandTrigger").and_then(|v| v.as_str()),
             Some("click" | "hover")
         )
+        || !matches!(language, Some("zh-CN" | "en-US"))
         || scale.is_none()
         || delay.is_none()
         || value.get("showClock").and_then(|v| v.as_bool()).is_none()
@@ -459,10 +461,12 @@ mod tests {
             .unwrap();
         drop(conn);
         assert!(open_database(&path).is_err());
-        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "hover"})).is_ok());
-        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "invalid", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click"})).is_err());
-        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "double"})).is_err());
-        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 5, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "hover", "language": "zh-CN"})).is_ok());
+        assert!(validate_appearance(&serde_json::json!({"version": 5, "theme": "invalid", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 5, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "double", "language": "zh-CN"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 5, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "xx"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 5, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click"})).is_err());
         assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
     }
 
