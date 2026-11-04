@@ -1,0 +1,80 @@
+export type SystemStatus = {
+  volume: number | null;
+  muted: boolean | null;
+  onAc: boolean | null;
+  battery: number | null;
+  charging: boolean | null;
+};
+export type BluetoothStatus = {
+  id: string;
+  name: string;
+  battery: number | null;
+};
+export type SystemNotice = {
+  kind: "volume" | "power" | "brightness" | "bluetooth";
+  label: string;
+  value: string;
+};
+
+export function systemChanges(
+  previous: SystemStatus | undefined,
+  current: SystemStatus,
+): SystemNotice[] {
+  if (!previous) return [];
+  const notices: SystemNotice[] = [];
+  if (
+    current.volume !== null &&
+    previous.volume !== null &&
+    (current.volume !== previous.volume ||
+      (current.muted !== null &&
+        previous.muted !== null &&
+        current.muted !== previous.muted))
+  ) {
+    notices.push({
+      kind: "volume",
+      label: current.muted ? "静音" : "音量",
+      value: current.muted ? "" : `${current.volume}%`,
+    });
+  }
+  if (
+    current.battery !== null &&
+    current.onAc !== null &&
+    previous.onAc !== null &&
+    current.onAc !== previous.onAc
+  ) {
+    notices.push({
+      kind: "power",
+      label: current.onAc
+        ? current.charging
+          ? "充电中"
+          : "已接通电源"
+        : "电源已断开",
+      value: `${current.battery}%`,
+    });
+  }
+  return notices;
+}
+
+export function deviceChanges(
+  previous: BluetoothStatus[] | null,
+  current: BluetoothStatus[] | null,
+): SystemNotice[] {
+  if (!previous || !current) return [];
+  return [
+    ...current
+      .filter((device) => !previous.some((old) => old.id === device.id))
+      .map((device) => ({
+        kind: "bluetooth" as const,
+        label: device.name,
+        value:
+          device.battery === null ? "已连接" : `已连接 · ${device.battery}%`,
+      })),
+    ...previous
+      .filter((device) => !current.some((item) => item.id === device.id))
+      .map((device) => ({
+        kind: "bluetooth" as const,
+        label: device.name,
+        value: "已断开",
+      })),
+  ];
+}

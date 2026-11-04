@@ -703,6 +703,43 @@ html.island-window #root {
   font-weight: 600;
   letter-spacing: 0.03em;
 }
+.system-notice {
+  gap: 10px;
+}
+.system-notice svg,
+.system-notice-banner svg {
+  color: #a9a9b2;
+  flex: none;
+}
+.system-notice-label {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.system-notice strong {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.system-notice-banner {
+  position: absolute;
+  top: 8px;
+  left: 100px;
+  right: 70px;
+  height: 23px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d4d4da;
+  font-size: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.system-notice-banner span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .island-media-current {
   min-width: 0;
 }

@@ -9,6 +9,10 @@ import {
   SkipBack,
   SkipForward,
   Timer,
+  Volume2,
+  PlugZap,
+  Sun,
+  Bluetooth,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -24,6 +28,7 @@ import {
   type TimerState,
 } from "../../domain/timer";
 import "../../App.css";
+import { useSystemNotice } from "./useSystemNotice";
 
 type MediaState = {
   title: string;
@@ -36,6 +41,22 @@ type MediaState = {
 function formatMediaTime(seconds: number) {
   const total = Math.max(0, Math.floor(seconds));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function NoticeIcon({
+  kind,
+}: {
+  kind: "volume" | "power" | "brightness" | "bluetooth";
+}) {
+  const Icon =
+    kind === "volume"
+      ? Volume2
+      : kind === "power"
+        ? PlugZap
+        : kind === "brightness"
+          ? Sun
+          : Bluetooth;
+  return <Icon size={15} aria-hidden="true" />;
 }
 
 function MediaWave({
@@ -82,6 +103,7 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
 }
 
 export function IslandWindow() {
+  const notice = useSystemNotice();
   const [appearance, setAppearance] = useState(defaultAppearance);
   const panel = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<number | null>(null);
@@ -296,6 +318,12 @@ export function IslandWindow() {
         >
           {expanded ? (
             <span className="island-expanded-title">灵动岛</span>
+          ) : notice && timer.status !== "finished" ? (
+            <span className="island-current system-notice" role="status">
+              <NoticeIcon kind={notice.kind} />
+              <span className="system-notice-label">{notice.label}</span>
+              <strong>{notice.value}</strong>
+            </span>
           ) : timer.status !== "idle" ? (
             <span className="island-current">
               <Timer className="timer-indicator" size={15} aria-hidden="true" />
@@ -337,6 +365,13 @@ export function IslandWindow() {
             <IslandContent appearance={appearance} />
           )}
         </button>
+        {expanded && notice && timer.status !== "finished" && (
+          <div className="system-notice-banner" role="status">
+            <NoticeIcon kind={notice.kind} />
+            <span>{notice.label}</span>
+            <strong>{notice.value}</strong>
+          </div>
+        )}
         <div
           className="island-details"
           aria-hidden={!expanded}

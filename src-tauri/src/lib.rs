@@ -3,6 +3,8 @@ use serde::Serialize;
 use tauri::LogicalSize;
 use tauri::{Manager, PhysicalPosition, WindowEvent};
 
+mod system_status;
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MediaState {
@@ -316,7 +318,9 @@ pub fn run() {
             set_island_expanded,
             get_media_state,
             get_media_artwork,
-            control_media
+            control_media,
+            system_status::get_system_status,
+            system_status::get_device_status
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("island") {

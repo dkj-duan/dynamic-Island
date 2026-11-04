@@ -1,0 +1,96 @@
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  deviceChanges,
+  systemChanges,
+  type BluetoothStatus,
+  type SystemNotice,
+  type SystemStatus,
+} from "../../domain/systemNotices";
+
+export function useSystemNotice() {
+  const [notice, setNotice] = useState<SystemNotice | null>(null);
+  useEffect(() => {
+    let active = true;
+    let previous: SystemStatus | undefined;
+    let previousBrightness: number | null = null;
+    let previousDevices: BluetoothStatus[] | null = null;
+    let timeout: number | undefined;
+    let deviceTimeout: number | undefined;
+    let dismissal: number | undefined;
+    let current: SystemNotice | null = null;
+    const pending: SystemNotice[] = [];
+    function advance() {
+      current = pending.shift() ?? null;
+      setNotice(current);
+      if (current) dismissal = window.setTimeout(advance, 3000);
+    }
+    function show(next: SystemNotice) {
+      if (
+        !current ||
+        (next.kind === current.kind &&
+          (next.kind === "volume" || next.kind === "brightness"))
+      ) {
+        window.clearTimeout(dismissal);
+        current = next;
+        setNotice(next);
+        dismissal = window.setTimeout(advance, 3000);
+      } else {
+        if (next.kind === "volume" || next.kind === "brightness") {
+          const existing = pending.findIndex((item) => item.kind === next.kind);
+          if (existing >= 0) pending.splice(existing, 1);
+        }
+        if (pending.length < 8) pending.push(next);
+      }
+    }
+    async function poll() {
+      try {
+        const state = await invoke<SystemStatus>("get_system_status");
+        if (!active) return;
+        systemChanges(previous, state).forEach(show);
+        previous = state;
+      } catch (error) {
+        console.error("Unable to read system status", error);
+      } finally {
+        if (active) timeout = window.setTimeout(() => void poll(), 1000);
+      }
+    }
+    async function pollDevices() {
+      try {
+        const state = await invoke<{
+          brightness: number | null;
+          bluetooth: BluetoothStatus[] | null;
+        }>("get_device_status");
+        if (!active) return;
+        if (state.brightness !== null) {
+          if (
+            previousBrightness !== null &&
+            state.brightness !== previousBrightness
+          )
+            show({
+              kind: "brightness",
+              label: "亮度",
+              value: `${state.brightness}%`,
+            });
+          previousBrightness = state.brightness;
+        }
+        deviceChanges(previousDevices, state.bluetooth).forEach(show);
+        if (state.bluetooth !== null) previousDevices = state.bluetooth;
+      } catch (error) {
+        console.error("Unable to read device status", error);
+      } finally {
+        if (active)
+          deviceTimeout = window.setTimeout(() => void pollDevices(), 3000);
+      }
+    }
+    void poll();
+    void pollDevices();
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      window.clearTimeout(deviceTimeout);
+      window.clearTimeout(dismissal);
+    };
+  }, []);
+  return notice;
+}
