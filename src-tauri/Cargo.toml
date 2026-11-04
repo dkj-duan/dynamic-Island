@@ -34,8 +34,10 @@ tauri-plugin-dialog = "2"
 tempfile = "3"
 zeroize = "1"
 ureq = { version = "2.12", default-features = false, features = ["native-tls"] }
+url = "2"
 
 [target.'cfg(windows)'.dependencies]
+windows-future = "0.3"
 base64 = "0.22"
 keyring = { version = "3", features = ["windows-native"] }
 tauri-plugin-single-instance = "2"

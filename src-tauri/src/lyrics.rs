@@ -184,7 +184,7 @@ fn live_search_lyrics() {
 #[test]
 #[ignore = "requires music playing and network access"]
 fn live_current_media_lyrics() {
-    let media = crate::get_media_state().unwrap().expect("media session");
+    let media = crate::read_media_state().unwrap().expect("media session");
     assert!(
         media.position_seconds.is_some() && media.duration_seconds.is_some(),
         "timeline unavailable"

@@ -25,36 +25,83 @@ struct MediaState {
 }
 
 #[cfg(target_os = "windows")]
+struct MediaApartment;
+
+#[cfg(target_os = "windows")]
+impl MediaApartment {
+    fn initialize() -> Result<Self, String> {
+        use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
+            .ok()
+            .map_err(|e| format!("媒体线程初始化失败: {e}"))?;
+        Ok(Self)
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for MediaApartment {
+    fn drop(&mut self) {
+        unsafe { windows::Win32::System::Com::CoUninitialize() }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn await_media_operation<T: windows::core::RuntimeType + 'static>(
+    operation: windows_future::IAsyncOperation<T>,
+) -> Result<T, String> {
+    let started = std::time::Instant::now();
+    while operation.Status().map_err(|e| e.to_string())? == windows_future::AsyncStatus::Started {
+        if started.elapsed() >= std::time::Duration::from_secs(3) {
+            let _ = operation.Cancel();
+            return Err("媒体服务响应超时".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    operation.GetResults().map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "windows")]
 fn current_media_session()
 -> Result<windows::Media::Control::GlobalSystemMediaTransportControlsSession, String> {
-    use std::future::IntoFuture;
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager as Manager;
-    let manager = futures::executor::block_on(
-        Manager::RequestAsync()
-            .map_err(|e| e.to_string())?
-            .into_future(),
-    )
-    .map_err(|e| e.to_string())?;
+    let manager = await_media_operation(Manager::RequestAsync().map_err(|e| e.to_string())?)?;
     manager.GetCurrentSession().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn get_media_state() -> Result<Option<MediaState>, String> {
+async fn get_media_state() -> Result<Option<MediaState>, String> {
+    tauri::async_runtime::spawn_blocking(read_media_state)
+        .await
+        .map_err(|_| "读取媒体状态失败".to_string())?
+}
+
+fn read_media_state() -> Result<Option<MediaState>, String> {
     #[cfg(target_os = "windows")]
     {
-        use std::future::IntoFuture;
+        let _apartment = MediaApartment::initialize()?;
         use windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus;
+        let fallback = || {
+            netease_log::current().map(|state| MediaState {
+                title: state.title,
+                artist: state.artist,
+                playing: state.playing,
+                position_seconds: Some(state.position),
+                duration_seconds: Some(state.duration),
+                can_seek: false,
+            })
+        };
         let session = match current_media_session() {
             Ok(session) => session,
-            Err(_) => return Ok(None),
+            Err(_) => return Ok(fallback()),
         };
-        let properties = futures::executor::block_on(
-            session
-                .TryGetMediaPropertiesAsync()
-                .map_err(|e| e.to_string())?
-                .into_future(),
-        )
-        .map_err(|e| e.to_string())?;
+        let properties = match session
+            .TryGetMediaPropertiesAsync()
+            .map_err(|e| e.to_string())
+            .and_then(await_media_operation)
+        {
+            Ok(properties) => properties,
+            Err(_) => return Ok(fallback()),
+        };
         let status = session
             .GetPlaybackInfo()
             .and_then(|info| info.PlaybackStatus())
@@ -139,7 +186,7 @@ async fn seek_media(position_seconds: f64) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         tauri::async_runtime::spawn_blocking(move || {
-            use std::future::IntoFuture;
+            let _apartment = MediaApartment::initialize()?;
             let session = current_media_session()?;
             let timeline = session.GetTimelineProperties().map_err(|e| e.to_string())?;
             let end = timeline.EndTime().map_err(|e| e.to_string())?.Duration;
@@ -150,7 +197,7 @@ async fn seek_media(position_seconds: f64) -> Result<bool, String> {
             let operation = session
                 .TryChangePlaybackPositionAsync(ticks)
                 .map_err(|e| e.to_string())?;
-            futures::executor::block_on(operation.into_future()).map_err(|e| e.to_string())
+            await_media_operation(operation)
         })
         .await
         .map_err(|e| e.to_string())?
@@ -160,51 +207,103 @@ async fn seek_media(position_seconds: f64) -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn get_media_artwork() -> Option<String> {
-    tauri::async_runtime::spawn_blocking(read_media_artwork)
+async fn get_media_artwork(title: String, artist: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || read_media_artwork(&title, &artist))
         .await
         .ok()
         .flatten()
 }
 
-fn read_media_artwork() -> Option<String> {
+fn read_media_artwork(title: &str, artist: &str) -> Option<String> {
     #[cfg(target_os = "windows")]
     {
-        use base64::Engine;
-        use std::future::IntoFuture;
-        use windows::Storage::Streams::DataReader;
-        let session = current_media_session().ok()?;
-        let properties =
-            futures::executor::block_on(session.TryGetMediaPropertiesAsync().ok()?.into_future())
-                .ok()?;
-        let stream = futures::executor::block_on(
-            properties
-                .Thumbnail()
-                .ok()?
-                .OpenReadAsync()
-                .ok()?
-                .into_future(),
-        )
-        .ok()?;
-        let size = stream.Size().ok()?;
-        if size == 0 || size > 2_000_000 {
-            return None;
-        }
-        let raw_content_type = stream.ContentType().ok()?.to_string();
-        let content_type = image_content_type(&raw_content_type)?;
-        let reader = DataReader::CreateDataReader(&stream).ok()?;
-        let loaded =
-            futures::executor::block_on(reader.LoadAsync(size as u32).ok()?.into_future()).ok()?;
-        let mut bytes = vec![0; loaded as usize];
-        reader.ReadBytes(&mut bytes).ok()?;
-        Some(format!(
-            "data:{};base64,{}",
-            content_type,
-            base64::engine::general_purpose::STANDARD.encode(bytes)
-        ))
+        read_system_artwork(title, artist).or_else(|| read_netease_artwork(title, artist))
     }
     #[cfg(not(target_os = "windows"))]
-    None
+    {
+        let _ = (title, artist);
+        None
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn read_system_artwork(title: &str, artist: &str) -> Option<String> {
+    let _apartment = MediaApartment::initialize().ok()?;
+    use base64::Engine;
+    use windows::Storage::Streams::DataReader;
+    let session = current_media_session().ok()?;
+    let properties = await_media_operation(session.TryGetMediaPropertiesAsync().ok()?).ok()?;
+    if properties.Title().ok()? != title || properties.Artist().ok()? != artist {
+        return None;
+    }
+    let stream = await_media_operation(properties.Thumbnail().ok()?.OpenReadAsync().ok()?).ok()?;
+    let size = stream.Size().ok()?;
+    if size == 0 || size > 2_000_000 {
+        return None;
+    }
+    let raw_content_type = stream.ContentType().ok()?.to_string();
+    let content_type = image_content_type(&raw_content_type)?;
+    let reader = DataReader::CreateDataReader(&stream).ok()?;
+    let loaded = await_media_operation(reader.LoadAsync(size as u32).ok()?).ok()?;
+    let mut bytes = vec![0; loaded as usize];
+    reader.ReadBytes(&mut bytes).ok()?;
+    Some(format!(
+        "data:{};base64,{}",
+        content_type,
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+#[cfg(target_os = "windows")]
+fn read_netease_artwork(title: &str, artist: &str) -> Option<String> {
+    use base64::Engine;
+    use std::io::Read;
+    use std::net::ToSocketAddrs;
+    let state = netease_log::current()?;
+    if state.title != title || state.artist != artist {
+        return None;
+    }
+    let url = state.artwork_url?;
+    let agent = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(6))
+        .redirects(0)
+        .resolver(|host: &str| {
+            let mut addresses: Vec<_> = host.to_socket_addrs()?.collect();
+            addresses.sort_by_key(|address| address.is_ipv6());
+            Ok(addresses)
+        })
+        .tls_connector(std::sync::Arc::new(native_tls::TlsConnector::new().ok()?))
+        .build();
+    let response = agent.get(&url).call().ok()?;
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .take(2_000_001)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if bytes.len() > 2_000_000 {
+        return None;
+    }
+    let mime = if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        "image/jpeg"
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        "image/png"
+    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        "image/webp"
+    } else {
+        return None;
+    };
+    let current = netease_log::current()?;
+    if current.title != title
+        || current.artist != artist
+        || current.artwork_url.as_deref() != Some(url.as_str())
+    {
+        return None;
+    }
+    Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
 }
 
 #[cfg(target_os = "windows")]
@@ -231,11 +330,37 @@ mod media_tests {
     }
 }
 
+#[cfg(all(test, target_os = "windows"))]
+mod live_media_tests {
+    #[test]
+    #[ignore = "requires a playing Windows media session"]
+    fn media_is_readable_from_background_worker() {
+        let state = tauri::async_runtime::block_on(super::get_media_state())
+            .expect("media query failed")
+            .expect("no media session");
+        assert!(!state.title.is_empty());
+    }
+    #[test]
+    #[ignore = "requires NetEase playing and network access"]
+    fn current_netease_cover_is_readable() {
+        let state = super::netease_log::current().expect("NetEase playback");
+        let cover =
+            super::read_netease_artwork(&state.title, &state.artist).expect("NetEase artwork");
+        assert!(cover.starts_with("data:image/"));
+    }
+}
+
 #[tauri::command]
-fn control_media(action: String) -> Result<bool, String> {
+async fn control_media(action: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || control_media_blocking(action))
+        .await
+        .map_err(|_| "媒体控制失败".to_string())?
+}
+
+fn control_media_blocking(action: String) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        use std::future::IntoFuture;
+        let _apartment = MediaApartment::initialize()?;
         let session = current_media_session()?;
         let operation = match action.as_str() {
             "toggle" => session.TryTogglePlayPauseAsync(),
@@ -244,7 +369,7 @@ fn control_media(action: String) -> Result<bool, String> {
             _ => return Err("unsupported media action".into()),
         }
         .map_err(|e| e.to_string())?;
-        futures::executor::block_on(operation.into_future()).map_err(|e| e.to_string())
+        await_media_operation(operation)
     }
     #[cfg(not(target_os = "windows"))]
     {

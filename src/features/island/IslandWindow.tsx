@@ -223,15 +223,26 @@ export function IslandWindow() {
   useEffect(() => {
     if (!mediaKey) return;
     let active = true;
-    void invoke<string | null>("get_media_artwork")
-      .then((src) => {
-        if (active) setArtwork({ key: mediaKey, src });
-      })
-      .catch(() => {
-        if (active) setArtwork({ key: mediaKey, src: null });
-      });
+    let retry: number | undefined;
+    const [title, artist] = JSON.parse(mediaKey) as [string, string];
+    async function refreshArtwork() {
+      let src: string | null = null;
+      try {
+        src = await invoke<string | null>("get_media_artwork", {
+          title,
+          artist,
+        });
+      } catch {
+        /* retry later */
+      }
+      if (!active) return;
+      setArtwork({ key: mediaKey, src });
+      if (!src) retry = window.setTimeout(() => void refreshArtwork(), 15_000);
+    }
+    void refreshArtwork();
     return () => {
       active = false;
+      window.clearTimeout(retry);
     };
   }, [mediaKey]);
   const [activeTab, setActiveTab] = useState<"timer" | "music" | "mail" | "ai">(
@@ -240,6 +251,7 @@ export function IslandWindow() {
   const [mediaError, setMediaError] = useState("");
   useEffect(() => {
     let active = true;
+    let timeout: number | undefined;
     const refresh = async () => {
       try {
         const state = await invoke<MediaState | null>("get_media_state");
@@ -250,13 +262,14 @@ export function IslandWindow() {
         }
       } catch (error) {
         console.error("Unable to read Windows media session", error);
+      } finally {
+        if (active) timeout = window.setTimeout(() => void refresh(), 2000);
       }
     };
     void refresh();
-    const interval = window.setInterval(() => void refresh(), 2000);
     return () => {
       active = false;
-      window.clearInterval(interval);
+      window.clearTimeout(timeout);
     };
   }, []);
   useEffect(() => {
@@ -391,7 +404,8 @@ export function IslandWindow() {
   const remaining = formatRemaining(remainingMilliseconds(timer, now));
   async function controlMedia(action: "previous" | "toggle" | "next") {
     try {
-      await invoke("control_media", { action });
+      const applied = await invoke<boolean>("control_media", { action });
+      if (!applied) throw new Error("Media action rejected");
       setMediaError("");
       window.setTimeout(async () => {
         try {
