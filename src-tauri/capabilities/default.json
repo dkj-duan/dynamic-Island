@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Shared window and settings capabilities",
   "windows": ["main", "island"],
-  "permissions": ["core:default", "store:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }

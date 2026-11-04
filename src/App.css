@@ -622,6 +622,27 @@ select:disabled {
   color: #898991;
   font-size: 10px;
 }
+.storage-card {
+  padding: 22px;
+}
+.storage-card > p {
+  font-size: 11px;
+}
+.storage-path {
+  margin: 18px 0 12px;
+  padding: 12px;
+  border: 1px solid #35353b;
+  border-radius: 8px;
+  color: #d7d7de;
+  background: #1d1d21;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.storage-card .storage-hint {
+  margin-top: 12px;
+  color: #898991;
+  font-size: 10px;
+}
 .about-card {
   min-height: 200px;
   padding: 26px;
@@ -1233,6 +1254,203 @@ button:focus-visible,
 input:focus-visible {
   outline: 2px solid #b7b7c2;
   outline-offset: 3px;
+}
+.mail-settings {
+  padding: 22px;
+}
+.mail-settings > p,
+.mail-form > p {
+  font-size: 11px;
+}
+.mail-empty {
+  padding: 18px 0 3px;
+  color: #888890;
+}
+.mail-account-list {
+  margin-top: 16px;
+}
+.mail-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #303035;
+}
+.mail-account div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.mail-account strong {
+  font-size: 12px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.mail-account small {
+  color: #85858e;
+  font-size: 10px;
+}
+.mail-account button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #9c9ca4;
+  padding: 7px;
+  cursor: pointer;
+}
+.mail-account button:hover {
+  background: #303035;
+  color: #e6e6ea;
+}
+.mail-form {
+  display: grid;
+  gap: 13px;
+  margin-top: 16px;
+}
+.mail-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #bcbcc4;
+  font-size: 11px;
+}
+.mail-form input,
+.mail-form select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #39393f;
+  border-radius: 7px;
+  background: #202024;
+  color: #eeeeef;
+  font-size: 12px;
+}
+.mail-form input:disabled,
+.mail-form select:disabled {
+  opacity: 0.6;
+}
+.mail-server-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 10px;
+}
+.mail-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mail-form-footer span {
+  color: #aaaab2;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mail-form-footer button {
+  flex: none;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 7px;
+  color: #17171b;
+  background: #e3e3e7;
+  font-size: 11px;
+  cursor: pointer;
+}
+.mail-form-footer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.mail-tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #dedee3;
+}
+.island-mail-view {
+  padding-top: 2px;
+}
+.island-mail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #a2a2ab;
+  font-size: 10px;
+}
+.island-mail-heading span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.island-mail-heading small {
+  flex: none;
+  color: #777780;
+  font-size: 9px;
+}
+.island-mail-subject {
+  display: block;
+  overflow: hidden;
+  margin-top: 10px;
+  color: #ededf0;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.island-mail-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+.island-mail-code span {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+.island-mail-code button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid #44444b;
+  border-radius: 8px;
+  background: #e4e4e8;
+  color: #17171b;
+  font-size: 10px;
+  cursor: pointer;
+}
+.island-mail-empty {
+  margin-top: 14px;
+  font-size: 11px;
+}
+.island-mail-navigation {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  color: #92929b;
+  font-size: 10px;
+}
+.island-mail-navigation button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: #bcbcc4;
+  background: #27272c;
+  cursor: pointer;
+}
+.island-mail-navigation button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

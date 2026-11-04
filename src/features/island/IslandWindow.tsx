@@ -13,6 +13,11 @@ import {
   PlugZap,
   Sun,
   Bluetooth,
+  Mail,
+  Copy,
+  Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -29,6 +34,7 @@ import {
 } from "../../domain/timer";
 import "../../App.css";
 import { useSystemNotice } from "./useSystemNotice";
+import { useMail } from "../mail/useMail";
 
 type MediaState = {
   title: string;
@@ -104,6 +110,15 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
 
 export function IslandWindow() {
   const notice = useSystemNotice();
+  const { recent: recentMail, highlight: mailHighlight } = useMail();
+  const [copyStatus, setCopyStatus] = useState<{
+    code: string;
+    message: string;
+  } | null>(null);
+  const [mailIndex, setMailIndex] = useState(0);
+  const selectedMail = recentMail[Math.min(mailIndex, recentMail.length - 1)];
+  const currentCopyStatus =
+    selectedMail?.code === copyStatus?.code ? copyStatus?.message : "";
   const [appearance, setAppearance] = useState(defaultAppearance);
   const panel = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<number | null>(null);
@@ -136,7 +151,9 @@ export function IslandWindow() {
       active = false;
     };
   }, [mediaKey]);
-  const [activeTab, setActiveTab] = useState<"timer" | "music">("timer");
+  const [activeTab, setActiveTab] = useState<"timer" | "music" | "mail">(
+    "timer",
+  );
   const [mediaError, setMediaError] = useState("");
   useEffect(() => {
     let active = true;
@@ -294,6 +311,18 @@ export function IslandWindow() {
       setMediaError("当前播放器暂不支持此操作");
     }
   }
+  async function copyCode(code: string, expiresAt: number) {
+    if (Date.now() >= expiresAt) {
+      setCopyStatus({ code, message: "已过期" });
+      return;
+    }
+    try {
+      await invoke("copy_mail_code", { code });
+      setCopyStatus({ code, message: "已复制" });
+    } catch {
+      setCopyStatus({ code, message: "复制失败" });
+    }
+  }
   return (
     <div
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
@@ -314,7 +343,20 @@ export function IslandWindow() {
           className="island-toggle"
           aria-expanded={expanded}
           aria-label={expanded ? "收起灵动岛" : "展开灵动岛"}
-          onClick={() => void toggleExpanded()}
+          onClick={() => {
+            if (
+              !expanded &&
+              mailHighlight &&
+              recentMail.length &&
+              !notice &&
+              timer.status !== "finished"
+            ) {
+              setActiveTab("mail");
+              setMailIndex(0);
+              setCopyStatus(null);
+            }
+            void toggleExpanded();
+          }}
         >
           {expanded ? (
             <span className="island-expanded-title">灵动岛</span>
@@ -323,6 +365,16 @@ export function IslandWindow() {
               <NoticeIcon kind={notice.kind} />
               <span className="system-notice-label">{notice.label}</span>
               <strong>{notice.value}</strong>
+            </span>
+          ) : mailHighlight &&
+            recentMail.length > 0 &&
+            timer.status !== "finished" ? (
+            <span className="island-current system-notice" role="status">
+              <Mail size={16} />
+              <span className="system-notice-label">
+                {recentMail[0].code ? "收到邮箱验证码" : "收到新邮件"}
+              </span>
+              <ChevronDown className="toggle-mark" size={15} />
             </span>
           ) : timer.status !== "idle" ? (
             <span className="island-current">
@@ -372,6 +424,18 @@ export function IslandWindow() {
             <strong>{notice.value}</strong>
           </div>
         )}
+        {expanded &&
+          !notice &&
+          mailHighlight &&
+          recentMail.length > 0 &&
+          timer.status !== "finished" && (
+            <div className="system-notice-banner" role="status">
+              <Mail size={13} />
+              <span>
+                {recentMail[0].code ? "收到邮箱验证码" : "收到新邮件"}
+              </span>
+            </div>
+          )}
         <div
           className="island-details"
           aria-hidden={!expanded}
@@ -396,8 +460,93 @@ export function IslandWindow() {
               <Music2 size={13} />
               音乐
             </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "mail"}
+              className={activeTab === "mail" ? "active" : ""}
+              onClick={() => {
+                setActiveTab("mail");
+                setMailIndex(0);
+                setCopyStatus(null);
+              }}
+            >
+              <Mail size={13} />
+              邮件{recentMail.length > 0 && <span className="mail-tab-dot" />}
+            </button>
           </div>
-          {activeTab === "music" ? (
+          {activeTab === "mail" ? (
+            <div className="island-mail-view">
+              {selectedMail ? (
+                <>
+                  <div className="island-mail-heading">
+                    <span>{selectedMail.account}</span>
+                    <small>最近提醒 · 5 分钟内</small>
+                  </div>
+                  <strong className="island-mail-subject">
+                    {selectedMail.subject || "新邮件"}
+                  </strong>
+                  {selectedMail.code ? (
+                    <div className="island-mail-code">
+                      <span>{selectedMail.code}</span>
+                      <button
+                        onClick={() =>
+                          void copyCode(
+                            selectedMail.code!,
+                            selectedMail.expiresAt,
+                          )
+                        }
+                      >
+                        {currentCopyStatus === "已复制" ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                        {currentCopyStatus || "复制验证码"}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="island-mail-empty">这封邮件未识别到验证码</p>
+                  )}
+                  {recentMail.length > 1 && (
+                    <div className="island-mail-navigation">
+                      <button
+                        aria-label="上一条提醒"
+                        disabled={mailIndex <= 0}
+                        onClick={() => {
+                          setMailIndex((value) => Math.max(0, value - 1));
+                          setCopyStatus(null);
+                        }}
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span>
+                        {Math.min(mailIndex + 1, recentMail.length)} /{" "}
+                        {recentMail.length}
+                      </span>
+                      <button
+                        aria-label="下一条提醒"
+                        disabled={mailIndex >= recentMail.length - 1}
+                        onClick={() => {
+                          setMailIndex((value) =>
+                            Math.min(recentMail.length - 1, value + 1),
+                          );
+                          setCopyStatus(null);
+                        }}
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="media-empty">
+                  <Mail size={20} />
+                  <strong>暂无新邮件提醒</strong>
+                  <span>在设置中添加邮箱后，新邮件会显示在这里。</span>
+                </div>
+              )}
+            </div>
+          ) : activeTab === "music" ? (
             <div className="media-view">
               {media ? (
                 <>

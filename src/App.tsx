@@ -86,6 +86,17 @@ export default function App() {
       setSaving(false);
     }
   }
+  async function reloadFromStorage() {
+    const value = await loadAppearance();
+    revision.current += 1;
+    setAppearance(value);
+    setDirty(false);
+    setStatus("已切换数据目录");
+    await Promise.all([
+      emitTo("island", "appearance-changed", { version: 2, ...value }),
+      emitTo("island", "mail-accounts-changed"),
+    ]);
+  }
   return (
     <SettingsPage
       appearance={appearance}
@@ -95,6 +106,8 @@ export default function App() {
       canEdit={ready && !saving}
       canSave={ready && hasDesktopStorage && !saving}
       onSave={save}
+      canSwitchStorage={ready && !saving && !dirty}
+      onStorageChanged={reloadFromStorage}
     />
   );
 }

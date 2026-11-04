@@ -7,11 +7,15 @@ import {
   Palette,
   TimerReset,
   Bell,
+  Database,
+  Mail,
 } from "lucide-react";
 import type { AppearanceSettings } from "../../domain/settings";
 import { StatusSettings } from "./StatusSettings";
+import { StorageSettings } from "./StorageSettings";
+import { MailSettings } from "./MailSettings";
 
-type Page = "appearance" | "behavior" | "status" | "about";
+type Page = "appearance" | "behavior" | "status" | "mail" | "storage" | "about";
 interface Props {
   appearance: AppearanceSettings;
   onAppearanceChange: (value: AppearanceSettings) => void;
@@ -20,12 +24,16 @@ interface Props {
   canEdit: boolean;
   canSave: boolean;
   onSave: () => void;
+  canSwitchStorage: boolean;
+  onStorageChanged: () => Promise<void>;
 }
 
 const navItems: { id: Page; label: string; icon: typeof Palette }[] = [
   { id: "appearance", label: "外观", icon: Palette },
   { id: "behavior", label: "交互与行为", icon: MousePointer2 },
   { id: "status", label: "状态提醒", icon: Bell },
+  { id: "mail", label: "邮箱提醒", icon: Mail },
+  { id: "storage", label: "数据与存储", icon: Database },
   { id: "about", label: "应用信息", icon: CircleHelp },
 ];
 
@@ -37,6 +45,8 @@ export function SettingsPage({
   canEdit,
   canSave,
   onSave,
+  canSwitchStorage,
+  onStorageChanged,
 }: Props) {
   const [page, setPage] = useState<Page>("appearance");
   return (
@@ -82,7 +92,11 @@ export function SettingsPage({
                   ? "BEHAVIOR"
                   : page === "status"
                     ? "STATUS"
-                    : "ABOUT"}
+                    : page === "storage"
+                      ? "DATA"
+                      : page === "mail"
+                        ? "MAIL"
+                        : "ABOUT"}
             </div>
             <h1>
               {page === "appearance"
@@ -91,7 +105,11 @@ export function SettingsPage({
                   ? "交互与行为"
                   : page === "status"
                     ? "状态提醒"
-                    : "应用信息"}
+                    : page === "storage"
+                      ? "数据与存储"
+                      : page === "mail"
+                        ? "邮箱提醒"
+                        : "应用信息"}
             </h1>
             <p>
               {page === "appearance"
@@ -100,7 +118,11 @@ export function SettingsPage({
                   ? "调整灵动岛响应鼠标和计时的方式。"
                   : page === "status"
                     ? "查看系统状态，并体验灵动岛提醒。"
-                    : "关于灵动岛桌面工具。"}
+                    : page === "storage"
+                      ? "管理应用数据的存放位置。"
+                      : page === "mail"
+                        ? "管理邮箱账户和验证码提醒。"
+                        : "关于灵动岛桌面工具。"}
             </p>
           </div>
           <div className="autosave-status" role="status">
@@ -237,6 +259,13 @@ export function SettingsPage({
           </section>
         )}
         {page === "status" && <StatusSettings />}
+        {page === "storage" && (
+          <StorageSettings
+            canSwitch={canSwitchStorage}
+            onChanged={onStorageChanged}
+          />
+        )}
+        {page === "mail" && <MailSettings />}
         {page === "about" && (
           <section className="settings-card about-card">
             <div className="about-mark">

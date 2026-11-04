@@ -3,6 +3,8 @@ use serde::Serialize;
 use tauri::LogicalSize;
 use tauri::{Manager, PhysicalPosition, WindowEvent};
 
+mod mail;
+mod storage;
 mod system_status;
 
 #[derive(Clone, Serialize)]
@@ -310,8 +312,16 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_store::Builder::new().build())
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "windows")]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
+    builder
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             open_settings,
             quit_app,
@@ -320,9 +330,22 @@ pub fn run() {
             get_media_artwork,
             control_media,
             system_status::get_system_status,
-            system_status::get_device_status
+            system_status::get_device_status,
+            storage::load_appearance,
+            storage::save_appearance,
+            storage::get_data_directory,
+            storage::set_data_directory,
+            storage::use_existing_data_directory,
+            mail::list_mail_accounts,
+            mail::get_mail_monitor_status,
+            mail::add_mail_account,
+            mail::remove_mail_account,
+            mail::poll_mail,
+            mail::copy_mail_code
         ])
         .setup(|app| {
+            app.manage(storage::initialize(app.handle()).map_err(std::io::Error::other)?);
+            app.manage(mail::MailMonitor::default());
             if let Some(window) = app.get_webview_window("island") {
                 if let Some(monitor) = window.primary_monitor()? {
                     let size = window.outer_size()?;
