@@ -6,10 +6,12 @@ import {
   MousePointer2,
   Palette,
   TimerReset,
+  Bell,
 } from "lucide-react";
 import type { AppearanceSettings } from "../../domain/settings";
+import { StatusSettings } from "./StatusSettings";
 
-type Page = "appearance" | "behavior" | "about";
+type Page = "appearance" | "behavior" | "status" | "about";
 interface Props {
   appearance: AppearanceSettings;
   onAppearanceChange: (value: AppearanceSettings) => void;
@@ -23,6 +25,7 @@ interface Props {
 const navItems: { id: Page; label: string; icon: typeof Palette }[] = [
   { id: "appearance", label: "外观", icon: Palette },
   { id: "behavior", label: "交互与行为", icon: MousePointer2 },
+  { id: "status", label: "状态提醒", icon: Bell },
   { id: "about", label: "应用信息", icon: CircleHelp },
 ];
 
@@ -77,21 +80,27 @@ export function SettingsPage({
                 ? "APPEARANCE"
                 : page === "behavior"
                   ? "BEHAVIOR"
-                  : "ABOUT"}
+                  : page === "status"
+                    ? "STATUS"
+                    : "ABOUT"}
             </div>
             <h1>
               {page === "appearance"
                 ? "外观"
                 : page === "behavior"
                   ? "交互与行为"
-                  : "应用信息"}
+                  : page === "status"
+                    ? "状态提醒"
+                    : "应用信息"}
             </h1>
             <p>
               {page === "appearance"
                 ? "让灵动岛自然融入你的桌面。"
                 : page === "behavior"
                   ? "调整灵动岛响应鼠标和计时的方式。"
-                  : "关于灵动岛桌面工具。"}
+                  : page === "status"
+                    ? "查看系统状态，并体验灵动岛提醒。"
+                    : "关于灵动岛桌面工具。"}
             </p>
           </div>
           <div className="autosave-status" role="status">
@@ -227,6 +236,7 @@ export function SettingsPage({
             </div>
           </section>
         )}
+        {page === "status" && <StatusSettings />}
         {page === "about" && (
           <section className="settings-card about-card">
             <div className="about-mark">

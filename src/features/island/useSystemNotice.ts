@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   deviceChanges,
   systemChanges,
@@ -43,6 +44,21 @@ export function useSystemNotice() {
         if (pending.length < 8) pending.push(next);
       }
     }
+    let unlisten: (() => void) | undefined;
+    void listen<SystemNotice>(
+      "system-notice-preview",
+      ({ payload }) => {
+        if (active) show(payload);
+      },
+      { target: "island" },
+    )
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch((error) =>
+        console.error("Unable to listen for notice previews", error),
+      );
     async function poll() {
       try {
         const state = await invoke<SystemStatus>("get_system_status");
@@ -87,6 +103,7 @@ export function useSystemNotice() {
     void pollDevices();
     return () => {
       active = false;
+      unlisten?.();
       window.clearTimeout(timeout);
       window.clearTimeout(deviceTimeout);
       window.clearTimeout(dismissal);
