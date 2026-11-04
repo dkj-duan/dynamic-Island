@@ -1,0 +1,177 @@
+#[cfg(not(target_os = "windows"))]
+use tauri::LogicalSize;
+use tauri::{Manager, PhysicalPosition, WindowEvent};
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn island_window_subclass(
+    hwnd: windows_sys::Win32::Foundation::HWND,
+    message: u32,
+    wparam: usize,
+    lparam: isize,
+    id: usize,
+    _data: usize,
+) -> isize {
+    use windows_sys::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NCACTIVATE, WM_NCDESTROY, WM_NCPAINT};
+    match message {
+        // The island has no native frame. Windows can otherwise paint one when
+        // a region is present and activation changes.
+        WM_NCPAINT => 0,
+        // Preserve Tao's activation handling while suppressing native frame paint.
+        WM_NCACTIVATE => unsafe { DefSubclassProc(hwnd, message, wparam, -1) },
+        WM_NCDESTROY => {
+            unsafe {
+                RemoveWindowSubclass(hwnd, Some(island_window_subclass), id);
+            }
+            unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
+        }
+        _ => unsafe { DefSubclassProc(hwnd, message, wparam, lparam) },
+    }
+}
+
+#[tauri::command]
+fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or("settings window unavailable")?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[cfg(target_os = "windows")]
+fn remove_native_caption(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use windows_sys::Win32::UI::Shell::SetWindowSubclass;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_STYLE, GetWindowLongPtrW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_CAPTION,
+    };
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+    // setup runs on the window thread, as required by SetWindowSubclass.
+    let subclassed = unsafe { SetWindowSubclass(hwnd.0, Some(island_window_subclass), 1, 0) };
+    if subclassed == 0 {
+        return Err(std::io::Error::last_os_error().to_string());
+    }
+    // Tao keeps caption style bits for its custom non-client handling. A window
+    // region can make Windows draw that caption, so remove them before showing.
+    let style = unsafe { GetWindowLongPtrW(hwnd.0, GWL_STYLE) };
+    if style == 0 {
+        return Err(std::io::Error::last_os_error().to_string());
+    }
+    let previous = unsafe { SetWindowLongPtrW(hwnd.0, GWL_STYLE, style & !(WS_CAPTION as isize)) };
+    if previous == 0 {
+        return Err(std::io::Error::last_os_error().to_string());
+    }
+    let updated = unsafe {
+        SetWindowPos(
+            hwnd.0,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+        )
+    };
+    if updated == 0 {
+        return Err(std::io::Error::last_os_error().to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(), String> {
+    if window.label() != "island" {
+        return Err("invalid window".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let scale = window.scale_factor().map_err(|e| e.to_string())?;
+        let size = window.outer_size().map_err(|e| e.to_string())?;
+        let inset = (30.0 * scale).round() as i32;
+        let height = (64.0 * scale).round() as i32;
+        // Keep WebView dimensions fixed; the region also excludes the empty
+        // transparent area from hit testing when the island is collapsed.
+        let region = if expanded {
+            std::ptr::null_mut()
+        } else {
+            let region = unsafe { CreateRectRgn(inset, 0, size.width as i32 - inset, height) };
+            if region.is_null() {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+            region
+        };
+        let result = unsafe { SetWindowRgn(hwnd.0, region, 1) };
+        if result == 0 {
+            if !region.is_null() {
+                unsafe {
+                    DeleteObject(region);
+                }
+            }
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let old_position = window.outer_position().map_err(|e| e.to_string())?;
+        let old_size = window.outer_size().map_err(|e| e.to_string())?;
+        let (width, height) = if expanded {
+            (360.0, 218.0)
+        } else {
+            (300.0, 64.0)
+        };
+        let scale = window.scale_factor().map_err(|e| e.to_string())?;
+        let x = old_position.x + (old_size.width as i32 - (width * scale).round() as i32) / 2;
+        window
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())?;
+        window
+            .set_position(PhysicalPosition::new(x, old_position.y))
+            .map_err(|e| e.to_string())
+    }
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            open_settings,
+            quit_app,
+            set_island_expanded
+        ])
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("island") {
+                if let Some(monitor) = window.primary_monitor()? {
+                    let size = window.outer_size()?;
+                    let screen = monitor.size();
+                    let origin = monitor.position();
+                    let x = origin.x + (screen.width as i32 - size.width as i32) / 2;
+                    let y = origin.y + (8.0 * monitor.scale_factor()).round() as i32;
+                    window.set_position(PhysicalPosition::new(x, y))?;
+                }
+                window.show()?;
+                #[cfg(target_os = "windows")]
+                remove_native_caption(&window).map_err(std::io::Error::other)?;
+                set_island_expanded(window.clone(), false).map_err(std::io::Error::other)?;
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main"
+                && let WindowEvent::CloseRequested { api, .. } = event
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("failed to run Dynamic Island");
+}

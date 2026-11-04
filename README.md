@@ -1,0 +1,16 @@
+# Dynamic Island for Windows
+
+Windows 灵动岛项目，当前为技术架构和设置界面预览。
+
+## 开发
+
+需安装 Node.js、Rust 和 Tauri Windows 开发前置组件（包括 WebView2 与 Microsoft C++ 构建工具），详见 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)。
+
+```powershell
+npm ci
+npm run tauri dev
+```
+
+只预览界面可运行 `npm run dev`；`npm run build` 检查并构建前端，`cargo check --manifest-path src-tauri/Cargo.toml` 检查 Rust。
+
+桌面应用启动后显示屏幕顶部灵动岛和设置窗口。点击灵动岛展开面板，可选择 1、5、25 分钟，或输入自定义分钟和秒数（1 秒至 999 分 59 秒）。在设置页可选鼠标离开后 1、3、5、10 或 15 秒自动收起，也可关闭。计时结束后岛上持续显示动画，点击“知道了”或“再计一次”停止提示；当前不发出声音，退出应用后计时不保留。调整设置后点击“保存设置”，可同步到灵动岛。关闭设置窗口会将其隐藏。浏览器预览不会保存设置。音乐接入和插件加载尚未实现；灵动岛目前固定在主屏幕顶部，尚未实现全屏避让和多屏配置。设计及后续计划见 [技术架构](docs/architecture.md)，质量检查见 [开发规范](docs/development.md)。
