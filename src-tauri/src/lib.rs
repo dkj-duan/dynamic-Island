@@ -1,6 +1,88 @@
+use serde::Serialize;
 #[cfg(not(target_os = "windows"))]
 use tauri::LogicalSize;
 use tauri::{Manager, PhysicalPosition, WindowEvent};
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaState {
+    title: String,
+    artist: String,
+    playing: bool,
+}
+
+#[cfg(target_os = "windows")]
+fn current_media_session()
+-> Result<windows::Media::Control::GlobalSystemMediaTransportControlsSession, String> {
+    use std::future::IntoFuture;
+    use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager as Manager;
+    let manager = futures::executor::block_on(
+        Manager::RequestAsync()
+            .map_err(|e| e.to_string())?
+            .into_future(),
+    )
+    .map_err(|e| e.to_string())?;
+    manager.GetCurrentSession().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_media_state() -> Result<Option<MediaState>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::future::IntoFuture;
+        use windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus;
+        let session = match current_media_session() {
+            Ok(session) => session,
+            Err(_) => return Ok(None),
+        };
+        let properties = futures::executor::block_on(
+            session
+                .TryGetMediaPropertiesAsync()
+                .map_err(|e| e.to_string())?
+                .into_future(),
+        )
+        .map_err(|e| e.to_string())?;
+        let status = session
+            .GetPlaybackInfo()
+            .and_then(|info| info.PlaybackStatus())
+            .map_err(|e| e.to_string())?;
+        Ok(Some(MediaState {
+            title: properties
+                .Title()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            artist: properties
+                .Artist()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            playing: status == PlaybackStatus::Playing,
+        }))
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(None)
+}
+
+#[tauri::command]
+fn control_media(action: String) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::future::IntoFuture;
+        let session = current_media_session()?;
+        let operation = match action.as_str() {
+            "toggle" => session.TryTogglePlayPauseAsync(),
+            "next" => session.TrySkipNextAsync(),
+            "previous" => session.TrySkipPreviousAsync(),
+            _ => return Err("unsupported media action".into()),
+        }
+        .map_err(|e| e.to_string())?;
+        futures::executor::block_on(operation.into_future()).map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = action;
+        Err("media controls are only available on Windows".into())
+    }
+}
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn island_window_subclass(
@@ -145,7 +227,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_settings,
             quit_app,
-            set_island_expanded
+            set_island_expanded,
+            get_media_state,
+            control_media
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("island") {

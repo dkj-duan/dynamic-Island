@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Power, Settings2, Timer } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Music2,
+  Pause,
+  Play,
+  Power,
+  Settings2,
+  SkipBack,
+  SkipForward,
+  Timer,
+} from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { defaultAppearance, parseAppearance } from "../../domain/settings";
@@ -45,6 +56,34 @@ export function IslandWindow() {
   const [durationError, setDurationError] = useState("");
   const [lastDuration, setLastDuration] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [media, setMedia] = useState<{
+    title: string;
+    artist: string;
+    playing: boolean;
+  } | null>(null);
+  const [activeTab, setActiveTab] = useState<"timer" | "music">("timer");
+  const [mediaError, setMediaError] = useState("");
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const state = await invoke<{
+          title: string;
+          artist: string;
+          playing: boolean;
+        } | null>("get_media_state");
+        if (active) setMedia(state?.title ? state : null);
+      } catch (error) {
+        console.error("Unable to read Windows media session", error);
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 2000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
   useEffect(() => {
     if (timer.status !== "running") return;
     const tick = () => {
@@ -109,7 +148,9 @@ export function IslandWindow() {
       }
     }, delay * 1000);
   }
-  scheduleCollapseRef.current = scheduleAutoCollapse;
+  useEffect(() => {
+    scheduleCollapseRef.current = scheduleAutoCollapse;
+  });
   useEffect(() => {
     const onWindowBlur = () => scheduleCollapseRef.current();
     const onWindowFocus = () => {
@@ -167,6 +208,21 @@ export function IslandWindow() {
     setTimer({ status: "running", endsAt: current + durationMs });
   }
   const remaining = formatRemaining(remainingMilliseconds(timer, now));
+  async function controlMedia(action: "previous" | "toggle" | "next") {
+    try {
+      await invoke("control_media", { action });
+      setMediaError("");
+      window.setTimeout(async () => {
+        try {
+          setMedia(await invoke("get_media_state"));
+        } catch {
+          /* next poll will retry */
+        }
+      }, 250);
+    } catch {
+      setMediaError("当前播放器暂不支持此操作");
+    }
+  }
   return (
     <div
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
@@ -189,7 +245,24 @@ export function IslandWindow() {
           aria-label={expanded ? "收起灵动岛" : "展开灵动岛"}
           onClick={() => void toggleExpanded()}
         >
-          {timer.status === "idle" ? (
+          {media?.title ? (
+            <span className="island-current island-media-current">
+              <Music2
+                className="timer-indicator"
+                size={15}
+                aria-hidden="true"
+              />
+              <span className="island-track-title">{media.title}</span>
+              <span className="media-playing-mark">
+                {media.playing ? <Pause size={12} /> : <Play size={12} />}
+              </span>
+              <ChevronDown
+                className="toggle-mark"
+                size={15}
+                aria-hidden="true"
+              />
+            </span>
+          ) : timer.status === "idle" ? (
             <IslandContent appearance={appearance} />
           ) : (
             <span className="island-current">
@@ -225,111 +298,189 @@ export function IslandWindow() {
           aria-hidden={!expanded}
           inert={!expanded}
         >
-          <div className="timer-heading">
-            <div>
-              <strong>计时器</strong>
-              <span>
-                {timer.status === "finished"
-                  ? "倒计时已结束"
-                  : timer.status === "paused"
-                    ? "已暂停"
-                    : timer.status === "running"
-                      ? "进行中"
-                      : "选择时长"}
-              </span>
-            </div>
-            <div className="timer-time">
-              {timer.status === "idle" ? "00:00" : remaining}
-            </div>
+          <div className="island-tabs" role="tablist" aria-label="灵动岛功能">
+            <button
+              role="tab"
+              aria-selected={activeTab === "timer"}
+              className={activeTab === "timer" ? "active" : ""}
+              onClick={() => setActiveTab("timer")}
+            >
+              <Timer size={13} />
+              计时器
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "music"}
+              className={activeTab === "music" ? "active" : ""}
+              onClick={() => setActiveTab("music")}
+            >
+              <Music2 size={13} />
+              音乐
+            </button>
           </div>
-          {timer.status === "idle" ? (
-            <>
-              <div className="timer-controls">
-                {[1, 5, 25].map((minutes) => (
-                  <button
-                    key={minutes}
-                    onClick={() => startTimer(minutes * 60_000, Date.now())}
-                  >
-                    {minutes} 分钟
-                  </button>
-                ))}
-              </div>
-              <form
-                className="custom-timer"
-                noValidate
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const duration = parseDuration(minutes, seconds);
-                  if (duration === null) {
-                    setDurationError("请输入有效时间（秒数为 0–59）");
-                    return;
-                  }
-                  startTimer(duration, Date.now());
-                }}
-              >
-                <label>
-                  <span>分</span>
-                  <input
-                    aria-label="分钟"
-                    inputMode="numeric"
-                    placeholder="00"
-                    value={minutes}
-                    maxLength={3}
-                    onChange={(event) => {
-                      setMinutes(event.target.value);
-                      setDurationError("");
-                    }}
-                  />
-                </label>
-                <span className="time-separator">:</span>
-                <label>
-                  <span>秒</span>
-                  <input
-                    aria-label="秒"
-                    inputMode="numeric"
-                    placeholder="00"
-                    value={seconds}
-                    maxLength={2}
-                    onChange={(event) => {
-                      setSeconds(event.target.value);
-                      setDurationError("");
-                    }}
-                  />
-                </label>
-                <button type="submit">开始</button>
-              </form>
-              {durationError && (
-                <span className="duration-error" role="alert">
-                  {durationError}
-                </span>
+          {activeTab === "music" ? (
+            <div className="media-view">
+              {media ? (
+                <>
+                  <div className="media-track">
+                    <div className="media-art">
+                      <Music2 size={21} />
+                    </div>
+                    <div className="media-copy">
+                      <strong>{media.title}</strong>
+                      <span>{media.artist || "未知艺术家"}</span>
+                    </div>
+                  </div>
+                  <div className="media-controls">
+                    <button
+                      aria-label="上一首"
+                      onClick={() => void controlMedia("previous")}
+                    >
+                      <SkipBack size={16} fill="currentColor" />
+                    </button>
+                    <button
+                      aria-label={media.playing ? "暂停" : "播放"}
+                      className="media-play"
+                      onClick={() => void controlMedia("toggle")}
+                    >
+                      {media.playing ? (
+                        <Pause size={17} fill="currentColor" />
+                      ) : (
+                        <Play size={17} fill="currentColor" />
+                      )}
+                    </button>
+                    <button
+                      aria-label="下一首"
+                      onClick={() => void controlMedia("next")}
+                    >
+                      <SkipForward size={16} fill="currentColor" />
+                    </button>
+                  </div>
+                  {mediaError && (
+                    <span className="duration-error" role="alert">
+                      {mediaError}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <div className="media-empty">
+                  <Music2 size={21} />
+                  <strong>没有正在播放的媒体</strong>
+                  <span>开始播放音乐后，这里会显示曲目信息和控制按钮。</span>
+                </div>
               )}
-            </>
-          ) : timer.status === "finished" ? (
-            <div className="timer-controls">
-              <button onClick={() => setTimer({ status: "idle" })}>
-                知道了
-              </button>
-              <button onClick={() => startTimer(lastDuration, Date.now())}>
-                再计一次
-              </button>
             </div>
           ) : (
-            <div className="timer-controls">
-              <button
-                onClick={() => {
-                  const now = Date.now();
-                  setNow(now);
-                  setTimer((current) =>
-                    current.status === "running"
-                      ? pauseTimer(current, now)
-                      : resumeTimer(current, now),
-                  );
-                }}
-              >
-                {timer.status === "running" ? "暂停" : "继续"}
-              </button>
-              <button onClick={() => setTimer({ status: "idle" })}>取消</button>
-            </div>
+            <>
+              <div className="timer-heading">
+                <div>
+                  <strong>计时器</strong>
+                  <span>
+                    {timer.status === "finished"
+                      ? "倒计时已结束"
+                      : timer.status === "paused"
+                        ? "已暂停"
+                        : timer.status === "running"
+                          ? "进行中"
+                          : "选择时长"}
+                  </span>
+                </div>
+                <div className="timer-time">
+                  {timer.status === "idle" ? "00:00" : remaining}
+                </div>
+              </div>
+              {timer.status === "idle" ? (
+                <>
+                  <div className="timer-controls">
+                    {[1, 5, 25].map((minutes) => (
+                      <button
+                        key={minutes}
+                        onClick={() => startTimer(minutes * 60_000, Date.now())}
+                      >
+                        {minutes} 分钟
+                      </button>
+                    ))}
+                  </div>
+                  <form
+                    className="custom-timer"
+                    noValidate
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const duration = parseDuration(minutes, seconds);
+                      if (duration === null) {
+                        setDurationError("请输入有效时间（秒数为 0–59）");
+                        return;
+                      }
+                      startTimer(duration, Date.now());
+                    }}
+                  >
+                    <label>
+                      <span>分</span>
+                      <input
+                        aria-label="分钟"
+                        inputMode="numeric"
+                        placeholder="00"
+                        value={minutes}
+                        maxLength={3}
+                        onChange={(event) => {
+                          setMinutes(event.target.value);
+                          setDurationError("");
+                        }}
+                      />
+                    </label>
+                    <span className="time-separator">:</span>
+                    <label>
+                      <span>秒</span>
+                      <input
+                        aria-label="秒"
+                        inputMode="numeric"
+                        placeholder="00"
+                        value={seconds}
+                        maxLength={2}
+                        onChange={(event) => {
+                          setSeconds(event.target.value);
+                          setDurationError("");
+                        }}
+                      />
+                    </label>
+                    <button type="submit">开始</button>
+                  </form>
+                  {durationError && (
+                    <span className="duration-error" role="alert">
+                      {durationError}
+                    </span>
+                  )}
+                </>
+              ) : timer.status === "finished" ? (
+                <div className="timer-controls">
+                  <button onClick={() => setTimer({ status: "idle" })}>
+                    知道了
+                  </button>
+                  <button onClick={() => startTimer(lastDuration, Date.now())}>
+                    再计一次
+                  </button>
+                </div>
+              ) : (
+                <div className="timer-controls">
+                  <button
+                    onClick={() => {
+                      const now = Date.now();
+                      setNow(now);
+                      setTimer((current) =>
+                        current.status === "running"
+                          ? pauseTimer(current, now)
+                          : resumeTimer(current, now),
+                      );
+                    }}
+                  >
+                    {timer.status === "running" ? "暂停" : "继续"}
+                  </button>
+                  <button onClick={() => setTimer({ status: "idle" })}>
+                    取消
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
         <div

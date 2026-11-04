@@ -694,6 +694,22 @@ html.island-window #root {
   font-weight: 600;
   letter-spacing: 0.03em;
 }
+.island-media-current {
+  min-width: 0;
+}
+.island-track-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.media-playing-mark {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  color: #c8c8ce;
+}
 .island-timer-status {
   font-size: 10px;
   color: #85858e;
@@ -714,12 +730,122 @@ html.island-window #root {
   opacity: 0;
 }
 .island-details {
-  padding: 12px 20px 12px;
+  padding: 8px 20px 10px;
   opacity: 0;
   transform: translateY(-4px);
   transition:
     opacity 0.2s ease,
     transform 0.3s cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+.island-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.island-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  color: #8d8d95;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+.island-tabs button.active {
+  color: #ececf0;
+  border-color: #36363c;
+  background: #252529;
+}
+.media-view {
+  min-height: 105px;
+}
+.media-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 1px 0;
+}
+.media-art {
+  width: 45px;
+  height: 45px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: #b7b7bf;
+  border: 1px solid #39393f;
+  border-radius: 9px;
+  background: #242428;
+}
+.media-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.media-copy strong {
+  overflow: hidden;
+  color: #f0f0f3;
+  font-size: 12px;
+  font-weight: 580;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.media-copy span {
+  overflow: hidden;
+  color: #898991;
+  font-size: 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.media-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: 9px;
+}
+.media-controls button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #c3c3ca;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.media-controls button:hover {
+  background: #303036;
+}
+.media-controls button.media-play {
+  width: 34px;
+  height: 34px;
+  color: #17171b;
+  border-color: #e1e1e5;
+  background: #e1e1e5;
+}
+.media-empty {
+  min-height: 94px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #72727a;
+  text-align: center;
+}
+.media-empty strong {
+  color: #b6b6bd;
+  font-size: 11px;
+  font-weight: 550;
+}
+.media-empty span {
+  color: #77777f;
+  font-size: 9px;
 }
 .is-expanded .island-details {
   opacity: 1;
