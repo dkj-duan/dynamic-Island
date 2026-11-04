@@ -16,9 +16,14 @@ export function QuotaRings({
       className={compact ? "quota-rings quota-rings-compact" : "quota-rings"}
       aria-hidden="true"
     >
-      <svg viewBox="0 0 100 100" focusable="false">
+      <svg
+        viewBox="0 0 100 100"
+        focusable="false"
+        className={rings.length === 1 ? "is-single" : undefined}
+      >
         {rings.map(({ item, percent }, index) => {
-          const radius = index === 0 ? 41 : 30;
+          // One gauge alone fills the disc; two nest as outer + inner.
+          const radius = rings.length === 1 ? 38 : index === 0 ? 41 : 30;
           return (
             <g key={`${item.label}-${index}`}>
               <circle

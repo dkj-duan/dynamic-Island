@@ -1561,6 +1561,12 @@ html.island-window #root {
   stroke-width: 6;
 }
 
+/* A single gauge gets a thicker band so the disc does not look hollow. */
+.quota-rings.is-single .quota-ring-track,
+.quota-rings.is-single .quota-ring-progress {
+  stroke-width: 12;
+}
+
 .quota-ring-track {
   stroke: var(--island-ring-track);
 }
@@ -1593,6 +1599,9 @@ html.island-window #root {
 }
 
 .quota-ring-center .quota-ring-logo .provider-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   background: transparent;
 }
 
