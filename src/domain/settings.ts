@@ -1,14 +1,19 @@
+export type ExpandTrigger = "click" | "hover";
+
 export interface AppearanceSettings {
   theme: "system" | "light" | "dark";
   scale: number;
   showClock: boolean;
   autoCollapseSeconds: number;
+  /** How the collapsed capsule opens: clicking it, or pointing at it. */
+  expandTrigger: ExpandTrigger;
 }
 export const defaultAppearance: AppearanceSettings = {
   theme: "system",
   scale: 1,
   showClock: true,
   autoCollapseSeconds: 3,
+  expandTrigger: "click",
 };
 
 /** Reject malformed or future data instead of silently overwriting it. */
@@ -17,7 +22,10 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     throw new Error("设置格式无效");
   const item = value as Record<string, unknown>;
   if (
-    (item.version !== 1 && item.version !== 2 && item.version !== 3) ||
+    (item.version !== 1 &&
+      item.version !== 2 &&
+      item.version !== 3 &&
+      item.version !== 4) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -36,13 +44,18 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   ) {
     throw new Error("自动收起时长无效");
   }
-  const theme = item.version === 3 ? item.theme : "system";
+  const theme = item.version >= 3 ? item.theme : "system";
   if (theme !== "system" && theme !== "light" && theme !== "dark")
     throw new Error("主题设置无效");
+  const expandTrigger =
+    item.version === 4 ? item.expandTrigger : defaultAppearance.expandTrigger;
+  if (expandTrigger !== "click" && expandTrigger !== "hover")
+    throw new Error("展开方式无效");
   return {
     theme,
     scale: item.scale,
     showClock: item.showClock,
     autoCollapseSeconds,
+    expandTrigger,
   };
 }

@@ -70,7 +70,6 @@ textarea:focus-visible,
 .island-details,
 .island-ai-list,
 .quota-metrics,
-.quota-account-picker,
 .mail-account-list {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
@@ -80,7 +79,6 @@ textarea:focus-visible,
 .island-details::-webkit-scrollbar,
 .island-ai-list::-webkit-scrollbar,
 .quota-metrics::-webkit-scrollbar,
-.quota-account-picker::-webkit-scrollbar,
 .mail-account-list::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -90,7 +88,6 @@ textarea:focus-visible,
 .island-details::-webkit-scrollbar-track,
 .island-ai-list::-webkit-scrollbar-track,
 .quota-metrics::-webkit-scrollbar-track,
-.quota-account-picker::-webkit-scrollbar-track,
 .mail-account-list::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -99,7 +96,6 @@ textarea:focus-visible,
 .island-details::-webkit-scrollbar-thumb,
 .island-ai-list::-webkit-scrollbar-thumb,
 .quota-metrics::-webkit-scrollbar-thumb,
-.quota-account-picker::-webkit-scrollbar-thumb,
 .mail-account-list::-webkit-scrollbar-thumb {
   background: var(--scroll-thumb);
   border: 2px solid transparent;
@@ -111,7 +107,6 @@ textarea:focus-visible,
 .island-details::-webkit-scrollbar-thumb:hover,
 .island-ai-list::-webkit-scrollbar-thumb:hover,
 .quota-metrics::-webkit-scrollbar-thumb:hover,
-.quota-account-picker::-webkit-scrollbar-thumb:hover,
 .mail-account-list::-webkit-scrollbar-thumb:hover {
   background: var(--scroll-thumb-hover);
   background-clip: padding-box;

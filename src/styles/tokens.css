@@ -47,6 +47,8 @@
   --island-ring-0: #a99af4;
   --island-ring-1: #70d1bf;
   --island-danger: #ffb0ad;
+  /* Reserved for transient reminders: system notices and new-mail signals. */
+  --island-alert: #eeb86a;
 }
 
 /* Settings theme surfaces — dark is default. */

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Database, FolderOpen } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
 export function StorageSettings({
   canSwitch,
@@ -61,48 +61,64 @@ export function StorageSettings({
     }
   }
   return (
-    <section className="settings-card storage-card">
-      <div className="settings-card-heading">
-        <span className="behavior-icon">
-          <Database size={17} />
-        </span>
-        <div>
-          <span className="card-kicker">DATA</span>
-          <h2>数据存放位置</h2>
+    <div className="settings-stack">
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>数据目录</h2>
+          <span className="card-note">SQLite</span>
         </div>
-      </div>
-      <p>
-        设置和邮箱账户信息保存在本机数据库中。邮箱授权码由 Windows
-        凭据管理器保存。
-      </p>
-      <div className="storage-path">
-        {desktop ? directory || "正在读取…" : "请在桌面应用中查看"}
-      </div>
-      <div className="storage-actions">
-        <button
-          className="status-refresh"
-          disabled={!desktop || busy || !canSwitch}
-          onClick={() => void chooseDirectory(false)}
-        >
-          <FolderOpen size={14} />
-          {busy ? "处理中…" : "迁移到其他目录"}
-        </button>
-        <button
-          className="status-refresh"
-          disabled={!desktop || busy || !canSwitch}
-          onClick={() => void chooseDirectory(true)}
-        >
-          使用已有数据
-        </button>
-      </div>
-      <p className="storage-hint">
-        迁移会复制并校验数据，不覆盖已有数据库。使用已有数据时，原目录的数据保留。
-      </p>
-      {message && (
-        <p role="status" className="storage-hint">
-          {message}
+        <p className="card-desc">
+          设置、邮箱账户与 AI 账户保存在本机数据库中，安装目录与数据目录分开。
         </p>
-      )}
-    </section>
+        <div className="storage-path">
+          {desktop ? directory || "正在读取…" : "请在桌面应用中查看"}
+        </div>
+        <div className="button-row">
+          <button
+            className="btn btn-quiet"
+            disabled={!desktop || busy || !canSwitch}
+            onClick={() => void chooseDirectory(false)}
+          >
+            <FolderOpen size={13} />
+            {busy ? "处理中…" : "迁移到其他目录"}
+          </button>
+          <button
+            className="btn btn-quiet"
+            disabled={!desktop || busy || !canSwitch}
+            onClick={() => void chooseDirectory(true)}
+          >
+            使用已有数据
+          </button>
+        </div>
+        <p className="card-hint">
+          迁移会复制并校验数据库，不覆盖目标目录中的文件，原目录保留。
+        </p>
+        {message && (
+          <p className="card-hint" role="status">
+            {message}
+          </p>
+        )}
+      </section>
+
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>凭据与隐私</h2>
+        </div>
+        <dl className="about-rows">
+          <div>
+            <dt>邮箱授权码</dt>
+            <dd>Windows 凭据管理器，不写入数据库</dd>
+          </div>
+          <div>
+            <dt>AI 密钥</dt>
+            <dd>当前 Windows 用户加密后入库，换用户需重新添加</dd>
+          </div>
+          <div>
+            <dt>邮件内容</dt>
+            <dd>仅内存保留约 5 分钟，不保存正文与验证码</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
   );
 }

@@ -1,19 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { MailAccount, MailNotice } from "./types";
 
 export type RecentMail = MailNotice & { expiresAt: number };
 
+/** A code waits for the user; plain mail only gets a short heads-up. */
+const CODE_HIGHLIGHT_MS = 120_000;
+const MAIL_HIGHLIGHT_MS = 10_000;
+
 export function useMail() {
   const [recent, setRecent] = useState<RecentMail[]>([]);
   const [highlight, setHighlight] = useState(false);
+  const highlightTimer = useRef<number | undefined>(undefined);
+  /** Called when the user copies the code or opens the panel. */
+  const dismissHighlight = useCallback(() => {
+    window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = undefined;
+    setHighlight(false);
+  }, []);
   useEffect(() => {
     let active = true;
     let running = false;
     let requested = false;
     let pollTimer: number | undefined;
-    let highlightTimer: number | undefined;
     let unlisten: (() => void) | undefined;
     async function poll() {
       if (running) {
@@ -47,8 +57,14 @@ export function useMail() {
               ].slice(0, 10),
             );
             setHighlight(true);
-            window.clearTimeout(highlightTimer);
-            highlightTimer = window.setTimeout(() => setHighlight(false), 8000);
+            window.clearTimeout(highlightTimer.current);
+            const duration = notices.some((item) => item.code)
+              ? CODE_HIGHLIGHT_MS
+              : MAIL_HIGHLIGHT_MS;
+            highlightTimer.current = window.setTimeout(() => {
+              highlightTimer.current = undefined;
+              setHighlight(false);
+            }, duration);
           } catch (error) {
             console.error("邮件检查失败", error);
           }
@@ -61,7 +77,7 @@ export function useMail() {
       } finally {
         running = false;
         if (active) {
-          const delay = requested ? 0 : 30_000;
+          const delay = requested ? 0 : 8_000;
           requested = false;
           pollTimer = window.setTimeout(() => void poll(), delay);
         }
@@ -87,9 +103,9 @@ export function useMail() {
       active = false;
       unlisten?.();
       window.clearTimeout(pollTimer);
-      window.clearTimeout(highlightTimer);
+      window.clearTimeout(highlightTimer.current);
       window.clearInterval(expiry);
     };
   }, []);
-  return { recent, highlight };
+  return { recent, highlight, dismissHighlight };
 }

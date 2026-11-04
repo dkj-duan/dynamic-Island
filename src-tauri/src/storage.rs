@@ -169,10 +169,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_u64())
         .filter(|v| [0, 1, 3, 5, 10, 15].contains(v));
-    if value.get("version").and_then(|v| v.as_u64()) != Some(3)
+    if value.get("version").and_then(|v| v.as_u64()) != Some(4)
         || !matches!(
             value.get("theme").and_then(|v| v.as_str()),
             Some("system" | "light" | "dark")
+        )
+        || !matches!(
+            value.get("expandTrigger").and_then(|v| v.as_str()),
+            Some("click" | "hover")
         )
         || scale.is_none()
         || delay.is_none()
@@ -180,6 +184,47 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     {
         return Err("设置格式无效，未保存".into());
     }
+    Ok(())
+}
+
+const POSITION_KEY: &str = "island_position";
+
+/// Where the island window was last dragged to, in physical screen pixels.
+pub fn load_island_position(storage: &Storage) -> Option<(i32, i32)> {
+    let db = storage.0.lock().ok()?;
+    let value: Option<String> = db
+        .connection
+        .query_row(
+            "SELECT value FROM settings WHERE key=?1",
+            [POSITION_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&value?).ok()?;
+    let x = parsed.get("x")?.as_i64()?;
+    let y = parsed.get("y")?.as_i64()?;
+    Some((i32::try_from(x).ok()?, i32::try_from(y).ok()?))
+}
+
+pub fn save_island_position(storage: &Storage, x: i32, y: i32) -> Result<(), String> {
+    let db = storage.0.lock().map_err(|e| e.to_string())?;
+    let value = serde_json::json!({ "x": x, "y": y }).to_string();
+    db.connection
+        .execute(
+            "INSERT INTO settings(key,value) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            params![POSITION_KEY, value],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Forgets the remembered position so the island returns to its default spot.
+pub fn clear_island_position(storage: &Storage) -> Result<(), String> {
+    let db = storage.0.lock().map_err(|e| e.to_string())?;
+    db.connection
+        .execute("DELETE FROM settings WHERE key=?1", [POSITION_KEY])
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -414,8 +459,11 @@ mod tests {
             .unwrap();
         drop(conn);
         assert!(open_database(&path).is_err());
-        assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_ok());
-        assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "invalid", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "hover"})).is_ok());
+        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "invalid", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "double"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
     }
 
     #[test]

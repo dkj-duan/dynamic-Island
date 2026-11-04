@@ -7,68 +7,82 @@
   --text-lg: 16px;
 }
 
-:root[data-large-display="true"] .settings-shell {
+/* —— Settings —— */
+:root[data-large-display="true"] .settings-header h1 {
+  font-size: 25px;
+}
+
+:root[data-large-display="true"] .settings-header p {
   font-size: 14px;
 }
 
-:root[data-large-display="true"] .settings-tab,
-:root[data-large-display="true"] .settings-header p,
-:root[data-large-display="true"] .settings-desc,
-:root[data-large-display="true"] .preference-row strong,
-:root[data-large-display="true"] .status-row-copy strong,
-:root[data-large-display="true"] .mail-form label,
-:root[data-large-display="true"] .mail-form input,
-:root[data-large-display="true"] .mail-form select,
-:root[data-large-display="true"] .storage-path {
+:root[data-large-display="true"] .settings-nav-item {
+  height: 36px;
+}
+
+:root[data-large-display="true"] .settings-card {
+  padding: 20px 22px;
+}
+
+:root[data-large-display="true"] .setting-row-copy strong,
+:root[data-large-display="true"] .settings-list-copy strong,
+:root[data-large-display="true"] .field input,
+:root[data-large-display="true"] .field select {
   font-size: 14px;
 }
 
-:root[data-large-display="true"] .settings-card-heading h2,
-:root[data-large-display="true"] .card-topline h2,
-:root[data-large-display="true"] .status-settings-heading h2 {
-  font-size: 16px;
+:root[data-large-display="true"] .preview-stage {
+  height: 148px;
 }
 
-:root[data-large-display="true"] .settings-brand-text small,
-:root[data-large-display="true"] .settings-topbar-status,
-:root[data-large-display="true"] .card-kicker,
-:root[data-large-display="true"] .preview-live,
-:root[data-large-display="true"] .preview-caption,
-:root[data-large-display="true"] .preference-row small,
-:root[data-large-display="true"] .range-control,
-:root[data-large-display="true"] .behavior-card .settings-card-heading p,
-:root[data-large-display="true"] .behavior-hint,
-:root[data-large-display="true"] .delay-options button,
-:root[data-large-display="true"] .status-row-copy small,
-:root[data-large-display="true"] .status-row-copy span,
-:root[data-large-display="true"] .status-settings-heading p,
-:root[data-large-display="true"] .status-settings-hint,
-:root[data-large-display="true"] .status-refresh,
-:root[data-large-display="true"] .status-preview-button,
-:root[data-large-display="true"] .storage-card > p,
-:root[data-large-display="true"] .storage-card .storage-hint,
-:root[data-large-display="true"] .mail-settings > p,
-:root[data-large-display="true"] .mail-form > p,
-:root[data-large-display="true"] .mail-account small,
-:root[data-large-display="true"] .mail-form-footer span,
-:root[data-large-display="true"] .mail-form-footer button,
-:root[data-large-display="true"] .about-card p,
-:root[data-large-display="true"] .about-version {
+:root[data-large-display="true"] .theme-option-preview {
+  width: 44px;
+  height: 30px;
+}
+
+/* —— Island —— */
+/* The expanded panel keeps a per-page height; large displays get a little more. */
+:root[data-large-display="true"] .is-expanded .island-panel {
+  --panel-h: 162px;
+}
+
+:root[data-large-display="true"] .is-expanded[data-page="music"] .island-panel {
+  --panel-h: 174px;
+}
+
+:root[data-large-display="true"] .is-expanded[data-page="mail"] .island-panel {
+  --panel-h: 176px;
+}
+
+:root[data-large-display="true"] .is-expanded[data-page="ai"] .island-panel {
+  --panel-h: 164px;
+}
+
+:root[data-large-display="true"] .island-page-title {
   font-size: 13px;
 }
 
-:root[data-large-display="true"] .is-expanded .island-panel {
-  height: 292px;
-}
-
-:root[data-large-display="true"] .island-tabs button,
 :root[data-large-display="true"] .compact-primary,
-:root[data-large-display="true"] .music-lyric,
 :root[data-large-display="true"] .media-copy strong,
-:root[data-large-display="true"] .timer-heading span,
 :root[data-large-display="true"] .custom-timer label,
 :root[data-large-display="true"] .island-mail-subject {
-  font-size: 13px;
+  font-size: 12px;
+}
+
+:root[data-large-display="true"] .pager-arrow {
+  top: 89px;
+}
+
+:root[data-large-display="true"] .island-head-clock {
+  font-size: 11px;
+}
+
+:root[data-large-display="true"] .timer-clock {
+  font-size: 38px;
+}
+
+:root[data-large-display="true"] .timer-clock.is-finished {
+  font-size: 26px;
 }
 
 :root[data-large-display="true"] .compact-secondary,
@@ -78,23 +92,20 @@
 :root[data-large-display="true"] .media-times,
 :root[data-large-display="true"] .media-timeline-unavailable,
 :root[data-large-display="true"] .system-notice-banner,
-:root[data-large-display="true"] .island-mail-heading,
-:root[data-large-display="true"] .island-mail-heading small,
 :root[data-large-display="true"] .island-mail-empty,
 :root[data-large-display="true"] .island-mail-navigation,
 :root[data-large-display="true"] .duration-error {
   font-size: 11px;
 }
 
-:root[data-large-display="true"] .timer-controls button,
-:root[data-large-display="true"] .custom-timer input,
-:root[data-large-display="true"] .custom-timer button,
-:root[data-large-display="true"] .island-expanded-title {
-  font-size: 13px;
+/* Chips stay 10px: four of them plus the clock already fill the 340px panel. */
+:root[data-large-display="true"] .custom-timer input {
+  font-size: 11px;
 }
 
 :root[data-large-display="true"] .music-lyric {
-  height: 24px;
+  width: 104px;
+  font-size: 10px;
 }
 
 :root[data-large-display="true"] .compact-clock > span:first-child {
@@ -105,27 +116,24 @@
   font-size: 10px;
 }
 
-:root[data-large-display="true"] .ai-account-copy strong {
-  font-size: 14px;
-}
-
-:root[data-large-display="true"] .ai-account-copy small,
-:root[data-large-display="true"] .ai-account-copy span,
-:root[data-large-display="true"] .ai-account-actions button,
-:root[data-large-display="true"] .island-ai-value {
-  font-size: 12px;
-}
-
 :root[data-large-display="true"] .island-ai-name {
   font-size: 13px;
 }
 
-:root[data-large-display="true"] .quota-account-picker button,
-:root[data-large-display="true"] .quota-metric,
+:root[data-large-display="true"] .quota-switcher button,
+:root[data-large-display="true"] .quota-metric-head,
 :root[data-large-display="true"] .quota-message {
   font-size: 11px;
 }
 
-:root[data-large-display="true"] .quota-detail-heading {
+:root[data-large-display="true"] .quota-hero-copy strong {
   font-size: 13px;
+}
+
+:root[data-large-display="true"] .quota-metric-head strong {
+  font-size: 12px;
+}
+
+:root[data-large-display="true"] .quota-ring-center strong {
+  font-size: 14px;
 }

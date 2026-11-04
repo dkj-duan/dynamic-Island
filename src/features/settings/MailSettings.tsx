@@ -3,6 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
 import { Mail, Trash2 } from "lucide-react";
 import type { MailAccount } from "../mail/types";
+import { Select } from "./Select";
 
 const providers = [
   { id: "163", name: "网易 163", host: "imap.163.com" },
@@ -128,25 +129,25 @@ export function MailSettings() {
     }
   }
   return (
-    <>
-      <section className="settings-card mail-settings">
-        <div className="settings-card-heading">
-          <span className="behavior-icon">
-            <Mail size={17} />
+    <div className="settings-columns">
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>已添加的邮箱</h2>
+          <span className="card-note">
+            {accounts.length ? `${accounts.length} 个` : "未添加"}
           </span>
-          <div>
-            <span className="card-kicker">MAIL ACCOUNTS</span>
-            <h2>已添加的邮箱</h2>
-          </div>
         </div>
-        <p>
-          约每 30 秒检查收件箱，不改变邮件已读状态；识别到验证码时可点击复制。
+        <p className="card-desc">
+          约每 8 秒检查一次收件箱，不改变邮件已读状态。
         </p>
         {accounts.length ? (
-          <div className="mail-account-list">
+          <div className="settings-list">
             {accounts.map((account) => (
-              <div className="mail-account" key={account.id}>
-                <div>
+              <div className="settings-list-row" key={account.id}>
+                <span className="settings-list-icon" aria-hidden="true">
+                  <Mail size={15} />
+                </span>
+                <div className="settings-list-copy">
                   <strong>{account.email}</strong>
                   <small>
                     {account.host}:{account.port} ·{" "}
@@ -154,53 +155,51 @@ export function MailSettings() {
                   </small>
                 </div>
                 <button
+                  className="icon-button danger"
                   disabled={busy}
                   onClick={() => void remove(account)}
                   aria-label={`移除 ${account.email}`}
                   title="移除邮箱"
                 >
-                  <Trash2 size={15} />
+                  <Trash2 size={14} />
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <p className="mail-empty">
-            {desktop ? "尚未添加邮箱" : "请在桌面应用中添加邮箱"}
+          <p className="empty-state">
+            {desktop
+              ? "还没有邮箱账户。添加后会在这里显示检查状态。"
+              : "请在桌面应用中添加邮箱。"}
           </p>
         )}
       </section>
-      <section className="settings-card mail-settings">
-        <div className="settings-card-heading">
-          <div>
-            <span className="card-kicker">ADD ACCOUNT</span>
-            <h2>添加邮箱</h2>
-          </div>
+
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>添加邮箱</h2>
         </div>
-        <form onSubmit={(event) => void add(event)} className="mail-form">
-          <label>
-            邮箱服务商
-            <select
+        <form onSubmit={(event) => void add(event)} className="form">
+          <div className="field">
+            <span>邮箱服务商</span>
+            <Select
+              ariaLabel="邮箱服务商"
               value={provider}
               disabled={busy || !desktop}
-              onChange={(event) => {
-                const selected = providers.find(
-                  (item) => item.id === event.target.value,
-                )!;
+              options={providers.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={(next) => {
+                const selected = providers.find((item) => item.id === next)!;
                 setProvider(selected.id);
                 setHost(selected.host);
                 setPort("993");
               }}
-            >
-              {providers.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            邮箱地址
+            />
+          </div>
+          <label className="field">
+            <span>邮箱地址</span>
             <input
               type="email"
               required
@@ -211,9 +210,9 @@ export function MailSettings() {
               placeholder="name@example.com"
             />
           </label>
-          <div className="mail-server-fields">
-            <label>
-              IMAP 服务器
+          <div className="field-row">
+            <label className="field">
+              <span>IMAP 服务器</span>
               <input
                 required
                 value={host}
@@ -222,8 +221,8 @@ export function MailSettings() {
                 placeholder="imap.example.com"
               />
             </label>
-            <label>
-              SSL 端口
+            <label className="field field-port">
+              <span>SSL 端口</span>
               <input
                 required
                 type="number"
@@ -235,8 +234,8 @@ export function MailSettings() {
               />
             </label>
           </div>
-          <label>
-            邮箱授权码
+          <label className="field">
+            <span>邮箱授权码</span>
             <input
               type="password"
               required
@@ -244,22 +243,21 @@ export function MailSettings() {
               value={secret}
               disabled={busy || !desktop}
               onChange={(event) => setSecret(event.target.value)}
-              placeholder="请输入邮箱服务商生成的授权码"
+              placeholder="邮箱服务商生成的授权码"
             />
           </label>
-          <p>
-            请先在邮箱服务商开启 IMAP 并获取授权码。仅支持 SSL/TLS
-            与授权码登录；需要 OAuth 的账户暂不支持。授权码存放在 Windows
-            凭据管理器中。
+          <p className="form-note">
+            需在服务商开启 IMAP 并使用授权码；仅支持 SSL/TLS，需要 OAuth
+            的账户暂不支持。授权码存放在 Windows 凭据管理器。
           </p>
-          <div className="mail-form-footer">
+          <div className="form-footer">
             <span role="status">{message}</span>
-            <button type="submit" disabled={busy || !desktop}>
+            <button className="btn btn-primary" disabled={busy || !desktop}>
               {busy ? "处理中…" : "连接并添加"}
             </button>
           </div>
         </form>
       </section>
-    </>
+    </div>
   );
 }

@@ -16,7 +16,9 @@ export default defineConfig(() => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // Bind IPv4 explicitly: resolving `localhost` can yield ::1 only, which
+    // Windows WebView2 does not reach, leaving the window blank.
+    host: host || "127.0.0.1",
     hmr: host
       ? {
           protocol: "ws",

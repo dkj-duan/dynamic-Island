@@ -46,7 +46,6 @@ export function QuotaRings({
       {!compact && (
         <span className="quota-ring-center">
           <strong>{rings[0].item.value}</strong>
-          <small>剩余</small>
         </span>
       )}
       {compact && provider && (

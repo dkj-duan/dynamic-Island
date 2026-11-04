@@ -35,6 +35,15 @@ html.island-window #root {
   transition: transform var(--motion-base) var(--ease-out);
 }
 
+/* Preview of the idle-with-quota capsule: same shell, inner block centers. */
+.island.is-quota-preview {
+  min-width: 0;
+  gap: 0;
+  padding: 0;
+  justify-content: center;
+  border-radius: 22px;
+}
+
 .desktop-island .island {
   min-width: 0;
   box-shadow: none;
@@ -72,19 +81,34 @@ html.island-window #root {
 }
 
 .is-expanded .island-panel {
+  /* Height = page height + a lane for the transient banner, when present. */
+  --panel-h: 148px;
   width: 340px;
-  height: 252px;
+  height: calc(var(--panel-h) + var(--banner-extra, 0px));
   border-radius: 25px;
 }
 
-.island-expanded-title {
-  display: block;
-  padding-left: 20px;
-  text-align: left;
-  color: #d9d9df;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+/* Each page tells the panel how tall to be; content decides, not a constant. */
+.is-expanded[data-page="music"] .island-panel {
+  --panel-h: 160px;
+}
+
+.is-expanded[data-page="mail"] .island-panel {
+  --panel-h: 162px;
+}
+
+.is-expanded[data-page="ai"] .island-panel {
+  --panel-h: 150px;
+}
+
+/* The banner floats in its own lane, so the page grows instead of shrinking. */
+.island-panel.has-banner {
+  --banner-extra: 34px;
+}
+
+/* Expanded: the page header replaces the capsule row. */
+.is-expanded .island-toggle {
+  display: none;
 }
 
 .island-toggle {
@@ -101,6 +125,7 @@ html.island-window #root {
 .island-toggle .island {
   border: 0;
   width: 100%;
+  min-width: 0;
   gap: 6px;
   padding: 0 12px;
 }
@@ -125,8 +150,22 @@ html.island-window #root {
 
 .system-notice svg,
 .system-notice-banner svg {
-  color: #a9a9b2;
+  color: var(--island-alert);
   flex: none;
+}
+
+/* Reminder state: amber accents on an otherwise black capsule. */
+.island-panel.is-notice {
+  border-color: color-mix(
+    in srgb,
+    var(--island-alert) 55%,
+    var(--island-border)
+  );
+}
+
+.island-current.system-notice strong,
+.system-notice-banner strong {
+  color: var(--island-alert);
 }
 
 .system-notice-label {
@@ -142,19 +181,243 @@ html.island-window #root {
   font-variant-numeric: tabular-nums;
 }
 
-.system-notice-banner {
+/* —— Mail capsule: account on top, code below, both centered —— */
+.island-mail-current {
+  height: 38px;
+  gap: 8px;
+  padding: 0 12px;
+  min-width: 0;
+  animation: island-mail-in 260ms var(--ease-out) both;
+}
+
+.island-mail-current.has-code {
+  padding-right: 34px;
+}
+
+.island-mail-copy {
+  align-items: center;
+  gap: 1px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.island-mail-copy > * {
+  max-width: 100%;
+}
+
+.island-mail-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.island-mail-account {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #a8a8b1;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.island-mail-icon {
+  flex: none;
+  color: var(--island-alert);
+}
+
+.island-mail-icon.is-new {
+  transform-origin: 50% 20%;
+  animation: island-mail-swing 900ms var(--ease-out) 1;
+}
+
+.island-mail-current .compact-primary.island-code {
+  color: #f8f8fb;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  line-height: 1.15;
+}
+
+.island-mail-current .compact-primary.island-mail-title {
+  margin: 0;
+  color: #e8e8ec;
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.2;
+}
+
+.island-code-digits {
+  display: inline-flex;
+}
+
+.island-code-digits > span {
+  display: inline-block;
+  animation: island-digit-in 340ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 26ms);
+}
+
+.island-copy {
   position: absolute;
   top: 8px;
-  left: 100px;
-  right: 70px;
-  height: 23px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #3c3c44;
+  border-radius: 6px;
+  background: #24242a;
+  color: #cfcfd6;
+  cursor: pointer;
+  animation: island-copy-in 220ms var(--ease-out) both;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.island-copy:hover {
+  color: #fff;
+  background: #303038;
+  border-color: #4a4a53;
+}
+
+.island-copy:active {
+  transform: scale(0.94);
+}
+
+.island-copy.is-copied {
+  color: #17171b;
+  background: #e8e8ec;
+  border-color: #e8e8ec;
+}
+
+.island-copy.is-copied svg {
+  animation: island-check-in 260ms var(--ease-out);
+}
+
+.island-mail-ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--island-alert) 55%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  animation: island-ring 1500ms var(--ease-out) forwards;
+}
+
+@keyframes island-mail-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes island-digit-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes island-mail-swing {
+  0% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+  75% {
+    transform: rotate(-4deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes island-copy-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes island-check-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.14);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes island-ring {
+  0% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.system-notice-banner {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  max-width: calc(100% - 24px);
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #33333a;
+  border-radius: 999px;
+  background: rgb(22 22 27 / 0.94);
   color: #d4d4da;
   font-size: 10px;
   overflow: hidden;
   white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: notice-toast-in 220ms var(--ease-out) both;
+}
+
+@keyframes notice-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 7px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .system-notice-banner span {
@@ -201,8 +464,14 @@ html.island-window #root {
 }
 
 .compact-idle-quota {
-  gap: 4px;
-  padding: 0 8px;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 10px;
+}
+
+/* Only the countdown is shown while a timer runs. */
+.compact-timer.timer-only .compact-primary {
+  font-size: 12px;
 }
 
 .compact-clock {
@@ -216,12 +485,8 @@ html.island-window #root {
 }
 
 .compact-idle-quota .quota-rings-compact {
-  width: 22px;
-  height: 22px;
-}
-
-.compact-idle-quota .island-timer-value {
-  font-size: 12px;
+  width: 26px;
+  height: 26px;
 }
 
 .compact-clock > span:first-child {
@@ -281,9 +546,9 @@ html.island-window #root {
 
 .media-playing-mark {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   flex: none;
   margin-left: auto;
   color: #85858e;
@@ -291,10 +556,13 @@ html.island-window #root {
   white-space: nowrap;
 }
 
-.media-playing-mark > span {
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.media-playing-mark .quota-rings-compact {
+  width: 20px;
+  height: 20px;
+}
+
+.media-time {
+  font-variant-numeric: tabular-nums;
 }
 
 .island-timer-status {
@@ -322,12 +590,23 @@ html.island-window #root {
 }
 
 .island-details {
-  padding: 8px 20px 10px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 7px 6px 5px;
   opacity: 0;
   transform: translateY(-4px);
   transition:
     opacity var(--motion-base) var(--ease-out),
+    padding-bottom var(--motion-base) var(--ease-out),
     transform var(--motion-slow) var(--ease-out);
+}
+
+/* Reserve a lane for the transient banner instead of covering content. */
+.has-banner .island-details {
+  padding-bottom: 32px;
 }
 
 .is-expanded .island-details {
@@ -335,62 +614,177 @@ html.island-window #root {
   transform: translateY(0);
 }
 
-.island-tabs {
-  display: flex;
-  align-items: flex-start;
-  gap: 5px;
-  margin-bottom: 14px;
-}
-
-.island-tabs button {
+/* —— Header: page name · live clock · window actions —— */
+.island-head {
+  position: relative;
   display: flex;
   align-items: center;
   flex: none;
-  gap: 6px;
-  padding: 5px 9px;
-  color: #8d8d95;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 10px;
+  height: 22px;
+  padding: 0 8px;
+  margin-bottom: 3px;
+}
+
+.island-page-title {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.island-page-title.is-timer {
+  color: #f0b26b;
+}
+
+.island-page-title.is-music {
+  color: #7fd4c3;
+}
+
+.island-page-title.is-mail {
+  color: #b3a2f8;
+}
+
+.island-page-title.is-ai {
+  color: #8fc0f2;
+}
+
+.island-head-clock {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #75757f;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* —— Page body: one page at a time, sized by the panel height —— */
+.island-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0 24px;
+  animation: tab-panel-in 240ms var(--ease-out) both;
+}
+
+@keyframes tab-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* —— Pager: dots + edge arrows (arrows anchor to the panel corner) —— */
+.island-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 15px;
+}
+
+.pager-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pager-dots button {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 99px;
+  background: #3b3b43;
   cursor: pointer;
   transition:
-    color var(--motion-fast) var(--ease-out),
+    width var(--motion-base) var(--ease-out),
+    background var(--motion-base) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.pager-dots button:hover {
+  background: #5b5b66;
+  transform: scale(1.2);
+}
+
+.pager-dots button.active {
+  width: 13px;
+  background: #e9e9ef;
+}
+
+.pager-arrow {
+  /* Anchored to the panel top, not its middle: the arrows must not drift when
+     the panel grows for another page or for a banner. */
+  position: absolute;
+  top: 82px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #212126;
+  color: #b4b4bd;
+  cursor: pointer;
+  transition:
     background var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out);
+    color var(--motion-fast) var(--ease-out);
 }
 
-.island-tabs button:hover {
-  color: #c8c8cf;
+.pager-arrow:hover {
+  background: #2e2e35;
+  color: #f0f0f4;
 }
 
-.island-tabs button.active {
-  color: #ececf0;
-  border-color: var(--island-chip-border);
-  background: var(--island-chip);
+.pager-arrow.is-left {
+  left: 5px;
+}
+
+.pager-arrow.is-right {
+  right: 5px;
 }
 
 .media-view {
-  min-height: 140px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Artwork + title on the left, the current lyric as a slim right column. */
+.media-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .media-track {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px 1px 0;
+  flex: 1;
+  min-width: 0;
+  gap: 9px;
 }
 
 .media-art {
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   flex: none;
   display: grid;
   place-items: center;
   color: #b7b7bf;
   border: 1px solid #39393f;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--island-surface);
   overflow: hidden;
 }
@@ -450,14 +844,14 @@ html.island-window #root {
 }
 
 .media-timeline {
-  margin-top: 6px;
+  margin-top: 1px;
 }
 
 .media-seek {
   display: block;
   width: 100%;
   height: 12px;
-  margin: -4px 0;
+  margin: -3px 0;
   accent-color: #e3e3e8;
   cursor: pointer;
 }
@@ -480,22 +874,22 @@ html.island-window #root {
 .media-times {
   display: flex;
   justify-content: space-between;
-  margin-top: 5px;
+  margin-top: 3px;
   color: #81818a;
-  font-size: 10px;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
 .media-copy {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  gap: 2px;
 }
 
 .media-copy strong {
   overflow: hidden;
   color: #f0f0f3;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 580;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -504,7 +898,7 @@ html.island-window #root {
 .media-copy span {
   overflow: hidden;
   color: #898991;
-  font-size: 10px;
+  font-size: 9px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -513,13 +907,13 @@ html.island-window #root {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 14px;
-  margin-top: 10px;
+  gap: 16px;
+  margin-top: 1px;
 }
 
 .media-controls button {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -538,19 +932,40 @@ html.island-window #root {
 }
 
 .media-controls button.media-play {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   color: #17171b;
   border-color: #e1e1e5;
   background: #e1e1e5;
 }
 
+.media-controls button:active {
+  transform: scale(0.92);
+}
+
+.media-play-icon {
+  display: grid;
+  place-items: center;
+  animation: media-icon-in 180ms var(--ease-out);
+}
+
+@keyframes media-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .media-empty {
-  min-height: 120px;
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 6px;
+  gap: 4px;
+  flex: 1;
   color: #72727a;
   text-align: center;
 }
@@ -566,50 +981,68 @@ html.island-window #root {
   font-size: 9px;
 }
 
-.timer-heading {
+.timer-view {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
-.timer-heading strong,
-.timer-heading span {
-  display: block;
-}
-
-.timer-heading strong {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.timer-heading span {
-  font-size: 10px;
+.timer-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #8d8d96;
-  margin-top: 5px;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.timer-status i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #55555e;
+}
+
+.timer-clock {
+  color: #f7f7fa;
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
 }
 
-.timer-time {
+.timer-clock.is-paused {
+  color: #cfcfd6;
+}
+
+.timer-clock.is-finished {
+  color: var(--island-alert);
   font-size: 24px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  font-weight: 600;
 }
 
 .timer-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 12px;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 0;
 }
 
 .timer-controls button {
-  padding: 7px 11px;
+  height: 26px;
+  padding: 0 10px;
   border: 1px solid #36363d;
-  border-radius: 8px;
+  border-radius: 999px;
   background: #222227;
   color: #e0e0e6;
-  font-size: 11px;
+  font-size: 10px;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background var(--motion-fast) var(--ease-out),
@@ -621,65 +1054,78 @@ html.island-window #root {
   border-color: #44444c;
 }
 
+.timer-controls button.is-ghost {
+  border-color: #32323a;
+  background: transparent;
+  color: #9a9aa3;
+}
+
 .custom-timer {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 12px;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 0;
 }
 
 .custom-timer label {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   color: #9a9aa3;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .custom-timer input {
-  width: 42px;
-  height: 30px;
-  padding: 0 6px;
+  width: 34px;
+  height: 26px;
+  padding: 0 4px;
   border: 1px solid #36363d;
   border-radius: 7px;
   background: #1a1a1f;
   color: #f0f0f3;
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .custom-timer button {
-  height: 30px;
-  padding: 0 12px;
-  margin-left: auto;
+  height: 26px;
+  padding: 0 10px;
+  margin-left: 2px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 999px;
   background: #e3e3e7;
   color: #17171b;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
 }
 
+.custom-timer button.is-ghost {
+  border: 1px solid #32323a;
+  background: transparent;
+  color: #b9b9c2;
+  font-weight: 500;
+}
+
 .time-separator {
   color: #6e6e77;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .duration-error {
   display: block;
-  margin-top: 8px;
+  margin-top: 2px;
   color: #ffb0ad;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .island-actions {
-  position: absolute;
-  top: 8px;
-  right: 12px;
   display: flex;
-  gap: 3px;
+  flex: none;
+  margin-left: auto;
+  gap: 2px;
   opacity: 0;
   transition: opacity var(--motion-base) var(--ease-out);
 }
@@ -694,18 +1140,20 @@ html.island-window #root {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  width: 23px;
-  height: 23px;
-  color: #e7e7ea;
-  background: #303036;
+  width: 22px;
+  height: 22px;
+  color: #86868f;
+  background: transparent;
   cursor: pointer;
   transition:
+    color var(--motion-fast) var(--ease-out),
     background var(--motion-fast) var(--ease-out),
     transform var(--motion-fast) var(--ease-out);
 }
 
 .island-actions button:hover {
-  background: #3a3a40;
+  color: #ececf0;
+  background: #2c2c33;
   transform: scale(1.06);
 }
 
@@ -723,7 +1171,7 @@ html.island-window #root {
 
 .timer-finished .island-timer-value,
 .timer-finished .timer-indicator,
-.timer-finished .timer-time {
+.timer-finished .timer-clock {
   color: #ffd39c;
 }
 
@@ -755,93 +1203,138 @@ html.island-window #root {
   border: 0;
 }
 
+/* Mail page: subject row, code card, pager. */
 .island-mail-view {
-  padding-top: 2px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.island-mail-view > .media-empty {
+  margin: auto;
+}
+
+.island-mail-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mail-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgb(179 162 248 / 0.16);
+  color: #c0b3f8;
 }
 
 .island-mail-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #a2a2ab;
-  font-size: 10px;
-}
-
-.island-mail-heading span {
+  display: grid;
+  gap: 2px;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.island-mail-heading small {
-  flex: none;
-  color: #777780;
-  font-size: 9px;
 }
 
 .island-mail-subject {
-  display: block;
   overflow: hidden;
-  margin-top: 10px;
   color: #ededf0;
-  font-size: 12px;
-  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 560;
   white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.island-mail-heading span {
+  overflow: hidden;
+  color: #7f7f89;
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.island-mail-body {
+  flex: none;
+  min-height: 0;
 }
 
 .island-mail-code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid #2a2a31;
+  border-radius: 11px;
+  background: var(--island-surface);
+  animation: mail-code-in 260ms var(--ease-out) both;
+}
+
+@keyframes mail-code-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .island-mail-code span {
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-size: 23px;
+  font-weight: 620;
+  letter-spacing: 0.11em;
   font-variant-numeric: tabular-nums;
 }
 
 .island-mail-code button {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 8px 10px;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
   border: 1px solid #44444b;
-  border-radius: 8px;
+  border-radius: 999px;
   background: #e4e4e8;
   color: #17171b;
-  font-size: 10px;
+  font-size: 9px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .island-mail-empty {
-  margin-top: 14px;
-  font-size: 11px;
+  margin: 0;
+  color: #8f8f99;
+  font-size: 10px;
+  text-align: center;
 }
 
 .island-mail-navigation {
+  flex: none;
+  height: 14px;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
-  margin-top: 7px;
+  gap: 7px;
+  margin-top: 0;
   color: #92929b;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .island-mail-navigation button {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 14px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   color: #bcbcc4;
   background: #27272c;
   cursor: pointer;
@@ -852,29 +1345,25 @@ html.island-window #root {
   cursor: default;
 }
 
-.mail-tab-dot {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #dedee3;
-}
-
 .media-timeline-unavailable {
   margin-top: 5px;
   color: #9999a3;
   font-size: 10px;
 }
 
+/* Lyric sits in a slim right column beside the artwork. */
 .music-lyric {
-  margin-top: 9px;
-  height: 20px;
+  display: -webkit-box;
+  flex: none;
+  width: 96px;
+  padding-left: 9px;
+  border-left: 1px solid #26262c;
   overflow: hidden;
-  color: #e5e5ec;
-  font-size: 11px;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #9a9aa4;
+  font-size: 9px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* —— AI quota rings (island) —— */
@@ -905,68 +1394,137 @@ html.island-window #root {
 }
 
 .quota-view {
-  min-width: 0;
-}
-
-.quota-account-picker {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 7px;
+}
+
+/* Account switcher: small pills, the active one is filled. */
+.quota-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  min-width: 0;
   overflow-x: auto;
-  padding: 0 0 4px;
-  scrollbar-width: thin;
+  overflow-y: hidden;
+  padding-bottom: 1px;
+  scrollbar-width: none;
 }
 
-.quota-account-picker::-webkit-scrollbar {
-  height: 4px;
+.quota-switcher::-webkit-scrollbar {
+  height: 0;
 }
 
-.quota-account-picker::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.quota-account-picker::-webkit-scrollbar-thumb {
-  background: #565363;
-  border: 0;
-  border-radius: 999px;
-}
-
-.quota-account-picker button {
+.quota-switcher button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   flex: none;
-  max-width: 140px;
-  padding: 5px 9px;
-  border: 1px solid #34343b;
-  border-radius: 8px;
-  background: #18181d;
-  color: #aaaab4;
-  font-size: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 104px;
+  padding: 2px 7px 2px 2px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #8b8b95;
+  font-size: 9px;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
 }
 
-.quota-account-picker button > span:not(.provider-icon) {
+.quota-switcher button > span:not(.provider-icon) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.quota-account-picker button.selected {
-  color: #e7e3ff;
-  background: #262333;
-  border-color: #544d74;
+.quota-switcher button:hover {
+  color: #c9c9d1;
 }
 
-.quota-detail {
+.quota-switcher button.active {
+  color: #ececf2;
+  border-color: var(--island-chip-border);
+  background: var(--island-chip);
+  animation: tab-chip-in 240ms var(--ease-out);
+}
+
+/* Hero: ring (or provider badge) + account identity. */
+.quota-hero {
   display: flex;
   align-items: center;
-  gap: 17px;
-  padding: 6px 2px 0;
+  gap: 10px;
+  flex: none;
   min-width: 0;
+  animation: quota-hero-in 260ms var(--ease-out) both;
+}
+
+@keyframes quota-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quota-hero-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.quota-hero-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quota-hero-line strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.quota-hero-copy strong {
+  color: #f2f2f6;
+  font-size: 12px;
+  font-weight: 620;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.quota-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #8e8e99;
+  font-size: 10px;
+  min-width: 0;
+}
+
+.quota-hero-meta em {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #262633;
+  color: #b8b2dd;
+  font-size: 9px;
+  font-style: normal;
 }
 
 .quota-rings {
@@ -974,11 +1532,23 @@ html.island-window #root {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 92px;
-  height: 92px;
+  width: 54px;
+  height: 54px;
+}
+
+/* The expanded ring gets a soft disc so it reads as a gauge, not an outline. */
+.quota-hero .quota-rings::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--island-surface);
 }
 
 .quota-rings svg {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
@@ -1010,21 +1580,24 @@ html.island-window #root {
 
 .quota-ring-center {
   position: absolute;
+  z-index: 2;
   display: grid;
   justify-items: center;
-  gap: 1px;
+  gap: 0;
   color: #f1effa;
 }
 
 .quota-ring-center strong {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 650;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
 .quota-ring-center small {
-  color: #92919f;
-  font-size: 9px;
+  color: #90909c;
+  font-size: 7px;
+  letter-spacing: 0.04em;
 }
 
 .quota-rings-compact {
@@ -1035,30 +1608,6 @@ html.island-window #root {
 .quota-rings-compact .quota-ring-track,
 .quota-rings-compact .quota-ring-progress {
   stroke-width: 9;
-}
-
-.quota-detail-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.quota-detail-heading {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #f1f1f4;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 8px;
-}
-
-.quota-detail-heading > span:not(.provider-icon) {
-  color: #898995;
-  font-size: 10px;
-  font-weight: 400;
 }
 
 .provider-icon {
@@ -1082,15 +1631,15 @@ html.island-window #root {
 }
 
 .provider-icon-tiny {
-  width: 11px;
-  height: 11px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
 }
 
 .provider-icon-tiny img,
 .provider-icon-tiny svg {
-  width: 9px;
-  height: 9px;
+  width: 13px;
+  height: 13px;
 }
 
 .provider-icon-normal {
@@ -1133,20 +1682,39 @@ html.island-window #root {
   background: #101015;
 }
 
-.quota-metrics {
-  display: grid;
+/* Currency balances have no bar, so keep label and value together. */
+.quota-hero.is-balance .quota-metric-head {
+  justify-content: flex-start;
   gap: 8px;
-  max-height: 83px;
+}
+
+.quota-hero.is-balance .quota-metric-head strong {
+  font-size: 14px;
+}
+
+.quota-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
   overflow-y: auto;
+  animation: quota-hero-in 300ms var(--ease-out) 60ms both;
 }
 
 .quota-metric {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.quota-metric-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 5px;
-  color: #abaab5;
-  font-size: 10px;
+  gap: 8px;
+  min-width: 0;
+  color: #a2a2ad;
+  font-size: 9px;
 }
 
 .quota-metric-label {
@@ -1156,11 +1724,46 @@ html.island-window #root {
   text-overflow: ellipsis;
 }
 
-.quota-metric strong {
+.quota-metric-head strong {
   color: #f3f2f7;
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 620;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.quota-metric-track {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: #2a2a30;
+  overflow: hidden;
+}
+
+.quota-metric-fill {
+  display: block;
+  height: 100%;
+  width: var(--fill);
+  border-radius: inherit;
+  transform-origin: left center;
+  animation: quota-fill-grow 460ms var(--ease-out) both;
+}
+
+.quota-fill-0 {
+  background: var(--island-ring-0);
+}
+
+.quota-fill-1 {
+  background: var(--island-ring-1);
+}
+
+@keyframes quota-fill-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 .quota-dot {
@@ -1187,19 +1790,19 @@ html.island-window #root {
 }
 
 .quota-balance-icon {
-  width: 92px;
-  height: 92px;
+  width: 54px;
+  height: 54px;
   display: grid;
   place-items: center;
   flex: none;
-  border: 1px solid #303038;
-  border-radius: 22px;
-  background: #19191f;
+  border: 1px solid #2c2c34;
+  border-radius: 50%;
+  background: var(--island-surface);
   color: #a9a1ca;
 }
 
 .quota-balance-icon .provider-icon-large {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
 }

@@ -4,6 +4,7 @@ import { emitTo } from "@tauri-apps/api/event";
 import { RefreshCw } from "lucide-react";
 import { useAiQuota } from "../ai/useAiQuota";
 import { ProviderIcon } from "../ai/ProviderIcon";
+import { Select } from "./Select";
 
 const providers = [
   {
@@ -92,91 +93,95 @@ export function AiSettings() {
     }
   }
   return (
-    <>
-      <section className="settings-card ai-settings">
-        <div className="status-settings-heading">
-          <div>
-            <span className="card-kicker">AI QUOTA</span>
-            <h2>AI 账户额度</h2>
-            <p>
-              显示服务商提供的账户余额或订阅额度，每两分钟刷新。常驻账户会显示在灵动岛。
-            </p>
-          </div>
+    <div className="settings-columns">
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>账户与额度</h2>
           <button
-            className="status-refresh"
+            className="btn btn-quiet"
             disabled={!desktop || busy}
             onClick={() => void reload()}
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
             刷新
           </button>
         </div>
-        {!desktop && <p>请在桌面应用中配置 AI 账户。</p>}
+        <p className="card-desc">
+          每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。
+        </p>
+        {!desktop && <p className="empty-state">请在桌面应用中配置账户。</p>}
         {desktop && accounts.length === 0 && (
-          <p className="ai-empty">尚未添加账户。</p>
+          <p className="empty-state">尚未添加账户。</p>
         )}
-        {error && <p role="alert">{error}</p>}
-        {accounts.map((account) => (
-          <div className="ai-account" key={account.id}>
-            <ProviderIcon provider={account.provider} size="large" />
-            <div className="ai-account-copy">
-              <strong>{account.name}</strong>
-              <small>
-                {providers.find((p) => p.id === account.provider)?.label ??
-                  account.provider}
-              </small>
-              <span>
-                {results[account.id]?.quota?.items
-                  .map((item) => `${item.label} ${item.value}`)
-                  .join(" · ") ??
-                  results[account.id]?.error ??
-                  "正在查询…"}
-              </span>
-            </div>
-            <div className="ai-account-actions">
-              <button
-                disabled={busy || account.pinned}
-                onClick={() => void action("pin_ai_account", account.id)}
-              >
-                {account.pinned ? "已常驻" : "设为常驻"}
-              </button>
-              <button
-                disabled={busy}
-                onClick={() => void action("remove_ai_account", account.id)}
-              >
-                删除
-              </button>
-            </div>
+        {error && (
+          <p className="form-note is-error" role="alert">
+            {error}
+          </p>
+        )}
+        {accounts.length > 0 && (
+          <div className="settings-list">
+            {accounts.map((account) => (
+              <div className="settings-list-row" key={account.id}>
+                <ProviderIcon provider={account.provider} size="normal" />
+                <div className="settings-list-copy">
+                  <strong>
+                    {account.name}
+                    {account.pinned && <span className="tag">常驻</span>}
+                  </strong>
+                  <small>
+                    {providers.find((p) => p.id === account.provider)?.label ??
+                      account.provider}
+                  </small>
+                  <span className="settings-list-value">
+                    {results[account.id]?.quota?.items
+                      .map((item) => `${item.label} ${item.value}`)
+                      .join(" · ") ??
+                      results[account.id]?.error ??
+                      "正在查询…"}
+                  </span>
+                </div>
+                <div className="settings-list-actions">
+                  <button
+                    className="btn btn-quiet"
+                    disabled={busy || account.pinned}
+                    onClick={() => void action("pin_ai_account", account.id)}
+                  >
+                    {account.pinned ? "已常驻" : "常驻"}
+                  </button>
+                  <button
+                    className="btn btn-quiet"
+                    disabled={busy}
+                    onClick={() => void action("remove_ai_account", account.id)}
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </section>
-      <section className="settings-card mail-settings">
-        <div className="settings-card-heading">
-          <div>
-            <span className="card-kicker">ADD ACCOUNT</span>
-            <h2>添加 AI 账户</h2>
-          </div>
+
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>添加账户</h2>
         </div>
-        <form className="mail-form" onSubmit={(event) => void add(event)}>
-          <label>
-            服务
-            <select
+        <form className="form" onSubmit={(event) => void add(event)}>
+          <div className="field">
+            <span>服务</span>
+            <Select
+              ariaLabel="AI 服务"
               value={provider}
               disabled={!desktop || busy}
-              onChange={(event) => {
-                setProvider(event.target.value);
+              options={providers.map((p) => ({ value: p.id, label: p.label }))}
+              onChange={(next) => {
+                setProvider(next);
                 setSecret("");
               }}
-            >
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            账户名称
+            />
+          </div>
+          <label className="field">
+            <span>账户名称</span>
             <input
               value={name}
               maxLength={40}
@@ -187,8 +192,8 @@ export function AiSettings() {
             />
           </label>
           {provider === "kimi-local" && (
-            <label>
-              本地服务端口
+            <label className="field">
+              <span>本地服务端口</span>
               <input
                 type="number"
                 min="1"
@@ -201,8 +206,10 @@ export function AiSettings() {
             </label>
           )}
           {provider !== "codex-local" && (
-            <label>
-              {provider === "kimi-local" ? "本地访问令牌" : "查询密钥"}
+            <label className="field">
+              <span>
+                {provider === "kimi-local" ? "本地访问令牌" : "查询密钥"}
+              </span>
               <input
                 type="password"
                 value={secret}
@@ -214,14 +221,15 @@ export function AiSettings() {
               />
             </label>
           )}
-          <p>
-            {providers.find((p) => p.id === provider)?.hint}{" "}
+          <p className="form-note">
+            {providers.find((p) => p.id === provider)?.hint}
             {provider !== "codex-local" &&
-              "密钥由当前 Windows 用户加密后存入数据库；换电脑或 Windows 用户后需重新添加。"}
+              " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。"}
           </p>
-          <div className="mail-form-footer">
+          <div className="form-footer">
             <span role="status">{message}</span>
             <button
+              className="btn btn-primary"
               disabled={
                 !desktop ||
                 busy ||
@@ -234,6 +242,6 @@ export function AiSettings() {
           </div>
         </form>
       </section>
-    </>
+    </div>
   );
 }

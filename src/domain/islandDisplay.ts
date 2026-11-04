@@ -9,8 +9,10 @@ export function selectIslandDisplay(state: {
   media: boolean;
 }): IslandDisplay {
   if (state.timer === "finished") return "finished";
-  if (state.mail) return "mail";
+  // System notices are transient (a few seconds) and must interrupt longer
+  // content such as a mail code that waits for the user.
   if (state.notice) return "notice";
+  if (state.mail) return "mail";
   if (state.timer !== "idle") return "timer";
   if (state.media) return "media";
   return "idle";

@@ -10,6 +10,7 @@ describe("parseAppearance", () => {
       scale: 1.1,
       showClock: false,
       autoCollapseSeconds: 3,
+      expandTrigger: "click",
     });
   });
   it("migrates version 2 and validates the selected theme", () => {
@@ -37,6 +38,37 @@ describe("parseAppearance", () => {
         showClock: true,
         autoCollapseSeconds: 3,
         theme: "invalid",
+      }),
+    ).toThrow();
+  });
+  it("keeps the expand trigger only from version 4", () => {
+    expect(
+      parseAppearance({
+        version: 3,
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        theme: "dark",
+      }).expandTrigger,
+    ).toBe("click");
+    expect(
+      parseAppearance({
+        version: 4,
+        theme: "dark",
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        expandTrigger: "hover",
+      }).expandTrigger,
+    ).toBe("hover");
+    expect(() =>
+      parseAppearance({
+        version: 4,
+        theme: "dark",
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        expandTrigger: "double",
       }),
     ).toThrow();
   });

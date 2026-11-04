@@ -360,22 +360,52 @@ async fn control_media(action: String) -> Result<bool, String> {
 fn control_media_blocking(action: String) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        let _apartment = MediaApartment::initialize()?;
-        let session = current_media_session()?;
-        let operation = match action.as_str() {
-            "toggle" => session.TryTogglePlayPauseAsync(),
-            "next" => session.TrySkipNextAsync(),
-            "previous" => session.TrySkipPreviousAsync(),
-            _ => return Err("unsupported media action".into()),
+        if !matches!(action.as_str(), "toggle" | "next" | "previous") {
+            return Err("不支持的媒体操作".into());
         }
-        .map_err(|e| e.to_string())?;
-        await_media_operation(operation)
+        // Preferred path: ask the current session directly.
+        let direct = (|| -> Result<bool, String> {
+            let _apartment = MediaApartment::initialize()?;
+            let session = current_media_session()?;
+            let operation = match action.as_str() {
+                "toggle" => session.TryTogglePlayPauseAsync(),
+                "next" => session.TrySkipNextAsync(),
+                _ => session.TrySkipPreviousAsync(),
+            }
+            .map_err(|_| "播放器拒绝了此操作".to_string())?;
+            await_media_operation(operation)
+        })();
+        if matches!(direct, Ok(true)) {
+            return Ok(true);
+        }
+        // Some players expose a session but reject every request (NetEase is
+        // one); the system media keys reach the same session.
+        send_media_key(&action)?;
+        Ok(true)
     }
     #[cfg(not(target_os = "windows"))]
     {
         let _ = action;
         Err("media controls are only available on Windows".into())
     }
+}
+
+#[cfg(target_os = "windows")]
+fn send_media_key(action: &str) -> Result<(), String> {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE,
+        VK_MEDIA_PREV_TRACK, keybd_event,
+    };
+    let key = match action {
+        "toggle" => VK_MEDIA_PLAY_PAUSE,
+        "next" => VK_MEDIA_NEXT_TRACK,
+        _ => VK_MEDIA_PREV_TRACK,
+    };
+    unsafe {
+        keybd_event(key as u8, 0, KEYEVENTF_EXTENDEDKEY, 0);
+        keybd_event(key as u8, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -459,6 +489,81 @@ fn remove_native_caption(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
+/// True when the point still lands on one of the connected monitors.
+fn is_visible_on_any_monitor(app: &tauri::AppHandle, x: i32, y: i32) -> bool {
+    let Ok(monitors) = app.available_monitors() else {
+        return false;
+    };
+    monitors.iter().any(|monitor| {
+        let origin = monitor.position();
+        let size = monitor.size();
+        x >= origin.x
+            && y >= origin.y
+            && x < origin.x + size.width as i32
+            && y < origin.y + size.height as i32
+    })
+}
+
+/// The window moves in a burst while dragging; only the last position is saved.
+static POSITION_SAVER_RUNNING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+fn schedule_position_save(app: &tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    if POSITION_SAVER_RUNNING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        POSITION_SAVER_RUNNING.store(false, Ordering::SeqCst);
+        let Some(window) = handle.get_webview_window("island") else {
+            return;
+        };
+        let Ok(position) = window.outer_position() else {
+            return;
+        };
+        let storage = handle.state::<storage::Storage>();
+        let _ = storage::save_island_position(storage.inner(), position.x, position.y);
+    });
+}
+
+/// Puts the island back above the primary monitor's centre (settings window only).
+#[tauri::command]
+fn reset_island_position(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    storage: tauri::State<'_, storage::Storage>,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不支持该操作".into());
+    }
+    storage::clear_island_position(storage.inner())?;
+    let island = app
+        .get_webview_window("island")
+        .ok_or_else(|| "灵动岛未就绪".to_string())?;
+    if let Some(monitor) = island.primary_monitor().map_err(|e| e.to_string())? {
+        let size = island.outer_size().map_err(|e| e.to_string())?;
+        let screen = monitor.size();
+        let origin = monitor.position();
+        let x = origin.x + (screen.width as i32 - size.width as i32) / 2;
+        let y = origin.y + (8.0 * monitor.scale_factor()).round() as i32;
+        island
+            .set_position(PhysicalPosition::new(x, y))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Drags the island window while the pointer is held down.
+#[tauri::command]
+fn start_island_drag(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "island" {
+        return Err("当前窗口不支持拖动".into());
+    }
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(), String> {
     if window.label() != "island" {
@@ -530,6 +635,8 @@ pub fn run() {
             open_settings,
             quit_app,
             set_island_expanded,
+            start_island_drag,
+            reset_island_position,
             get_media_state,
             get_media_artwork,
             control_media,
@@ -557,8 +664,29 @@ pub fn run() {
         .setup(|app| {
             app.manage(storage::initialize(app.handle()).map_err(std::io::Error::other)?);
             app.manage(mail::MailMonitor::default());
+            // Keep the settings window inside the monitor's usable area so it
+            // never overflows on small screens or high scaling.
+            if let Some(window) = app.get_webview_window("main")
+                && let Some(monitor) = window.current_monitor()?.or(window.primary_monitor()?)
+            {
+                let scale = monitor.scale_factor();
+                let size = monitor.size();
+                let width = (size.width as f64 / scale * 0.94).clamp(760.0, 1100.0);
+                let height = (size.height as f64 / scale * 0.90).clamp(520.0, 760.0);
+                window.set_size(tauri::LogicalSize::new(width, height))?;
+                window.center()?;
+            }
             if let Some(window) = app.get_webview_window("island") {
-                if let Some(monitor) = window.primary_monitor()? {
+                let storage = app.state::<storage::Storage>();
+                let saved = storage::load_island_position(storage.inner());
+                let restored = match saved {
+                    Some((x, y)) if is_visible_on_any_monitor(app.handle(), x, y) => {
+                        window.set_position(PhysicalPosition::new(x, y))?;
+                        true
+                    }
+                    _ => false,
+                };
+                if !restored && let Some(monitor) = window.primary_monitor()? {
                     let size = window.outer_size()?;
                     let screen = monitor.size();
                     let origin = monitor.position();
@@ -579,6 +707,9 @@ pub fn run() {
             {
                 api.prevent_close();
                 let _ = window.hide();
+            }
+            if window.label() == "island" && matches!(event, WindowEvent::Moved(_)) {
+                schedule_position_save(window.app_handle());
             }
         })
         .run(tauri::generate_context!())

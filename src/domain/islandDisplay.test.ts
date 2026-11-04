@@ -12,12 +12,30 @@ describe("island display priority", () => {
       }),
     ).toBe("finished");
   });
-  it("shows new mail before system notices and ongoing activities", () => {
+  it("lets a transient notice interrupt mail and ongoing activities", () => {
     expect(
       selectIslandDisplay({
         timer: "running",
         mail: true,
         notice: true,
+        media: true,
+      }),
+    ).toBe("notice");
+    expect(
+      selectIslandDisplay({
+        timer: "idle",
+        mail: true,
+        notice: true,
+        media: false,
+      }),
+    ).toBe("notice");
+  });
+  it("shows new mail before ongoing activities", () => {
+    expect(
+      selectIslandDisplay({
+        timer: "running",
+        mail: true,
+        notice: false,
         media: true,
       }),
     ).toBe("mail");

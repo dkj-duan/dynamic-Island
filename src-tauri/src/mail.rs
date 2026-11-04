@@ -7,14 +7,21 @@ use std::{
     collections::{HashMap, HashSet},
     io::{self, Cursor, Read, Write},
     net::{TcpStream, ToSocketAddrs},
-    sync::Mutex,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tauri::{Manager, State};
 
+/// Upper bound for one poll's server response. Reset before every check so a
+/// reused connection cannot exhaust the budget over a long session.
+const RESPONSE_BUDGET: usize = 8 * 1024 * 1024;
+
 struct BoundedStream {
     inner: native_tls::TlsStream<TcpStream>,
-    remaining: usize,
+    remaining: Arc<AtomicUsize>,
     greeting: Cursor<Vec<u8>>,
 }
 impl Read for BoundedStream {
@@ -25,15 +32,16 @@ impl Read for BoundedStream {
         if (self.greeting.position() as usize) < self.greeting.get_ref().len() {
             return self.greeting.read(buffer);
         }
-        if self.remaining == 0 {
+        let remaining = self.remaining.load(Ordering::Relaxed);
+        if remaining == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "mail response limit exceeded",
             ));
         }
-        let length = buffer.len().min(self.remaining);
+        let length = buffer.len().min(remaining);
         let read = self.inner.read(&mut buffer[..length])?;
-        self.remaining -= read;
+        self.remaining.fetch_sub(read, Ordering::Relaxed);
         Ok(read)
     }
 }
@@ -87,6 +95,12 @@ pub struct MailNotice {
 pub struct MailMonitor {
     running: Mutex<HashSet<String>>,
     status: Mutex<HashMap<String, String>>,
+    /// Keeping the TLS session alive avoids a login round-trip every check.
+    sessions: Mutex<HashMap<String, CachedSession>>,
+}
+struct CachedSession {
+    session: imap::Session<BoundedStream>,
+    budget: Arc<AtomicUsize>,
 }
 struct Flight<'a> {
     monitor: &'a MailMonitor,
@@ -111,7 +125,7 @@ fn connect(
     host: &str,
     port: u16,
     secret: &str,
-) -> Result<imap::Session<BoundedStream>, String> {
+) -> Result<(imap::Session<BoundedStream>, Arc<AtomicUsize>), String> {
     let fail = || "无法连接或登录邮箱，请检查 IMAP 服务器、端口和授权码".to_string();
     let addresses = (host, port).to_socket_addrs().map_err(|_| fail())?;
     let stream = addresses
@@ -128,9 +142,10 @@ fn connect(
         .map_err(|_| fail())?
         .connect(host, stream)
         .map_err(|_| fail())?;
+    let budget = Arc::new(AtomicUsize::new(RESPONSE_BUDGET));
     let mut transport = BoundedStream {
         inner: tls,
-        remaining: 8 * 1024 * 1024,
+        remaining: budget.clone(),
         greeting: Cursor::new(Vec::new()),
     };
     if matches!(host, "imap.163.com" | "imap.126.com" | "imap.yeah.net") {
@@ -139,7 +154,8 @@ fn connect(
     }
     let mut client = imap::Client::new(transport);
     client.read_greeting().map_err(|_| fail())?;
-    client.login(email, secret).map_err(|_| fail())
+    let session = client.login(email, secret).map_err(|_| fail())?;
+    Ok((session, budget))
 }
 
 // IMAP ID is valid before authentication. The stable IMAP parser cannot
@@ -278,7 +294,7 @@ fn add_account(app: &tauri::AppHandle, input: MailInput) -> Result<MailAccount, 
         let secret = zeroize::Zeroizing::new(input.secret);
         let email = input.email.trim().to_string();
         let host = input.host.trim().to_ascii_lowercase();
-        let mut session = connect(&email, &host, input.port, &secret)?;
+        let (mut session, _budget) = connect(&email, &host, input.port, &secret)?;
         let mailbox = session
             .examine("INBOX")
             .map_err(|_| "无法读取收件箱".to_string())?;
@@ -352,6 +368,9 @@ pub fn remove_mail_account(
     if let Ok(mut states) = monitor.status.lock() {
         states.remove(&id);
     }
+    if let Ok(mut sessions) = monitor.sessions.lock() {
+        sessions.remove(&id);
+    }
     Ok(())
 }
 
@@ -421,32 +440,67 @@ fn poll_account_inner(app: &tauri::AppHandle, id: &str) -> Result<Vec<MailNotice
         {
             return Err("邮箱配置与授权码不匹配，请重新添加邮箱".into());
         }
-        let mut session = connect(&account.email, &account.host, account.port, &password)?;
-        let mailbox = session
-            .examine("INBOX")
-            .map_err(|_| "无法读取收件箱".to_string())?;
-        let validity = mailbox.uid_validity.ok_or("邮箱未提供 UIDVALIDITY")?;
-        let (newest, notices) = if validity != old_validity {
-            let newest = match mailbox.uid_next {
-                Some(next) => next.saturating_sub(1),
-                None => session
-                    .uid_search("ALL")
-                    .map_err(|_| "无法读取邮件标识")?
-                    .into_iter()
-                    .max()
-                    .unwrap_or(0),
+        for attempt in 0..2 {
+            // Reuse the cached TLS session; a dead connection gets one retry.
+            let cached = if attempt == 0 {
+                monitor
+                    .sessions
+                    .lock()
+                    .ok()
+                    .and_then(|mut sessions| sessions.remove(id))
+            } else {
+                None
             };
-            (newest, Vec::new())
-        } else {
-            scan_new_messages(&mut session, &account, last_uid)?
-        };
-        let _ = session.logout();
-        let db = storage.0.lock().map_err(|e| e.to_string())?;
-        let updated = db.connection.execute("UPDATE mail_accounts SET uid_validity=?1,last_uid=?2 WHERE id=?3 AND uid_validity=?4 AND last_uid=?5", params![validity, newest, id, old_validity, last_uid]).map_err(|e| e.to_string())?;
-        if updated == 0 {
-            return Ok(vec![]);
+            let reused = cached.is_some();
+            let (mut session, budget) = match cached {
+                Some(entry) => {
+                    entry.budget.store(RESPONSE_BUDGET, Ordering::Relaxed);
+                    (entry.session, entry.budget)
+                }
+                None => connect(&account.email, &account.host, account.port, &password)?,
+            };
+            let scanned = (|| -> Result<(u32, u32, Vec<MailNotice>), String> {
+                let mailbox = session
+                    .examine("INBOX")
+                    .map_err(|_| "无法读取收件箱".to_string())?;
+                let validity = mailbox.uid_validity.ok_or("邮箱未提供 UIDVALIDITY")?;
+                if validity != old_validity {
+                    let newest = match mailbox.uid_next {
+                        Some(next) => next.saturating_sub(1),
+                        None => session
+                            .uid_search("ALL")
+                            .map_err(|_| "无法读取邮件标识")?
+                            .into_iter()
+                            .max()
+                            .unwrap_or(0),
+                    };
+                    Ok((validity, newest, Vec::new()))
+                } else {
+                    let (newest, notices) = scan_new_messages(&mut session, &account, last_uid)?;
+                    Ok((validity, newest, notices))
+                }
+            })();
+            match scanned {
+                Ok((validity, newest, notices)) => {
+                    if let Ok(mut sessions) = monitor.sessions.lock() {
+                        sessions.insert(id.to_string(), CachedSession { session, budget });
+                    }
+                    let db = storage.0.lock().map_err(|e| e.to_string())?;
+                    let updated = db.connection.execute("UPDATE mail_accounts SET uid_validity=?1,last_uid=?2 WHERE id=?3 AND uid_validity=?4 AND last_uid=?5", params![validity, newest, id, old_validity, last_uid]).map_err(|e| e.to_string())?;
+                    if updated == 0 {
+                        return Ok(vec![]);
+                    }
+                    return Ok(notices);
+                }
+                Err(error) => {
+                    drop(session);
+                    if !reused {
+                        return Err(error);
+                    }
+                }
+            }
         }
-        Ok(notices)
+        Err("邮箱连接已断开，请稍后重试".into())
     }
 }
 
@@ -515,17 +569,186 @@ fn append_text(mail: &mailparse::ParsedMail<'_>, output: &mut String, depth: u8)
     }
 }
 
-fn extract_code(text: &str) -> Option<String> {
+/// Keywords that introduce a one-time code, in the lowercased form used for
+/// matching. ASCII keywords rely on `to_ascii_lowercase`, which keeps byte
+/// offsets identical to the original text.
+const CODE_KEYWORDS: [&str; 11] = [
+    "验证码",
+    "校验码",
+    "动态码",
+    "安全码",
+    "确认码",
+    "verification code",
+    "security code",
+    "one-time code",
+    "one-time password",
+    "passcode",
+    "otp",
+];
+
+struct DigitRun {
+    start: usize,
+    end: usize,
+}
+
+/// Strip markup and collapse whitespace while keeping line breaks: providers
+/// often put the code on its own line, and the word "验证码" on another.
+fn clean_mail_text(text: &str) -> String {
     use std::sync::OnceLock;
-    static AFTER: OnceLock<Regex> = OnceLock::new();
-    static BEFORE: OnceLock<Regex> = OnceLock::new();
-    let after = AFTER.get_or_init(|| Regex::new(r"(?i)(?:验证码|校验码|动态码|安全码|verification\s*code|security\s*code|one.time\s*(?:code|password)|otp)[^0-9]{0,48}([0-9]{4,8})(?:[^0-9]|$)").unwrap());
-    let before = BEFORE.get_or_init(|| Regex::new(r"(?i)(?:^|[^0-9])([0-9]{4,8})[^0-9]{0,32}(?:验证码|校验码|动态码|安全码|verification\s*code|security\s*code)").unwrap());
-    after
-        .captures(text)
-        .or_else(|| before.captures(text))
-        .and_then(|capture| capture.get(1))
-        .map(|value| value.as_str().to_string())
+    static TAG: OnceLock<Regex> = OnceLock::new();
+    let tag = TAG.get_or_init(|| Regex::new(r"(?s)<[^>]{1,300}>").unwrap());
+    let stripped = tag.replace_all(text, "\n");
+    let mut result = String::with_capacity(stripped.len());
+    for line in stripped.lines() {
+        let line = line
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'");
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !result.is_empty() {
+            result.push('\n');
+        }
+        let mut spaced = false;
+        for ch in trimmed.chars() {
+            if ch.is_whitespace() {
+                if !spaced {
+                    result.push(' ');
+                    spaced = true;
+                }
+            } else {
+                result.push(ch);
+                spaced = false;
+            }
+        }
+    }
+    result
+}
+
+/// Maximal runs of ASCII digits. Runs longer than a code are skipped as a
+/// whole, so an order number cannot contribute a 4–8 digit slice.
+fn digit_runs(text: &str) -> Vec<DigitRun> {
+    let bytes = text.as_bytes();
+    let mut runs = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if !bytes[index].is_ascii_digit() {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index < bytes.len() && bytes[index].is_ascii_digit() {
+            index += 1;
+        }
+        if (4..=8).contains(&(index - start)) {
+            runs.push(DigitRun { start, end: index });
+        }
+    }
+    runs
+}
+
+fn keyword_spans(text: &str) -> Vec<(usize, usize)> {
+    let lower = text.to_ascii_lowercase();
+    let mut spans = Vec::new();
+    for keyword in CODE_KEYWORDS {
+        for (index, _) in lower.match_indices(keyword) {
+            spans.push((index, index + keyword.len()));
+        }
+    }
+    spans.sort_unstable();
+    spans
+}
+
+/// Reject durations ("15 分钟"), dates and order or amount numbers that sit
+/// inside the same window as the keyword.
+fn plausible_code(text: &str, run: &DigitRun) -> bool {
+    let suffix: String = text[run.end..].chars().take(6).collect();
+    let suffix = suffix.trim_start();
+    if [
+        "分钟", "小时", "分", "秒", "天", "年", "月", "日", "元", "%",
+    ]
+    .iter()
+    .any(|unit| suffix.starts_with(unit))
+    {
+        return false;
+    }
+    let prefix: Vec<char> = text[..run.start].chars().rev().take(6).collect();
+    let prefix: String = prefix.into_iter().rev().collect();
+    let prefix = prefix.trim_end();
+    if [
+        "订单", "单号", "编号", "金额", "价格", "运费", "电话", "手机", "尾号",
+    ]
+    .iter()
+    .any(|word| prefix.ends_with(word))
+    {
+        return false;
+    }
+    if run.end - run.start == 4 {
+        let value: u32 = text[run.start..run.end].parse().unwrap_or(0);
+        let date_like = ['-', '/', '.', '年', '月', '日']
+            .iter()
+            .any(|mark| suffix.starts_with(*mark) || prefix.ends_with(*mark));
+        if (1900..=2100).contains(&value) && date_like {
+            return false;
+        }
+    }
+    true
+}
+
+fn extract_code(text: &str) -> Option<String> {
+    let cleaned = clean_mail_text(text);
+    let spans = keyword_spans(&cleaned);
+    if spans.is_empty() {
+        return None;
+    }
+    let runs = digit_runs(&cleaned);
+    let mut best: Option<(usize, &str)> = None;
+    // Numbers after the keyword, nearest first. The gap may contain a
+    // duration or a second occurrence of the keyword.
+    for (_, keyword_end) in &spans {
+        for run in &runs {
+            if run.start < *keyword_end {
+                continue;
+            }
+            let gap = cleaned[*keyword_end..run.start].chars().count();
+            if gap > 60 || !plausible_code(&cleaned, run) {
+                continue;
+            }
+            if best.is_none_or(|(distance, _)| gap < distance) {
+                best = Some((gap, &cleaned[run.start..run.end]));
+            }
+        }
+    }
+    // Numbers before the keyword, e.g. "123456 是您的验证码". Slight penalty so
+    // the usual "验证码：123456" layout wins on ties.
+    for (keyword_start, _) in &spans {
+        for run in &runs {
+            if run.end > *keyword_start {
+                continue;
+            }
+            let gap = cleaned[run.end..*keyword_start].chars().count();
+            if gap > 24 || !plausible_code(&cleaned, run) {
+                continue;
+            }
+            if best.is_none_or(|(distance, _)| gap + 6 < distance) {
+                best = Some((gap + 6, &cleaned[run.start..run.end]));
+            }
+        }
+    }
+    if let Some((_, value)) = best {
+        return Some(value.to_string());
+    }
+    // The code alone on its own line, when the mail mentions a code at all.
+    cleaned
+        .lines()
+        .map(str::trim)
+        .find(|line| (4..=8).contains(&line.len()) && line.bytes().all(|b| b.is_ascii_digit()))
+        .map(str::to_string)
 }
 
 #[tauri::command]
@@ -544,6 +767,24 @@ mod tests {
     use super::{
         MailAccount, append_text, extract_code, netease_greeting_and_id, scan_new_messages,
     };
+    #[test]
+    fn extracts_code_from_multiline_mail_with_duration() {
+        let text = "您好，欢迎使用「即时设计」\n以下是您的验证码，此验证码 15 分钟内有效\n190334";
+        assert_eq!(extract_code(text), Some("190334".into()));
+    }
+    #[test]
+    fn extracts_code_from_html_body_with_markup() {
+        let html = "<div><p>您好，欢迎使用「即时设计」</p><p>以下是您的验证码，此验证码 15 分钟内有效</p><p><strong>190334</strong></p><p>请勿泄露</p></div>";
+        assert_eq!(extract_code(html), Some("190334".into()));
+    }
+    #[test]
+    fn ignores_duration_dates_and_order_numbers() {
+        assert_eq!(extract_code("您的验证码 15 分钟内有效，请重新获取"), None);
+        assert_eq!(
+            extract_code("验证码已于 2026 年 1 月 1 日失效，订单编号 123456"),
+            None
+        );
+    }
     #[test]
     fn extracts_only_codes_with_context() {
         assert_eq!(

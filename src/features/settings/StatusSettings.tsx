@@ -86,13 +86,13 @@ export function StatusSettings() {
     {
       icon: Volume2,
       title: "音量",
-      description: "系统音量或静音状态变化时显示",
+      description: "系统音量或静音状态变化",
       status: systemText((value) =>
         value.volume === null
           ? "当前输出设备不可读取"
           : value.muted
             ? "已静音"
-            : `当前音量 ${value.volume}%`,
+            : `当前 ${value.volume}%`,
       ),
       notice: {
         kind: "volume",
@@ -103,11 +103,11 @@ export function StatusSettings() {
     {
       icon: Sun,
       title: "屏幕亮度",
-      description: "亮度变化时显示，需显示器与驱动提供数据",
+      description: "需显示器与驱动提供亮度数据",
       status: deviceText((value) =>
         value.brightness === null
-          ? "当前显示器未提供亮度数据"
-          : `当前亮度 ${value.brightness}%`,
+          ? "当前显示器未提供"
+          : `当前 ${value.brightness}%`,
       ),
       notice: {
         kind: "brightness",
@@ -118,10 +118,10 @@ export function StatusSettings() {
     {
       icon: BatteryCharging,
       title: "电源与电池",
-      description: "接通或断开电源时显示电量和充电状态",
+      description: "接通或断开电源时显示电量",
       status: systemText((value) =>
         value.battery === null
-          ? "未检测到可读取的电池"
+          ? "未检测到电池"
           : `${value.charging ? "充电中" : value.onAc ? "已接通电源" : "使用电池"} · ${value.battery}%`,
       ),
       notice: {
@@ -133,13 +133,13 @@ export function StatusSettings() {
     {
       icon: Bluetooth,
       title: "蓝牙设备",
-      description: "设备连接或断开时显示名称及可获取的电量",
+      description: "连接或断开时显示名称与电量",
       status: deviceText((value) =>
         value.bluetooth === null
-          ? "设备状态暂不可读取"
+          ? "暂不可读取"
           : value.bluetooth.length
             ? `已连接 ${value.bluetooth.length} 个设备`
-            : "未检测到已连接的蓝牙设备",
+            : "未检测到设备",
       ),
       notice: {
         kind: "bluetooth",
@@ -149,35 +149,28 @@ export function StatusSettings() {
     },
   ];
   return (
-    <section className="settings-card status-settings">
-      <div className="status-settings-heading">
-        <div>
-          <span className="card-kicker">STATUS NOTICES</span>
-          <h2>状态提醒</h2>
-          <p>状态发生变化时，灵动岛会短暂显示提醒。</p>
-        </div>
-        <button
-          className="status-refresh"
-          onClick={refresh}
-          disabled={!desktop}
-        >
-          <RefreshCw size={14} />
+    <section className="settings-card">
+      <div className="card-head">
+        <h2>当前状态</h2>
+        <button className="btn btn-quiet" onClick={refresh} disabled={!desktop}>
+          <RefreshCw size={13} />
           刷新状态
         </button>
       </div>
-      <div className="status-rows">
+      <p className="card-desc">状态发生变化时，灵动岛会短暂显示对应提示。</p>
+      <div className="settings-list">
         {rows.map(({ icon: Icon, title, description, status, notice }) => (
-          <div className="status-row" key={title}>
-            <span className="status-row-icon">
-              <Icon size={16} />
+          <div className="settings-list-row" key={title}>
+            <span className="settings-list-icon" aria-hidden="true">
+              <Icon size={15} />
             </span>
-            <div className="status-row-copy">
+            <div className="settings-list-copy">
               <strong>{title}</strong>
               <small>{description}</small>
-              <span>{status}</span>
             </div>
+            <span className="settings-list-value">{status}</span>
             <button
-              className="status-preview-button"
+              className="btn btn-quiet"
               disabled={!desktop}
               onClick={() => void preview(notice)}
             >
@@ -186,8 +179,8 @@ export function StatusSettings() {
           </div>
         ))}
       </div>
-      <p className="status-settings-hint" role="status">
-        {previewMessage || "演示使用示例数据，不会更改系统设置。"}
+      <p className="card-hint" role="status">
+        {previewMessage || "演示使用示例数据，不会修改系统设置。"}
       </p>
     </section>
   );

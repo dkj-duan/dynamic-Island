@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
-import { IslandPreview } from "./features/island/IslandPreview";
+import {
+  IslandPreview,
+  type PreviewQuota,
+} from "./features/island/IslandPreview";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { defaultAppearance } from "./domain/settings";
 import {
@@ -17,6 +21,36 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const revision = useRef(0);
+  // The preview mirrors what the island actually shows: the pinned account's
+  // ring. One read when settings open, no polling.
+  const [previewQuota, setPreviewQuota] = useState<PreviewQuota | null>(null);
+  useEffect(() => {
+    if (!hasDesktopStorage) return;
+    let active = true;
+    void (async () => {
+      try {
+        const accounts =
+          await invoke<{ id: string; provider: string; pinned: boolean }[]>(
+            "list_ai_accounts",
+          );
+        const pinned = accounts.find((account) => account.pinned);
+        if (!pinned) return;
+        const quota = await invoke<{
+          items: { label: string; value: string }[];
+        }>("query_ai_quota", { id: pinned.id });
+        if (active)
+          setPreviewQuota({
+            provider: pinned.provider,
+            items: quota.items ?? [],
+          });
+      } catch {
+        if (active) setPreviewQuota(null);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     let active = true;
     loadAppearance()
@@ -61,7 +95,7 @@ export default function App() {
     revision.current += 1;
     setStatus("正在同步…");
     try {
-      await emitTo("island", "appearance-changed", { version: 3, ...value });
+      await emitTo("island", "appearance-changed", { version: 4, ...value });
     } catch {
       setStatus("预览已更新，灵动岛将在保存后同步");
     }
@@ -73,7 +107,7 @@ export default function App() {
     setDirty(false);
     setStatus("已切换数据目录");
     await Promise.all([
-      emitTo("island", "appearance-changed", { version: 3, ...value }),
+      emitTo("island", "appearance-changed", { version: 4, ...value }),
       emitTo("island", "mail-accounts-changed"),
       emitTo("island", "ai-accounts-changed"),
     ]);
@@ -82,7 +116,7 @@ export default function App() {
     <SettingsPage
       appearance={appearance}
       onAppearanceChange={(value) => void updateAppearance(value)}
-      preview={<IslandPreview appearance={appearance} />}
+      preview={<IslandPreview appearance={appearance} quota={previewQuota} />}
       status={status}
       canEdit={ready && !saving}
       canSwitchStorage={ready && !saving && !dirty}
