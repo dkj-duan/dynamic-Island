@@ -43,16 +43,18 @@ export function QuotaRings({
           );
         })}
       </svg>
-      {!compact && (
-        <span className="quota-ring-center">
-          {provider && (
+      {!compact &&
+        (provider ? (
+          <span className="quota-ring-center">
             <span className="quota-ring-logo">
-              <ProviderIcon provider={provider} size="tiny" />
+              <ProviderIcon provider={provider} size="normal" />
             </span>
-          )}
-          <strong>{rings[0].item.value}</strong>
-        </span>
-      )}
+          </span>
+        ) : (
+          <span className="quota-ring-center">
+            <strong>{rings[0].item.value}</strong>
+          </span>
+        ))}
       {compact && provider && (
         <span className="quota-ring-logo">
           <ProviderIcon provider={provider} size="tiny" />
