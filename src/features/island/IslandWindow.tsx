@@ -25,6 +25,19 @@ import {
 } from "../../domain/timer";
 import "../../App.css";
 
+type MediaState = {
+  title: string;
+  artist: string;
+  playing: boolean;
+  positionSeconds: number | null;
+  durationSeconds: number | null;
+};
+
+function formatMediaTime(seconds: number) {
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
   if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
     return Promise.resolve();
@@ -55,22 +68,33 @@ export function IslandWindow() {
   const [durationError, setDurationError] = useState("");
   const [lastDuration, setLastDuration] = useState(0);
   const [now, setNow] = useState(() => Date.now());
-  const [media, setMedia] = useState<{
-    title: string;
-    artist: string;
-    playing: boolean;
+  const [media, setMedia] = useState<MediaState | null>(null);
+  const [artwork, setArtwork] = useState<{
+    key: string;
+    src: string | null;
   } | null>(null);
+  const mediaKey = media ? JSON.stringify([media.title, media.artist]) : "";
+  useEffect(() => {
+    if (!mediaKey) return;
+    let active = true;
+    void invoke<string | null>("get_media_artwork")
+      .then((src) => {
+        if (active) setArtwork({ key: mediaKey, src });
+      })
+      .catch(() => {
+        if (active) setArtwork({ key: mediaKey, src: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [mediaKey]);
   const [activeTab, setActiveTab] = useState<"timer" | "music">("timer");
   const [mediaError, setMediaError] = useState("");
   useEffect(() => {
     let active = true;
     const refresh = async () => {
       try {
-        const state = await invoke<{
-          title: string;
-          artist: string;
-          playing: boolean;
-        } | null>("get_media_state");
+        const state = await invoke<MediaState | null>("get_media_state");
         if (active) setMedia(state?.title ? state : null);
       } catch (error) {
         console.error("Unable to read Windows media session", error);
@@ -317,13 +341,36 @@ export function IslandWindow() {
                 <>
                   <div className="media-track">
                     <div className="media-art">
-                      <Music2 size={21} />
+                      {artwork?.key === mediaKey && artwork.src ? (
+                        <img src={artwork.src} alt="" />
+                      ) : (
+                        <Music2 size={21} />
+                      )}
                     </div>
                     <div className="media-copy">
                       <strong>{media.title}</strong>
                       <span>{media.artist || "未知艺术家"}</span>
                     </div>
                   </div>
+                  {media.durationSeconds != null &&
+                    media.positionSeconds != null && (
+                      <div
+                        className="media-timeline"
+                        aria-label={`播放进度 ${formatMediaTime(media.positionSeconds)} / ${formatMediaTime(media.durationSeconds)}`}
+                      >
+                        <div className="media-progress">
+                          <span
+                            style={{
+                              width: `${Math.min(100, Math.max(0, (media.positionSeconds / media.durationSeconds) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="media-times">
+                          <span>{formatMediaTime(media.positionSeconds)}</span>
+                          <span>{formatMediaTime(media.durationSeconds)}</span>
+                        </div>
+                      </div>
+                    )}
                   <div className="media-controls">
                     <button
                       aria-label="上一首"

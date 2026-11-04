@@ -9,6 +9,8 @@ struct MediaState {
     title: String,
     artist: String,
     playing: bool,
+    position_seconds: Option<f64>,
+    duration_seconds: Option<f64>,
 }
 
 #[cfg(target_os = "windows")]
@@ -46,6 +48,16 @@ fn get_media_state() -> Result<Option<MediaState>, String> {
             .GetPlaybackInfo()
             .and_then(|info| info.PlaybackStatus())
             .map_err(|e| e.to_string())?;
+        let timeline = session.GetTimelineProperties().ok();
+        let position = timeline
+            .as_ref()
+            .and_then(|t| t.Position().ok())
+            .map(|t| t.Duration as f64 / 10_000_000.0);
+        let duration = timeline
+            .as_ref()
+            .and_then(|t| t.EndTime().ok())
+            .map(|t| t.Duration as f64 / 10_000_000.0)
+            .filter(|t| *t > 0.0);
         Ok(Some(MediaState {
             title: properties
                 .Title()
@@ -56,10 +68,65 @@ fn get_media_state() -> Result<Option<MediaState>, String> {
                 .map(|s| s.to_string())
                 .unwrap_or_default(),
             playing: status == PlaybackStatus::Playing,
+            position_seconds: position,
+            duration_seconds: duration,
         }))
     }
     #[cfg(not(target_os = "windows"))]
     Ok(None)
+}
+
+#[tauri::command]
+async fn get_media_artwork() -> Option<String> {
+    tauri::async_runtime::spawn_blocking(read_media_artwork)
+        .await
+        .ok()
+        .flatten()
+}
+
+fn read_media_artwork() -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        use base64::Engine;
+        use std::future::IntoFuture;
+        use windows::Storage::Streams::DataReader;
+        let session = current_media_session().ok()?;
+        let properties =
+            futures::executor::block_on(session.TryGetMediaPropertiesAsync().ok()?.into_future())
+                .ok()?;
+        let stream = futures::executor::block_on(
+            properties
+                .Thumbnail()
+                .ok()?
+                .OpenReadAsync()
+                .ok()?
+                .into_future(),
+        )
+        .ok()?;
+        let size = stream.Size().ok()?;
+        if size == 0 || size > 2_000_000 {
+            return None;
+        }
+        let content_type = stream.ContentType().ok()?.to_string();
+        if !matches!(
+            content_type.as_str(),
+            "image/jpeg" | "image/png" | "image/webp"
+        ) {
+            return None;
+        }
+        let reader = DataReader::CreateDataReader(&stream).ok()?;
+        let loaded =
+            futures::executor::block_on(reader.LoadAsync(size as u32).ok()?.into_future()).ok()?;
+        let mut bytes = vec![0; loaded as usize];
+        reader.ReadBytes(&mut bytes).ok()?;
+        Some(format!(
+            "data:{};base64,{}",
+            content_type,
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        ))
+    }
+    #[cfg(not(target_os = "windows"))]
+    None
 }
 
 #[tauri::command]
@@ -229,6 +296,7 @@ pub fn run() {
             quit_app,
             set_island_expanded,
             get_media_state,
+            get_media_artwork,
             control_media
         ])
         .setup(|app| {
