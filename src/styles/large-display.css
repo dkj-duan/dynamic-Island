@@ -1,0 +1,131 @@
+/* Large logical displays (≥2304 CSS px) — scale settings + island type. */
+:root[data-large-display="true"] {
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+}
+
+:root[data-large-display="true"] .settings-shell {
+  font-size: 14px;
+}
+
+:root[data-large-display="true"] .settings-tab,
+:root[data-large-display="true"] .settings-header p,
+:root[data-large-display="true"] .settings-desc,
+:root[data-large-display="true"] .preference-row strong,
+:root[data-large-display="true"] .status-row-copy strong,
+:root[data-large-display="true"] .mail-form label,
+:root[data-large-display="true"] .mail-form input,
+:root[data-large-display="true"] .mail-form select,
+:root[data-large-display="true"] .storage-path {
+  font-size: 14px;
+}
+
+:root[data-large-display="true"] .settings-card-heading h2,
+:root[data-large-display="true"] .card-topline h2,
+:root[data-large-display="true"] .status-settings-heading h2 {
+  font-size: 16px;
+}
+
+:root[data-large-display="true"] .settings-brand-text small,
+:root[data-large-display="true"] .settings-topbar-status,
+:root[data-large-display="true"] .card-kicker,
+:root[data-large-display="true"] .preview-live,
+:root[data-large-display="true"] .preview-caption,
+:root[data-large-display="true"] .preference-row small,
+:root[data-large-display="true"] .range-control,
+:root[data-large-display="true"] .behavior-card .settings-card-heading p,
+:root[data-large-display="true"] .behavior-hint,
+:root[data-large-display="true"] .delay-options button,
+:root[data-large-display="true"] .status-row-copy small,
+:root[data-large-display="true"] .status-row-copy span,
+:root[data-large-display="true"] .status-settings-heading p,
+:root[data-large-display="true"] .status-settings-hint,
+:root[data-large-display="true"] .status-refresh,
+:root[data-large-display="true"] .status-preview-button,
+:root[data-large-display="true"] .storage-card > p,
+:root[data-large-display="true"] .storage-card .storage-hint,
+:root[data-large-display="true"] .mail-settings > p,
+:root[data-large-display="true"] .mail-form > p,
+:root[data-large-display="true"] .mail-account small,
+:root[data-large-display="true"] .mail-form-footer span,
+:root[data-large-display="true"] .mail-form-footer button,
+:root[data-large-display="true"] .about-card p,
+:root[data-large-display="true"] .about-version {
+  font-size: 13px;
+}
+
+:root[data-large-display="true"] .is-expanded .island-panel {
+  height: 292px;
+}
+
+:root[data-large-display="true"] .island-tabs button,
+:root[data-large-display="true"] .compact-primary,
+:root[data-large-display="true"] .music-lyric,
+:root[data-large-display="true"] .media-copy strong,
+:root[data-large-display="true"] .timer-heading span,
+:root[data-large-display="true"] .custom-timer label,
+:root[data-large-display="true"] .island-mail-subject {
+  font-size: 13px;
+}
+
+:root[data-large-display="true"] .compact-secondary,
+:root[data-large-display="true"] .compact-idle-copy span:last-child,
+:root[data-large-display="true"] .media-playing-mark,
+:root[data-large-display="true"] .media-copy span,
+:root[data-large-display="true"] .media-times,
+:root[data-large-display="true"] .media-timeline-unavailable,
+:root[data-large-display="true"] .system-notice-banner,
+:root[data-large-display="true"] .island-mail-heading,
+:root[data-large-display="true"] .island-mail-heading small,
+:root[data-large-display="true"] .island-mail-empty,
+:root[data-large-display="true"] .island-mail-navigation,
+:root[data-large-display="true"] .duration-error {
+  font-size: 11px;
+}
+
+:root[data-large-display="true"] .timer-controls button,
+:root[data-large-display="true"] .custom-timer input,
+:root[data-large-display="true"] .custom-timer button,
+:root[data-large-display="true"] .island-expanded-title {
+  font-size: 13px;
+}
+
+:root[data-large-display="true"] .music-lyric {
+  height: 24px;
+}
+
+:root[data-large-display="true"] .compact-clock > span:first-child {
+  font-size: 13px;
+}
+
+:root[data-large-display="true"] .compact-clock > span:last-child {
+  font-size: 10px;
+}
+
+:root[data-large-display="true"] .ai-account-copy strong {
+  font-size: 14px;
+}
+
+:root[data-large-display="true"] .ai-account-copy small,
+:root[data-large-display="true"] .ai-account-copy span,
+:root[data-large-display="true"] .ai-account-actions button,
+:root[data-large-display="true"] .island-ai-value {
+  font-size: 12px;
+}
+
+:root[data-large-display="true"] .island-ai-name {
+  font-size: 13px;
+}
+
+:root[data-large-display="true"] .quota-account-picker button,
+:root[data-large-display="true"] .quota-metric,
+:root[data-large-display="true"] .quota-message {
+  font-size: 11px;
+}
+
+:root[data-large-display="true"] .quota-detail-heading {
+  font-size: 13px;
+}

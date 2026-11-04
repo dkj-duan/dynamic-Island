@@ -14,6 +14,9 @@ src-tauri/target/
 src-tauri/gen/
 *.local
 
+# Local project data and memory
+.workbuddy/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

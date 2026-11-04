@@ -1,0 +1,112 @@
+/* Design tokens — single source of truth for settings + island chrome. */
+:root {
+  --font-sans: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 25px;
+
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --motion-slow: 360ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Island always sits on near-black glass. */
+  --island-bg: #050505;
+  --island-border: #303037;
+  --island-text: #f3f3f5;
+  --island-muted: #a0a0aa;
+  --island-faint: #85858e;
+  --island-surface: #1c1c20;
+  --island-surface-2: #242428;
+  --island-chip: #252529;
+  --island-chip-border: #36363c;
+  --island-accent: #e3e3e7;
+  --island-accent-ink: #17171b;
+  --island-ring-track: #292931;
+  --island-ring-0: #a99af4;
+  --island-ring-1: #70d1bf;
+  --island-danger: #ffb0ad;
+}
+
+/* Settings theme surfaces — dark is default. */
+:root,
+:root[data-settings-theme="dark"] {
+  --settings-bg: #0b0b0f;
+  --settings-sidebar: #121216;
+  --settings-border: #2a2a32;
+  --settings-border-soft: #22222a;
+  --settings-surface: #141419;
+  --settings-surface-2: #1a1a21;
+  --settings-surface-3: #22222a;
+  --settings-text: #ececf0;
+  --settings-text-strong: #f5f5f8;
+  --settings-muted: #8b8b96;
+  --settings-faint: #6c6c76;
+  --settings-accent: #e8e8ee;
+  --settings-accent-ink: #121218;
+  --settings-accent-soft: #2a2a32;
+  --settings-hover: #1c1c23;
+  --settings-selected: #24242c;
+  --settings-selected-border: #34343e;
+  --settings-input-bg: #1a1a21;
+  --settings-input-border: #34343e;
+  --settings-success: #7eb38f;
+  --settings-danger: #db8e78;
+  --settings-focus: #b7b7c2;
+  --settings-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset;
+  --settings-elevated: 0 16px 48px rgb(0 0 0 / 0.32);
+  --scroll-track: #121216;
+  --scroll-thumb: #4a4a55;
+  --scroll-thumb-hover: #6a6a76;
+}
+
+:root[data-settings-theme="light"] {
+  --settings-bg: #f2f2f6;
+  --settings-sidebar: #ebebf0;
+  --settings-border: #dddde5;
+  --settings-border-soft: #e7e7ed;
+  --settings-surface: #ffffff;
+  --settings-surface-2: #f6f6fa;
+  --settings-surface-3: #ececf2;
+  --settings-text: #1b1c22;
+  --settings-text-strong: #0e0f14;
+  --settings-muted: #5f616c;
+  --settings-faint: #858793;
+  --settings-accent: #1a1b22;
+  --settings-accent-ink: #ffffff;
+  --settings-accent-soft: #e4e4eb;
+  --settings-hover: #e9e9f0;
+  --settings-selected: #ffffff;
+  --settings-selected-border: #c9c9d4;
+  --settings-input-bg: #f4f4f8;
+  --settings-input-border: #d0d0da;
+  --settings-success: #3d8f5f;
+  --settings-danger: #c45d45;
+  --settings-focus: #454650;
+  --settings-shadow: 0 1px 0 rgb(255 255 255 / 0.8) inset;
+  --settings-elevated: 0 14px 36px rgb(20 20 35 / 0.07);
+  --scroll-track: #e8e8ee;
+  --scroll-thumb: #b0b0bc;
+  --scroll-thumb-hover: #90909c;
+}

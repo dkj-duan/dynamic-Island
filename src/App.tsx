@@ -8,7 +8,7 @@ import {
   loadAppearance,
   saveAppearance,
 } from "./services/settingsRepository";
-import "./App.css";
+import "./styles/index.css";
 
 export default function App() {
   const [appearance, setAppearance] = useState(defaultAppearance);
@@ -66,26 +66,6 @@ export default function App() {
       setStatus("预览已更新，灵动岛将在保存后同步");
     }
   }
-  async function save() {
-    setSaving(true);
-    try {
-      await saveAppearance(appearance);
-      try {
-        await emitTo("island", "appearance-changed", {
-          version: 3,
-          ...appearance,
-        });
-        setDirty(false);
-        setStatus("设置已保存并同步到灵动岛");
-      } catch {
-        setStatus("设置已保存，但灵动岛同步失败；重启应用后生效。");
-      }
-    } catch {
-      setStatus("保存失败，请检查应用数据目录的访问权限后重试。");
-    } finally {
-      setSaving(false);
-    }
-  }
   async function reloadFromStorage() {
     const value = await loadAppearance();
     revision.current += 1;
@@ -105,8 +85,6 @@ export default function App() {
       preview={<IslandPreview appearance={appearance} />}
       status={status}
       canEdit={ready && !saving}
-      canSave={ready && hasDesktopStorage && !saving}
-      onSave={save}
       canSwitchStorage={ready && !saving && !dirty}
       onStorageChanged={reloadFromStorage}
     />

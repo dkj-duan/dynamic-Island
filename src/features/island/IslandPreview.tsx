@@ -24,11 +24,8 @@ export function IslandPreview({
 }: {
   appearance: AppearanceSettings;
 }) {
-  return (
-    <div className="preview-stage">
-      <IslandContent appearance={appearance} />
-    </div>
-  );
+  /* Stage wrapper lives in SettingsPage — do not nest another .preview-stage. */
+  return <IslandContent appearance={appearance} />;
 }
 
 export function IslandContent({

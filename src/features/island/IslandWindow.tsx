@@ -34,7 +34,7 @@ import {
   resumeTimer,
   type TimerState,
 } from "../../domain/timer";
-import "../../App.css";
+import "../../styles/index.css";
 import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
 import { useMail } from "../mail/useMail";

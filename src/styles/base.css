@@ -1,0 +1,133 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+}
+
+/* Settings window min width is enforced by Tauri; island is transparent. */
+html:not(.island-window) body {
+  min-width: 720px;
+  overflow: hidden;
+}
+
+html {
+  height: 100%;
+}
+
+html.island-window,
+html.island-window body {
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  background: var(--settings-bg);
+  color: var(--settings-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--settings-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--settings-accent) 35%, transparent);
+}
+
+/* Theme-aware scrollbars for settings + island panels. */
+.settings-main,
+.island-details,
+.island-ai-list,
+.quota-metrics,
+.quota-account-picker,
+.mail-account-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+.settings-main::-webkit-scrollbar,
+.island-details::-webkit-scrollbar,
+.island-ai-list::-webkit-scrollbar,
+.quota-metrics::-webkit-scrollbar,
+.quota-account-picker::-webkit-scrollbar,
+.mail-account-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.settings-main::-webkit-scrollbar-track,
+.island-details::-webkit-scrollbar-track,
+.island-ai-list::-webkit-scrollbar-track,
+.quota-metrics::-webkit-scrollbar-track,
+.quota-account-picker::-webkit-scrollbar-track,
+.mail-account-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-main::-webkit-scrollbar-thumb,
+.island-details::-webkit-scrollbar-thumb,
+.island-ai-list::-webkit-scrollbar-thumb,
+.quota-metrics::-webkit-scrollbar-thumb,
+.quota-account-picker::-webkit-scrollbar-thumb,
+.mail-account-list::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.settings-main::-webkit-scrollbar-thumb:hover,
+.island-details::-webkit-scrollbar-thumb:hover,
+.island-ai-list::-webkit-scrollbar-thumb:hover,
+.quota-metrics::-webkit-scrollbar-thumb:hover,
+.quota-account-picker::-webkit-scrollbar-thumb:hover,
+.mail-account-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: padding-box;
+}
+
+.settings-main::-webkit-scrollbar-corner,
+.island-details::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

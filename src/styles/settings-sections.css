@@ -1,0 +1,228 @@
+/* Section-specific settings styles: mail, AI, forms. */
+/* Cards inherit layout from settings.css; these refine section internals. */
+
+/* —— Mail —— */
+.mail-settings > p,
+.mail-form > p {
+  margin: 0;
+  color: var(--settings-muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.mail-empty {
+  padding: 18px 0 4px;
+  color: var(--settings-faint);
+  font-size: var(--text-sm);
+}
+
+.mail-account-list {
+  margin-top: var(--space-4);
+}
+
+.mail-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 14px 0;
+  border-top: 1px solid var(--settings-border-soft);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.mail-account:hover {
+  background: color-mix(in srgb, var(--settings-hover) 55%, transparent);
+}
+
+.mail-account > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mail-account strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--settings-text-strong);
+  overflow-wrap: anywhere;
+}
+
+.mail-account small {
+  color: var(--settings-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.mail-account button {
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--settings-muted);
+  padding: 8px;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.mail-account button:hover {
+  background: var(--settings-hover);
+  color: var(--settings-danger);
+}
+
+.mail-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.mail-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--settings-muted);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.mail-form input,
+.mail-form select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--settings-input-border);
+  border-radius: 12px;
+  background: var(--settings-input-bg);
+  color: var(--settings-text-strong);
+  font-size: var(--text-sm);
+  font-weight: 450;
+  letter-spacing: 0;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+:root[data-settings-theme="light"] .mail-form input,
+:root[data-settings-theme="light"] .mail-form select {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+}
+
+.mail-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1.5 1.5L6 6.5L10.5 1.5' stroke='%23858793' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+.mail-form select:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--settings-input-border) 35%,
+    var(--settings-text) 28%
+  );
+}
+
+.mail-form input::placeholder {
+  color: var(--settings-faint);
+  font-weight: 400;
+}
+
+.mail-form input:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--settings-input-border) 40%,
+    var(--settings-text) 25%
+  );
+}
+
+.mail-form input:focus,
+.mail-form select:focus {
+  border-color: color-mix(
+    in srgb,
+    var(--settings-focus) 55%,
+    var(--settings-input-border)
+  );
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--settings-focus) 16%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.04);
+  outline: none;
+  background: var(--settings-surface);
+}
+
+.mail-form input:disabled,
+.mail-form select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--settings-surface-2);
+}
+
+.mail-server-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px;
+  gap: 10px;
+}
+
+.mail-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.mail-form-footer span {
+  color: var(--settings-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* —— AI settings —— */
+.ai-empty {
+  padding: var(--space-3) 0;
+  color: var(--settings-muted);
+  font-size: var(--text-sm);
+}
+
+.ai-account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid var(--settings-border-soft);
+  padding: 16px 0;
+}
+
+.ai-account-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.ai-account-copy strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--settings-text-strong);
+  overflow-wrap: anywhere;
+}
+
+.ai-account-copy small,
+.ai-account-copy span {
+  font-size: var(--text-xs);
+  color: var(--settings-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.ai-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: none;
+}
