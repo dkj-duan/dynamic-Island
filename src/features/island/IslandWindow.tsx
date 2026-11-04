@@ -38,6 +38,25 @@ function formatMediaTime(seconds: number) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function MediaWave({
+  playing,
+  compact = false,
+}: {
+  playing: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <span
+      className={`media-wave ${compact ? "media-wave-compact" : ""} ${playing ? "is-playing" : ""}`}
+      aria-hidden="true"
+    >
+      {Array.from({ length: compact ? 4 : 32 }, (_, index) => (
+        <i key={index} />
+      ))}
+    </span>
+  );
+}
+
 function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
   if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
     return Promise.resolve();
@@ -298,6 +317,7 @@ export function IslandWindow() {
               />
               <span className="island-track-title">{media.title}</span>
               <span className="media-playing-mark">
+                <MediaWave playing={media.playing} compact />
                 {media.playing ? "播放中" : "已暂停"}
               </span>
               <ChevronDown
@@ -352,6 +372,7 @@ export function IslandWindow() {
                       <span>{media.artist || "未知艺术家"}</span>
                     </div>
                   </div>
+                  <MediaWave playing={media.playing} />
                   {media.durationSeconds != null &&
                     media.positionSeconds != null && (
                       <div
