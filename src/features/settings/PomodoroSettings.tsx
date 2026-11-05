@@ -84,7 +84,7 @@ export function PomodoroSettings() {
   }
 
   return (
-    <>
+    <div className="settings-stack">
       <section className="settings-card settings-pomodoro-hero">
         <div className="settings-pomodoro-art">
           <img src={pomodoroClock} alt="" draggable={false} />
@@ -206,6 +206,6 @@ export function PomodoroSettings() {
           />
         </section>
       </div>
-    </>
+    </div>
   );
 }

@@ -252,13 +252,13 @@
 
 .settings-stack {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .settings-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  gap: 16px;
   align-items: start;
 }
 
@@ -1374,8 +1374,8 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 26px;
-  padding: 22px 24px;
+  gap: 22px;
+  padding: 18px 22px;
 }
 
 /* —— Pomodoro hero —— */
@@ -1383,13 +1383,13 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 26px;
-  padding: 20px 24px;
+  gap: 22px;
+  padding: 18px 22px;
 }
 
 .settings-pomodoro-art {
-  width: 88px;
-  height: 88px;
+  width: 72px;
+  height: 72px;
 }
 
 .settings-pomodoro-art img {

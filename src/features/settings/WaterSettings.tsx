@@ -119,7 +119,7 @@ export function WaterSettings() {
   }
 
   return (
-    <>
+    <div className="settings-stack">
       <section className="settings-card settings-water-hero">
         <div className="settings-water-glass-wrap">
           <WaterGlass
@@ -421,6 +421,6 @@ export function WaterSettings() {
           />
         </section>
       </div>
-    </>
+    </div>
   );
 }
