@@ -209,7 +209,9 @@
 }
 
 .settings-content {
-  max-width: 860px;
+  /* Centre the column so wide windows do not pile blank space on the right. */
+  max-width: 920px;
+  margin: 0 auto;
 }
 
 .settings-header {
