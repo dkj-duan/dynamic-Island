@@ -1110,6 +1110,55 @@
   border-radius: var(--radius-md);
 }
 
+/* About page feature grid */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--settings-border);
+  border-radius: var(--radius-md);
+  background: var(--settings-surface-2);
+}
+
+.feature-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--settings-accent);
+  background: color-mix(in srgb, var(--settings-accent) 14%, transparent);
+}
+
+.feature-item strong {
+  display: block;
+  color: var(--settings-text-strong);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.feature-item small {
+  display: block;
+  margin-top: 2px;
+  color: var(--settings-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+@media (max-width: 860px) {
+  .feature-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .about-link {
   color: var(--settings-accent);
   text-decoration: none;

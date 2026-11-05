@@ -134,138 +134,164 @@ export function MailSettings() {
     }
   }
   return (
-    <div className="settings-columns">
-      <section className="settings-card">
-        <div className="card-head">
-          <h2>{t("已添加的邮箱")}</h2>
-          <span className="card-note">
-            {accounts.length ? `${accounts.length} ${t("个")}` : t("未添加")}
-          </span>
-        </div>
-        <p className="card-desc">
-          {t("约每 8 秒检查一次收件箱，不改变邮件已读状态。")}
-        </p>
-        {accounts.length ? (
-          <div className="settings-list">
-            {accounts.map((account) => (
-              <div className="settings-list-row" key={account.id}>
-                <span className="settings-list-icon" aria-hidden="true">
-                  <Mail size={15} />
-                </span>
-                <div className="settings-list-copy">
-                  <strong>{account.email}</strong>
-                  <small>
-                    {account.host}:{account.port} ·{" "}
-                    {monitorStatus[account.id] || t("等待首次检查")}
-                  </small>
-                </div>
-                <button
-                  className="icon-button danger"
-                  disabled={busy}
-                  onClick={() => void remove(account)}
-                  aria-label={`${t("移除 ")}${account.email}`}
-                  title={t("移除邮箱")}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+    <div className="settings-stack">
+      <div className="settings-columns">
+        <section className="settings-card">
+          <div className="card-head">
+            <h2>{t("已添加的邮箱")}</h2>
+            <span className="card-note">
+              {accounts.length ? `${accounts.length} ${t("个")}` : t("未添加")}
+            </span>
           </div>
-        ) : (
-          <p className="empty-state">
-            {desktop
-              ? t("还没有邮箱账户。添加后会在这里显示检查状态。")
-              : t("请在桌面应用中添加邮箱。")}
+          <p className="card-desc">
+            {t("约每 8 秒检查一次收件箱，不改变邮件已读状态。")}
           </p>
-        )}
-      </section>
+          {accounts.length ? (
+            <div className="settings-list">
+              {accounts.map((account) => (
+                <div className="settings-list-row" key={account.id}>
+                  <span className="settings-list-icon" aria-hidden="true">
+                    <Mail size={15} />
+                  </span>
+                  <div className="settings-list-copy">
+                    <strong>{account.email}</strong>
+                    <small>
+                      {account.host}:{account.port} ·{" "}
+                      {monitorStatus[account.id] || t("等待首次检查")}
+                    </small>
+                  </div>
+                  <button
+                    className="icon-button danger"
+                    disabled={busy}
+                    onClick={() => void remove(account)}
+                    aria-label={`${t("移除 ")}${account.email}`}
+                    title={t("移除邮箱")}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">
+              {desktop
+                ? t("还没有邮箱账户。添加后会在这里显示检查状态。")
+                : t("请在桌面应用中添加邮箱。")}
+            </p>
+          )}
+        </section>
+
+        <section className="settings-card">
+          <div className="card-head">
+            <h2>{t("添加邮箱")}</h2>
+          </div>
+          <form onSubmit={(event) => void add(event)} className="form">
+            <div className="field">
+              <span>{t("邮箱服务商")}</span>
+              <Select
+                ariaLabel={t("邮箱服务商")}
+                value={provider}
+                disabled={busy || !desktop}
+                options={providers.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                onChange={(next) => {
+                  const selected = providers.find((item) => item.id === next)!;
+                  setProvider(selected.id);
+                  setHost(selected.host);
+                  setPort("993");
+                }}
+              />
+            </div>
+            <label className="field">
+              <span>{t("邮箱地址")}</span>
+              <input
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                disabled={busy || !desktop}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="name@example.com"
+              />
+            </label>
+            <div className="field-row">
+              <label className="field">
+                <span>{t("IMAP 服务器")}</span>
+                <input
+                  required
+                  value={host}
+                  disabled={busy || !desktop || provider !== "custom"}
+                  onChange={(event) => setHost(event.target.value)}
+                  placeholder="imap.example.com"
+                />
+              </label>
+              <label className="field field-port">
+                <span>{t("SSL 端口")}</span>
+                <input
+                  required
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={5}
+                  value={port}
+                  disabled={busy || !desktop}
+                  onChange={(event) =>
+                    setPort(event.target.value.replace(/\D/g, ""))
+                  }
+                />
+              </label>
+            </div>
+            <label className="field">
+              <span>{t("邮箱授权码")}</span>
+              <input
+                type="password"
+                required
+                autoComplete="off"
+                value={secret}
+                disabled={busy || !desktop}
+                onChange={(event) => setSecret(event.target.value)}
+                placeholder={t("邮箱服务商生成的授权码")}
+              />
+            </label>
+            <p className="form-note">
+              {t(
+                "需在服务商开启 IMAP 并使用授权码；仅支持 SSL/TLS，需要 OAuth 的账户暂不支持。授权码存放在 Windows 凭据管理器。",
+              )}
+            </p>
+            <div className="form-footer">
+              <span role="status">{message}</span>
+              <button className="btn btn-primary" disabled={busy || !desktop}>
+                {busy ? t("处理中…") : t("连接并添加")}
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
 
       <section className="settings-card">
         <div className="card-head">
-          <h2>{t("添加邮箱")}</h2>
+          <h2>{t("灵动岛上的邮件提醒")}</h2>
         </div>
-        <form onSubmit={(event) => void add(event)} className="form">
-          <div className="field">
-            <span>{t("邮箱服务商")}</span>
-            <Select
-              ariaLabel={t("邮箱服务商")}
-              value={provider}
-              disabled={busy || !desktop}
-              options={providers.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              onChange={(next) => {
-                const selected = providers.find((item) => item.id === next)!;
-                setProvider(selected.id);
-                setHost(selected.host);
-                setPort("993");
-              }}
-            />
+        <dl className="about-rows">
+          <div>
+            <dt>{t("提醒方式")}</dt>
+            <dd>
+              {t(
+                "收到新邮件时，胶囊直接显示验证码或主题；展开面板可一键复制。",
+              )}
+            </dd>
           </div>
-          <label className="field">
-            <span>{t("邮箱地址")}</span>
-            <input
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              disabled={busy || !desktop}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@example.com"
-            />
-          </label>
-          <div className="field-row">
-            <label className="field">
-              <span>{t("IMAP 服务器")}</span>
-              <input
-                required
-                value={host}
-                disabled={busy || !desktop || provider !== "custom"}
-                onChange={(event) => setHost(event.target.value)}
-                placeholder="imap.example.com"
-              />
-            </label>
-            <label className="field field-port">
-              <span>{t("SSL 端口")}</span>
-              <input
-                required
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={5}
-                value={port}
-                disabled={busy || !desktop}
-                onChange={(event) =>
-                  setPort(event.target.value.replace(/\D/g, ""))
-                }
-              />
-            </label>
+          <div>
+            <dt>{t("多账户")}</dt>
+            <dd>{t("可添加多个邮箱，最近一封新邮件优先显示。")}</dd>
           </div>
-          <label className="field">
-            <span>{t("邮箱授权码")}</span>
-            <input
-              type="password"
-              required
-              autoComplete="off"
-              value={secret}
-              disabled={busy || !desktop}
-              onChange={(event) => setSecret(event.target.value)}
-              placeholder={t("邮箱服务商生成的授权码")}
-            />
-          </label>
-          <p className="form-note">
-            {t(
-              "需在服务商开启 IMAP 并使用授权码；仅支持 SSL/TLS，需要 OAuth 的账户暂不支持。授权码存放在 Windows 凭据管理器。",
-            )}
-          </p>
-          <div className="form-footer">
-            <span role="status">{message}</span>
-            <button className="btn btn-primary" disabled={busy || !desktop}>
-              {busy ? t("处理中…") : t("连接并添加")}
-            </button>
+          <div>
+            <dt>{t("隐私保护")}</dt>
+            <dd>{t("不保存邮件正文，提醒只在内存保留约 5 分钟。")}</dd>
           </div>
-        </form>
+        </dl>
       </section>
     </div>
   );

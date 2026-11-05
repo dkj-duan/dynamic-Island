@@ -94,171 +94,199 @@ export function AiSettings() {
     }
   }
   return (
-    <div className="settings-columns">
-      <section className="settings-card">
-        <div className="card-head">
-          <h2>{t("账户与额度")}</h2>
-          <button
-            className="btn btn-quiet"
-            disabled={!desktop || busy}
-            onClick={() => void reload()}
-          >
-            <RefreshCw size={13} />
-            {t("刷新")}
-          </button>
-        </div>
-        <p className="card-desc">
-          {t("每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。")}
-        </p>
-        {!desktop && (
-          <p className="empty-state">{t("请在桌面应用中配置账户。")}</p>
-        )}
-        {desktop && accounts.length === 0 && (
-          <p className="empty-state">{t("尚未添加账户。")}</p>
-        )}
-        {error && (
-          <p className="form-note is-error" role="alert">
-            {error}
-          </p>
-        )}
-        {accounts.length > 0 && (
-          <div className="settings-list">
-            {accounts.map((account) => (
-              <div className="settings-list-row" key={account.id}>
-                <ProviderIcon provider={account.provider} size="normal" />
-                <div className="settings-list-copy">
-                  <strong>
-                    {account.name}
-                    {account.pinned && <span className="tag">{t("常驻")}</span>}
-                  </strong>
-                  <small>
-                    {(() => {
-                      const found = providers.find(
-                        (p) => p.id === account.provider,
-                      );
-                      return found ? t(found.label) : account.provider;
-                    })()}
-                  </small>
-                  <span className="settings-list-value">
-                    {results[account.id]?.quota?.items
-                      .map((item) => `${item.label} ${item.value}`)
-                      .join(" · ") ??
-                      results[account.id]?.error ??
-                      t("正在查询…")}
-                  </span>
-                </div>
-                <div className="settings-list-actions">
-                  <button
-                    className="btn btn-quiet"
-                    disabled={busy || account.pinned}
-                    onClick={() => void action("pin_ai_account", account.id)}
-                  >
-                    {account.pinned ? t("已常驻") : t("常驻")}
-                  </button>
-                  <button
-                    className="btn btn-quiet"
-                    disabled={busy}
-                    onClick={() => void action("remove_ai_account", account.id)}
-                  >
-                    {t("删除")}
-                  </button>
-                </div>
-              </div>
-            ))}
+    <div className="settings-stack">
+      <div className="settings-columns">
+        <section className="settings-card">
+          <div className="card-head">
+            <h2>{t("账户与额度")}</h2>
+            <button
+              className="btn btn-quiet"
+              disabled={!desktop || busy}
+              onClick={() => void reload()}
+            >
+              <RefreshCw size={13} />
+              {t("刷新")}
+            </button>
           </div>
-        )}
-      </section>
+          <p className="card-desc">
+            {t("每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。")}
+          </p>
+          {!desktop && (
+            <p className="empty-state">{t("请在桌面应用中配置账户。")}</p>
+          )}
+          {desktop && accounts.length === 0 && (
+            <p className="empty-state">{t("尚未添加账户。")}</p>
+          )}
+          {error && (
+            <p className="form-note is-error" role="alert">
+              {error}
+            </p>
+          )}
+          {accounts.length > 0 && (
+            <div className="settings-list">
+              {accounts.map((account) => (
+                <div className="settings-list-row" key={account.id}>
+                  <ProviderIcon provider={account.provider} size="normal" />
+                  <div className="settings-list-copy">
+                    <strong>
+                      {account.name}
+                      {account.pinned && (
+                        <span className="tag">{t("常驻")}</span>
+                      )}
+                    </strong>
+                    <small>
+                      {(() => {
+                        const found = providers.find(
+                          (p) => p.id === account.provider,
+                        );
+                        return found ? t(found.label) : account.provider;
+                      })()}
+                    </small>
+                    <span className="settings-list-value">
+                      {results[account.id]?.quota?.items
+                        .map((item) => `${item.label} ${item.value}`)
+                        .join(" · ") ??
+                        results[account.id]?.error ??
+                        t("正在查询…")}
+                    </span>
+                  </div>
+                  <div className="settings-list-actions">
+                    <button
+                      className="btn btn-quiet"
+                      disabled={busy || account.pinned}
+                      onClick={() => void action("pin_ai_account", account.id)}
+                    >
+                      {account.pinned ? t("已常驻") : t("常驻")}
+                    </button>
+                    <button
+                      className="btn btn-quiet"
+                      disabled={busy}
+                      onClick={() =>
+                        void action("remove_ai_account", account.id)
+                      }
+                    >
+                      {t("删除")}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="settings-card">
+          <div className="card-head">
+            <h2>{t("添加账户")}</h2>
+          </div>
+          <form className="form" onSubmit={(event) => void add(event)}>
+            <div className="field">
+              <span>{t("服务")}</span>
+              <Select
+                ariaLabel={t("AI 服务")}
+                value={provider}
+                disabled={!desktop || busy}
+                options={providers.map((p) => ({
+                  value: p.id,
+                  label: t(p.label),
+                }))}
+                onChange={(next) => {
+                  setProvider(next);
+                  setSecret("");
+                }}
+              />
+            </div>
+            <label className="field">
+              <span>{t("账户名称")}</span>
+              <input
+                value={name}
+                maxLength={40}
+                disabled={!desktop || busy}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t("例如：个人账户")}
+                required
+              />
+            </label>
+            {provider === "kimi-local" && (
+              <label className="field">
+                <span>{t("本地服务端口")}</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={5}
+                  value={port}
+                  disabled={!desktop || busy}
+                  onChange={(event) =>
+                    setPort(event.target.value.replace(/\D/g, ""))
+                  }
+                  required
+                />
+              </label>
+            )}
+            {provider !== "codex-local" && (
+              <label className="field">
+                <span>
+                  {provider === "kimi-local"
+                    ? t("本地访问令牌")
+                    : t("查询密钥")}
+                </span>
+                <input
+                  type="password"
+                  value={secret}
+                  autoComplete="off"
+                  disabled={!desktop || busy}
+                  onChange={(event) => setSecret(event.target.value)}
+                  placeholder={t("输入该服务的密钥")}
+                  required
+                />
+              </label>
+            )}
+            <p className="form-note">
+              {(() => {
+                const hint = providers.find((p) => p.id === provider)?.hint;
+                return hint ? t(hint) : "";
+              })()}
+              {provider !== "codex-local" &&
+                t(
+                  " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。",
+                )}
+            </p>
+            <div className="form-footer">
+              <span role="status">{message}</span>
+              <button
+                className="btn btn-primary"
+                disabled={
+                  !desktop ||
+                  busy ||
+                  !name.trim() ||
+                  (provider !== "codex-local" && !secret)
+                }
+              >
+                {t("添加账户")}
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
 
       <section className="settings-card">
         <div className="card-head">
-          <h2>{t("添加账户")}</h2>
+          <h2>{t("灵动岛上的额度显示")}</h2>
         </div>
-        <form className="form" onSubmit={(event) => void add(event)}>
-          <div className="field">
-            <span>{t("服务")}</span>
-            <Select
-              ariaLabel={t("AI 服务")}
-              value={provider}
-              disabled={!desktop || busy}
-              options={providers.map((p) => ({
-                value: p.id,
-                label: t(p.label),
-              }))}
-              onChange={(next) => {
-                setProvider(next);
-                setSecret("");
-              }}
-            />
+        <dl className="about-rows">
+          <div>
+            <dt>{t("显示方式")}</dt>
+            <dd>{t("常驻账户以圆环加进度条显示剩余额度，收起时也能看到。")}</dd>
           </div>
-          <label className="field">
-            <span>{t("账户名称")}</span>
-            <input
-              value={name}
-              maxLength={40}
-              disabled={!desktop || busy}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("例如：个人账户")}
-              required
-            />
-          </label>
-          {provider === "kimi-local" && (
-            <label className="field">
-              <span>{t("本地服务端口")}</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={5}
-                value={port}
-                disabled={!desktop || busy}
-                onChange={(event) =>
-                  setPort(event.target.value.replace(/\D/g, ""))
-                }
-                required
-              />
-            </label>
-          )}
-          {provider !== "codex-local" && (
-            <label className="field">
-              <span>
-                {provider === "kimi-local" ? t("本地访问令牌") : t("查询密钥")}
-              </span>
-              <input
-                type="password"
-                value={secret}
-                autoComplete="off"
-                disabled={!desktop || busy}
-                onChange={(event) => setSecret(event.target.value)}
-                placeholder={t("输入该服务的密钥")}
-                required
-              />
-            </label>
-          )}
-          <p className="form-note">
-            {(() => {
-              const hint = providers.find((p) => p.id === provider)?.hint;
-              return hint ? t(hint) : "";
-            })()}
-            {provider !== "codex-local" &&
-              t(
-                " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。",
-              )}
-          </p>
-          <div className="form-footer">
-            <span role="status">{message}</span>
-            <button
-              className="btn btn-primary"
-              disabled={
-                !desktop ||
-                busy ||
-                !name.trim() ||
-                (provider !== "codex-local" && !secret)
-              }
-            >
-              {t("添加账户")}
-            </button>
+          <div>
+            <dt>{t("刷新频率")}</dt>
+            <dd>{t("每两分钟自动查询一次，可随时手动刷新。")}</dd>
           </div>
-        </form>
+          <div>
+            <dt>{t("常驻切换")}</dt>
+            <dd>{t("点「常驻」把某个账户固定在灵动岛上，切换立即生效。")}</dd>
+          </div>
+        </dl>
       </section>
     </div>
   );
