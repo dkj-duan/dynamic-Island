@@ -215,7 +215,36 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .and_then(|v| v.as_u64())
         .filter(|v| [0, 1, 3, 5, 10, 15].contains(v));
     let language = value.get("language").and_then(|v| v.as_str());
-    if value.get("version").and_then(|v| v.as_u64()) != Some(5)
+    let idle_widgets_valid = match value.get("version").and_then(|v| v.as_u64()) {
+        Some(6 | 7) => value
+            .get("idleWidgets")
+            .and_then(|v| v.as_array())
+            .is_some_and(|items| {
+                let mut seen: Vec<&str> = Vec::new();
+                items.len() <= 5
+                    && items.iter().all(|item| match item.as_str() {
+                        Some(id)
+                            if matches!(id, "clock" | "quota" | "water" | "pomodoro" | "music")
+                                && !seen.contains(&id) =>
+                        {
+                            seen.push(id);
+                            true
+                        }
+                        _ => false,
+                    })
+            }),
+        Some(5) => true,
+        _ => false,
+    };
+    let lyrics_valid = match value.get("version").and_then(|v| v.as_u64()) {
+        Some(7) => value
+            .get("islandLyrics")
+            .and_then(|v| v.as_bool())
+            .is_some(),
+        _ => true,
+    };
+    if !idle_widgets_valid
+        || !lyrics_valid
         || !matches!(
             value.get("theme").and_then(|v| v.as_str()),
             Some("system" | "light" | "dark")
@@ -373,7 +402,10 @@ fn validate_water(value: &serde_json::Value) -> Result<(), String> {
             .is_none()
         || !setting_number(value, "goalMl", 500, 10000)
         || !setting_number(value, "cupMl", 50, 2000)
-        || !setting_number(value, "reminderMinutes", 15, 240)
+        || !value
+            .get("reminderMinutes")
+            .and_then(serde_json::Value::as_u64)
+            .is_some_and(|minutes| minutes >= 1)
         || start > 23
         || !(1..=24).contains(&end)
         || start >= end
@@ -865,6 +897,13 @@ mod tests {
         assert!(validate_appearance(&serde_json::json!({"version": 5, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click"})).is_err());
         assert!(validate_appearance(&serde_json::json!({"version": 4, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click"})).is_err());
         assert!(validate_appearance(&serde_json::json!({"version": 3, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 6, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["water", "clock"]})).is_ok());
+        assert!(validate_appearance(&serde_json::json!({"version": 6, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN"})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 6, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock", "clock"]})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 6, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock", "unknown"]})).is_err());
+        assert!(validate_appearance(&serde_json::json!({"version": 7, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock", "music"], "islandLyrics": false})).is_ok());
+        assert!(validate_appearance(&serde_json::json!({"version": 7, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock"], "islandLyrics": true})).is_ok());
+        assert!(validate_appearance(&serde_json::json!({"version": 7, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock"]})).is_err());
     }
 
     #[test]
@@ -959,6 +998,12 @@ mod tests {
             "enabled": true
         });
         assert!(validate_water(&valid).is_ok());
+        let mut short_interval = valid.clone();
+        short_interval["reminderMinutes"] = serde_json::json!(1);
+        assert!(validate_water(&short_interval).is_ok());
+        let mut zero_interval = valid.clone();
+        zero_interval["reminderMinutes"] = serde_json::json!(0);
+        assert!(validate_water(&zero_interval).is_err());
         let mut reversed = valid.clone();
         reversed["activeStart"] = serde_json::json!(21);
         reversed["activeEnd"] = serde_json::json!(9);

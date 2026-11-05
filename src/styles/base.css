@@ -37,8 +37,6 @@ body {
   font-synthesis: none;
   background: var(--settings-bg);
   color: var(--settings-text);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 button,

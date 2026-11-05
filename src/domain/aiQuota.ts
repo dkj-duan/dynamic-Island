@@ -1,4 +1,9 @@
-export type QuotaItem = { label: string; value: string };
+export type QuotaItem = {
+  label: string;
+  value: string;
+  /** Unix seconds when this window refills, when the service reports it. */
+  resetAt?: number | null;
+};
 export function aiProviderName(provider: string): string {
   return (
     (

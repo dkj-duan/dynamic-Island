@@ -30,9 +30,36 @@ struct AiQuotaUpdate {
     updated_at: u64,
 }
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QuotaItem {
     label: String,
     value: String,
+    /// Unix seconds when this window refills, when the service reports it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reset_at: Option<i64>,
+}
+
+/// Services report reset stamps in seconds or milliseconds; normalise to seconds.
+fn reset_seconds(value: Option<i64>) -> Option<i64> {
+    value.filter(|value| *value > 0).map(|value| {
+        if value > 1_000_000_000_000 {
+            value / 1000
+        } else {
+            value
+        }
+    })
+}
+
+fn window_reset_at(window: &serde_json::Value) -> Option<i64> {
+    let value = window
+        .get("resetsAt")
+        .or_else(|| window.get("resets_at"))
+        .or_else(|| window.get("resetAt"))?;
+    let seconds = value
+        .as_i64()
+        .or_else(|| value.as_f64().map(|value| value as i64))
+        .or_else(|| value.as_str().and_then(|value| value.parse().ok()));
+    reset_seconds(seconds)
 }
 fn endpoint(provider: &str) -> Option<&'static str> {
     match provider {
@@ -228,6 +255,7 @@ fn parse_quota(provider: &str, data: &serde_json::Value) -> Result<Vec<QuotaItem
                     result.push(QuotaItem {
                         label: label.into(),
                         value: format!("{:.0}%", (1.0 - used) * 100.0),
+                        reset_at: None,
                     });
                 }
             }
@@ -262,6 +290,7 @@ fn parse_quota(provider: &str, data: &serde_json::Value) -> Result<Vec<QuotaItem
                 result.push(QuotaItem {
                     label,
                     value: format!("{:.0}%", 100.0 - used),
+                    reset_at: window_reset_at(window),
                 });
             }
             if result.is_empty() {
@@ -285,6 +314,7 @@ fn parse_quota(provider: &str, data: &serde_json::Value) -> Result<Vec<QuotaItem
                     result.push(QuotaItem {
                         label: format!("{cur} 可用余额"),
                         value: format!("{value:.2}"),
+                        reset_at: None,
                     });
                 }
             }
@@ -306,6 +336,7 @@ fn parse_quota(provider: &str, data: &serde_json::Value) -> Result<Vec<QuotaItem
             Ok(vec![QuotaItem {
                 label: "USD 剩余积分".into(),
                 value: format!("{:.2}", total - used),
+                reset_at: None,
             }])
         }
         "minimax-cn" | "minimax-global" => {
@@ -338,6 +369,7 @@ fn parse_quota(provider: &str, data: &serde_json::Value) -> Result<Vec<QuotaItem
                     result.push(QuotaItem {
                         label: label.into(),
                         value: format!("{value:.0}%"),
+                        reset_at: None,
                     });
                 }
             }
@@ -574,7 +606,21 @@ mod tests {
         let items = parse_quota("codex-local", &json!({"result":{"rateLimits":{"primary":{"usedPercent":25,"windowDurationMins":300},"secondary":{"usedPercent":100,"windowDurationMins":10080}}}})).unwrap();
         assert_eq!(items[0].value, "75%");
         assert_eq!(items[1].value, "0%");
+        assert_eq!(items[0].reset_at, None);
         assert!(parse_quota("codex-local", &json!({"result":{"rateLimits":null}})).is_err());
+    }
+    #[test]
+    fn codex_reset_stamps_are_normalised_to_seconds() {
+        let items = parse_quota(
+            "codex-local",
+            &json!({"result":{"rateLimits":{
+                "primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1_900_000_000i64},
+                "secondary":{"usedPercent":20,"windowDurationMins":10080,"resetsAt":"1900000000000"}
+            }}}),
+        )
+        .unwrap();
+        assert_eq!(items[0].reset_at, Some(1_900_000_000));
+        assert_eq!(items[1].reset_at, Some(1_900_000_000));
     }
     #[test]
     fn kimi_local_handles_usage_and_reports_errors() {

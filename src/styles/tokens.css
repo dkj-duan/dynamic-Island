@@ -1,6 +1,8 @@
 /* Design tokens — single source of truth for settings + island chrome. */
 :root {
-  --font-sans: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",
+    "Microsoft YaHei", sans-serif;
   --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
 
   --space-1: 4px;
@@ -54,11 +56,11 @@
 /* Settings theme surfaces — dark is default. */
 :root,
 :root[data-settings-theme="dark"] {
-  --settings-bg: #0b0b0f;
-  --settings-sidebar: #121216;
+  --settings-bg: #141414;
+  --settings-sidebar: #141414;
   --settings-border: #2a2a32;
-  --settings-border-soft: #22222a;
-  --settings-surface: #141419;
+  --settings-border-soft: #242424;
+  --settings-surface: #1a1a1a;
   --settings-surface-2: #1a1a21;
   --settings-surface-3: #22222a;
   --settings-text: #ececf0;
@@ -78,14 +80,14 @@
   --settings-focus: #b7b7c2;
   --settings-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset;
   --settings-elevated: 0 16px 48px rgb(0 0 0 / 0.32);
-  --scroll-track: #121216;
+  --scroll-track: #141414;
   --scroll-thumb: #4a4a55;
   --scroll-thumb-hover: #6a6a76;
 }
 
 :root[data-settings-theme="light"] {
-  --settings-bg: #f2f2f6;
-  --settings-sidebar: #ebebf0;
+  --settings-bg: #ffffff;
+  --settings-sidebar: #ffffff;
   --settings-border: #dddde5;
   --settings-border-soft: #e7e7ed;
   --settings-surface: #ffffff;

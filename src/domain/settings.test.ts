@@ -12,6 +12,8 @@ describe("parseAppearance", () => {
       autoCollapseSeconds: 3,
       expandTrigger: "click",
       language: "zh-CN",
+      idleWidgets: ["quota"],
+      islandLyrics: false,
     });
   });
   it("migrates version 2 and validates the selected theme", () => {
@@ -70,6 +72,72 @@ describe("parseAppearance", () => {
         showClock: true,
         autoCollapseSeconds: 3,
         expandTrigger: "double",
+      }),
+    ).toThrow();
+  });
+  it("reads the ordered idle widgets from version 6", () => {
+    const parsed = parseAppearance({
+      version: 6,
+      theme: "dark",
+      scale: 1,
+      showClock: false,
+      autoCollapseSeconds: 3,
+      expandTrigger: "hover",
+      language: "en-US",
+      idleWidgets: ["water", "clock"],
+    });
+    expect(parsed.idleWidgets).toEqual(["water", "clock"]);
+    expect(parsed.showClock).toBe(true);
+    expect(parsed.islandLyrics).toBe(false);
+    expect(() =>
+      parseAppearance({
+        version: 6,
+        theme: "dark",
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        expandTrigger: "click",
+        language: "zh-CN",
+        idleWidgets: ["clock", "unknown"],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseAppearance({
+        version: 6,
+        theme: "dark",
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        expandTrigger: "click",
+        language: "zh-CN",
+        idleWidgets: ["clock", "clock"],
+      }),
+    ).toThrow();
+  });
+  it("reads the island lyric switch from version 7", () => {
+    const parsed = parseAppearance({
+      version: 7,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock", "music"],
+      islandLyrics: true,
+    });
+    expect(parsed.islandLyrics).toBe(true);
+    expect(parsed.idleWidgets).toEqual(["clock", "music"]);
+    expect(() =>
+      parseAppearance({
+        version: 7,
+        theme: "dark",
+        scale: 1,
+        showClock: true,
+        autoCollapseSeconds: 3,
+        expandTrigger: "click",
+        language: "zh-CN",
+        idleWidgets: ["clock"],
       }),
     ).toThrow();
   });

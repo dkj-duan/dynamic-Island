@@ -59,7 +59,7 @@ const en: Record<string, string> = {
   桌面预览: "Desktop preview",
   实时同步: "Live",
   "屏幕顶部 · 居中": "Top of screen · centered",
-  随主题与缩放即时更新: "Updates with theme and scale",
+  拖动组件可调整顺序: "Drag widgets to reorder",
   界面主题: "Theme",
   仅影响设置窗口: "Settings window only",
   跟随系统: "System",
@@ -74,6 +74,27 @@ const en: Record<string, string> = {
   胶囊大小: "Capsule size",
   显示当前时间: "Show the clock",
   收起时显示数字时钟与日期: "Digital clock and date while collapsed",
+  闲时内容: "Idle content",
+  "在预览中拖动组件，或使用箭头调整顺序。":
+    "Drag widgets in the preview, or use the arrows to reorder.",
+  时钟: "Clock",
+  时钟与日期: "Clock & date",
+  "控制收起胶囊里显示的内容。": "Controls what the collapsed capsule shows.",
+  岛上显示歌词: "Show lyrics on the island",
+  歌词: "Lyrics",
+  岛上歌词: "Island lyrics",
+  把当前歌词显示在收起的小岛上:
+    "Show the current lyric on the collapsed capsule",
+  "关闭时显示歌手；歌词仍可在展开的音乐页查看。":
+    "When off, the artist is shown; lyrics stay available on the music page.",
+  正在播放: "Now playing",
+  常驻额度: "Pinned quota",
+  喝水进度: "Water progress",
+  番茄进度: "Pomodoro progress",
+  上移: "Move up",
+  下移: "Move down",
+  "常驻额度仅在有常驻 AI 账户时显示；喝水与番茄显示今日数据。全部关闭时显示 Dynamic Island。":
+    "Pinned quota needs a pinned AI account; water and pomodoro show today's data. With everything off, the capsule shows Dynamic Island.",
 
   // —— Behaviour ——
   展开方式: "Expand trigger",
@@ -87,8 +108,9 @@ const en: Record<string, string> = {
   恢复默认位置: "Reset position",
   已恢复: "Reset done",
   鼠标离开后自动收起: "Auto-collapse",
-  "展开后鼠标移出面板，按设定时间折叠；计时不会中断。":
-    "After expanding, the panel folds back once the pointer leaves. Timers keep running.",
+  "点击或悬停展开后都生效；鼠标移出面板后按设定时间折叠，选择「立即」则马上收起，计时不会中断。":
+    "Applies to click and hover expansion; the panel folds back after the pointer leaves. Choose Instant to close immediately. Timers keep running.",
+  立即: "Instant",
   关闭: "Off",
   "1 秒": "1 s",
   "3 秒": "3 s",
@@ -311,6 +333,7 @@ const en: Record<string, string> = {
   "清零今天的饮水量和杯数，统计历史不受影响。":
     "Clears today's water and cup count; history stays intact.",
   确认重置: "Confirm reset",
+  重置: "Resets",
   已重置今日饮水: "Today's water reset",
 
   // —— Focus stats ——

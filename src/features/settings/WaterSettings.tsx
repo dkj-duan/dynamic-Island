@@ -275,7 +275,6 @@ export function WaterSettings() {
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                maxLength={3}
                 disabled={busy || !desktop || !settings.enabled}
                 value={settings.reminderMinutes}
                 onChange={(event) => {

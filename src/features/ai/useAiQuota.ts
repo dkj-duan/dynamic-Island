@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { QuotaItem } from "../../domain/aiQuota";
 export type AiAccount = {
   id: string;
   provider: string;
@@ -11,7 +12,7 @@ export type AiQuota = {
   id: string;
   name: string;
   provider: string;
-  items: { label: string; value: string }[];
+  items: QuotaItem[];
 };
 export type AiResult = { quota?: AiQuota; error?: string; updatedAt: number };
 type AiQuotaUpdate = { id: string; quota: AiQuota; updatedAt: number };

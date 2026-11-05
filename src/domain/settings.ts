@@ -6,6 +6,15 @@ import {
 
 export type ExpandTrigger = "click" | "hover";
 
+export const idleWidgetIds = [
+  "clock",
+  "quota",
+  "water",
+  "pomodoro",
+  "music",
+] as const;
+export type IdleWidgetId = (typeof idleWidgetIds)[number];
+
 export interface AppearanceSettings {
   theme: "system" | "light" | "dark";
   scale: number;
@@ -15,6 +24,10 @@ export interface AppearanceSettings {
   expandTrigger: ExpandTrigger;
   /** UI language for both windows. */
   language: Language;
+  /** Ordered pieces shown in the capsule while the island is idle. */
+  idleWidgets: IdleWidgetId[];
+  /** Show the current lyric instead of the artist in the music capsule. */
+  islandLyrics: boolean;
 }
 export const defaultAppearance: AppearanceSettings = {
   theme: "system",
@@ -23,7 +36,25 @@ export const defaultAppearance: AppearanceSettings = {
   autoCollapseSeconds: 3,
   expandTrigger: "click",
   language: defaultLanguage,
+  idleWidgets: ["clock", "quota"],
+  islandLyrics: false,
 };
+
+function parseIdleWidgets(value: unknown): IdleWidgetId[] {
+  if (!Array.isArray(value)) throw new Error("闲时内容无效");
+  const widgets: IdleWidgetId[] = [];
+  for (const item of value) {
+    if (
+      typeof item !== "string" ||
+      !idleWidgetIds.includes(item as IdleWidgetId) ||
+      widgets.includes(item as IdleWidgetId)
+    ) {
+      throw new Error("闲时内容无效");
+    }
+    widgets.push(item as IdleWidgetId);
+  }
+  return widgets;
+}
 
 /** Reject malformed or future data instead of silently overwriting it. */
 export function parseAppearance(value: unknown): AppearanceSettings {
@@ -35,7 +66,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 2 &&
       item.version !== 3 &&
       item.version !== 4 &&
-      item.version !== 5) ||
+      item.version !== 5 &&
+      item.version !== 6 &&
+      item.version !== 7) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -62,15 +95,29 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   if (expandTrigger !== "click" && expandTrigger !== "hover")
     throw new Error("展开方式无效");
   const language =
-    item.version === 5
+    item.version >= 5
       ? parseLanguage(item.language)
       : defaultAppearance.language;
+  const idleWidgets: IdleWidgetId[] =
+    item.version >= 6
+      ? parseIdleWidgets(item.idleWidgets)
+      : item.showClock
+        ? ["clock", "quota"]
+        : ["quota"];
+  let islandLyrics = false;
+  if (item.version === 7) {
+    if (typeof item.islandLyrics !== "boolean")
+      throw new Error("岛上歌词设置无效");
+    islandLyrics = item.islandLyrics;
+  }
   return {
     theme,
     scale: item.scale,
-    showClock: item.showClock,
+    showClock: idleWidgets.includes("clock"),
     autoCollapseSeconds,
     expandTrigger,
     language,
+    idleWidgets,
+    islandLyrics,
   };
 }

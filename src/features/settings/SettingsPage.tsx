@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
   CircleHelp,
@@ -11,8 +11,12 @@ import {
   Check,
   Timer,
   Droplets,
+  Clock3,
+  Music2,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
-import type { AppearanceSettings } from "../../domain/settings";
+import type { AppearanceSettings, IdleWidgetId } from "../../domain/settings";
 import { StatusSettings } from "./StatusSettings";
 import { StorageSettings } from "./StorageSettings";
 import { MailSettings } from "./MailSettings";
@@ -104,6 +108,18 @@ const navGroups: { label: string; ids: Page[] }[] = [
   { label: "系统", ids: ["storage", "about"] },
 ];
 
+const idleWidgetOptions: {
+  id: IdleWidgetId;
+  label: string;
+  icon: typeof Palette;
+}[] = [
+  { id: "clock", label: "时钟", icon: Clock3 },
+  { id: "quota", label: "常驻额度", icon: Bot },
+  { id: "water", label: "喝水进度", icon: Droplets },
+  { id: "pomodoro", label: "番茄进度", icon: Timer },
+  { id: "music", label: "正在播放", icon: Music2 },
+];
+
 const themeOptions = [
   {
     value: "system" as const,
@@ -128,6 +144,28 @@ export function SettingsPage({
   setLanguage(appearance.language);
   const meta = pageMeta[page];
   const hasError = status.includes("失败");
+  const idleWidgetOrder = [
+    ...appearance.idleWidgets,
+    ...idleWidgetOptions
+      .map((option) => option.id)
+      .filter((id) => !appearance.idleWidgets.includes(id)),
+  ];
+
+  function toggleIdleWidget(id: IdleWidgetId) {
+    const widgets = appearance.idleWidgets.includes(id)
+      ? appearance.idleWidgets.filter((item) => item !== id)
+      : [...appearance.idleWidgets, id];
+    onAppearanceChange({ ...appearance, idleWidgets: widgets });
+  }
+
+  function moveIdleWidget(id: IdleWidgetId, delta: -1 | 1) {
+    const widgets = [...appearance.idleWidgets];
+    const from = widgets.indexOf(id);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= widgets.length) return;
+    [widgets[from], widgets[to]] = [widgets[to], widgets[from]];
+    onAppearanceChange({ ...appearance, idleWidgets: widgets });
+  }
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -219,7 +257,7 @@ export function SettingsPage({
                   <div className="preview-stage">{preview}</div>
                   <div className="preview-caption">
                     <span>{t("屏幕顶部 · 居中")}</span>
-                    <span>{t("随主题与缩放即时更新")}</span>
+                    <span>{t("拖动组件可调整顺序")}</span>
                   </div>
                 </section>
 
@@ -308,53 +346,68 @@ export function SettingsPage({
                   <div className="card-head">
                     <h2>{t("胶囊")}</h2>
                   </div>
-                  <label className="setting-row">
-                    <span className="setting-row-copy">
-                      <strong>{t("显示尺寸")}</strong>
-                      <small>{t("收起状态下灵动岛的宽度")}</small>
-                    </span>
-                    <span className="range-control">
-                      <input
-                        aria-label={t("胶囊大小")}
-                        type="range"
-                        disabled={!canEdit}
-                        min="0.8"
-                        max="1.2"
-                        step="0.05"
-                        value={appearance.scale}
-                        style={
-                          {
-                            "--range-progress": `${((appearance.scale - 0.8) / 0.4) * 100}%`,
-                          } as CSSProperties
-                        }
-                        onChange={(e) =>
-                          onAppearanceChange({
-                            ...appearance,
-                            scale: Number(e.target.value),
-                          })
-                        }
-                      />
-                      <output>{Math.round(appearance.scale * 100)}%</output>
-                    </span>
-                  </label>
-                  <label className="setting-row">
-                    <span className="setting-row-copy">
-                      <strong>{t("显示当前时间")}</strong>
-                      <small>{t("收起时显示数字时钟与日期")}</small>
-                    </span>
-                    <input
-                      className="toggle-input"
-                      type="checkbox"
-                      disabled={!canEdit}
-                      checked={appearance.showClock}
-                      onChange={(e) =>
-                        onAppearanceChange({
-                          ...appearance,
-                          showClock: e.target.checked,
-                        })
-                      }
-                    />
-                  </label>
+                  <div className="idle-widget-block">
+                    <div className="setting-row-copy">
+                      <strong>{t("闲时内容")}</strong>
+                      <small>
+                        {t("在预览中拖动组件，或使用箭头调整顺序。")}
+                      </small>
+                    </div>
+                    <ul className="idle-widget-list">
+                      {idleWidgetOrder.map((id) => {
+                        const option = idleWidgetOptions.find(
+                          (item) => item.id === id,
+                        )!;
+                        const Icon = option.icon;
+                        const index = appearance.idleWidgets.indexOf(id);
+                        const enabled = index >= 0;
+                        return (
+                          <li
+                            key={id}
+                            className={`idle-widget-row ${enabled ? "" : "is-off"}`}
+                          >
+                            <label className="idle-widget-toggle">
+                              <input
+                                type="checkbox"
+                                disabled={!canEdit}
+                                checked={enabled}
+                                onChange={() => toggleIdleWidget(id)}
+                              />
+                              <Icon size={15} aria-hidden="true" />
+                              <span>{t(option.label)}</span>
+                            </label>
+                            <span className="idle-widget-actions">
+                              <button
+                                type="button"
+                                aria-label={t("上移")}
+                                disabled={!canEdit || !enabled || index === 0}
+                                onClick={() => moveIdleWidget(id, -1)}
+                              >
+                                <ChevronUp size={14} aria-hidden="true" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={t("下移")}
+                                disabled={
+                                  !canEdit ||
+                                  !enabled ||
+                                  index === appearance.idleWidgets.length - 1
+                                }
+                                onClick={() => moveIdleWidget(id, 1)}
+                              >
+                                <ChevronDown size={14} aria-hidden="true" />
+                              </button>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="form-note">
+                      {t(
+                        "常驻额度仅在有常驻 AI 账户时显示；喝水与番茄显示今日数据。全部关闭时显示 Dynamic Island。",
+                      )}
+                    </p>
+                  </div>
                 </section>
               </div>
             )}
@@ -432,7 +485,9 @@ export function SettingsPage({
                   <div>
                     <h2>{t("鼠标离开后自动收起")}</h2>
                     <p>
-                      {t("展开后鼠标移出面板，按设定时间折叠；计时不会中断。")}
+                      {t(
+                        "点击或悬停展开后都生效；鼠标移出面板后按设定时间折叠，选择「立即」则马上收起，计时不会中断。",
+                      )}
                     </p>
                   </div>
                 </div>
@@ -442,7 +497,7 @@ export function SettingsPage({
                   aria-label={t("鼠标离开后自动收起")}
                 >
                   {[
-                    { value: 0, label: "关闭" },
+                    { value: 0, label: "立即" },
                     { value: 1, label: "1 秒" },
                     { value: 3, label: "3 秒" },
                     { value: 5, label: "5 秒" },
@@ -477,6 +532,37 @@ export function SettingsPage({
                     "鼠标移回胶囊会取消收起计时；自动收起不会停止正在进行的倒计时。",
                   )}
                 </p>
+              </section>
+            )}
+
+            {page === "behavior" && (
+              <section className="settings-card">
+                <div className="card-head">
+                  <div>
+                    <h2>{t("音乐")}</h2>
+                    <p>{t("控制收起胶囊里显示的内容。")}</p>
+                  </div>
+                </div>
+                <label className="setting-row">
+                  <span className="setting-row-copy">
+                    <strong>{t("岛上显示歌词")}</strong>
+                    <small>
+                      {t("关闭时显示歌手；歌词仍可在展开的音乐页查看。")}
+                    </small>
+                  </span>
+                  <input
+                    className="toggle-input"
+                    type="checkbox"
+                    disabled={!canEdit}
+                    checked={appearance.islandLyrics}
+                    onChange={(event) =>
+                      onAppearanceChange({
+                        ...appearance,
+                        islandLyrics: event.target.checked,
+                      })
+                    }
+                  />
+                </label>
               </section>
             )}
 

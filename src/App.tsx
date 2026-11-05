@@ -1,18 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emitTo } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import {
   IslandPreview,
   type PreviewQuota,
 } from "./features/island/IslandPreview";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { defaultAppearance } from "./domain/settings";
+import { statForDay } from "./domain/dailyStats";
+import { waterPercent } from "./domain/water";
+import { useDailyStats } from "./features/stats/useDailyStats";
 import {
   hasDesktopStorage,
   loadAppearance,
   saveAppearance,
 } from "./services/settingsRepository";
+import { loadWaterSettings } from "./services/waterRepository";
 import { setLanguage, t } from "./services/i18n";
+import {
+  displayWidth,
+  settingsZoomForWidth,
+  watchDisplayTier,
+} from "./services/display";
 import "./styles/index.css";
 
 export default function App() {
@@ -24,6 +33,13 @@ export default function App() {
   // Language feeds the shared string table; the theme drives the native
   // title bar so it follows the light/dark setting (including "system").
   setLanguage(appearance.language);
+  useEffect(() => {
+    return watchDisplayTier(() => {
+      document.documentElement.style.zoom = String(
+        settingsZoomForWidth(displayWidth()),
+      );
+    });
+  }, []);
   useEffect(() => {
     if (!hasDesktopStorage) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -41,6 +57,19 @@ export default function App() {
     return () => media.removeEventListener("change", apply);
   }, [appearance.theme]);
   const revision = useRef(0);
+  const dailyStats = useDailyStats(30);
+  const [waterGoal, setWaterGoal] = useState(2000);
+  useEffect(() => {
+    if (!hasDesktopStorage) return;
+    let active = true;
+    void loadWaterSettings().then((settings) => {
+      if (active) setWaterGoal(settings.goalMl);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const todayStat = statForDay(dailyStats.stats, dailyStats.today);
   // The preview mirrors what the island actually shows: the pinned account's
   // ring. One read when settings open, no polling.
   const [previewQuota, setPreviewQuota] = useState<PreviewQuota | null>(null);
@@ -112,16 +141,51 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [appearance, dirty, ready]);
   async function updateAppearance(value: typeof appearance) {
-    setAppearance(value);
+    const normalized = {
+      ...value,
+      showClock: value.idleWidgets.includes("clock"),
+    };
+    setAppearance(normalized);
     setDirty(true);
     revision.current += 1;
     setStatus(t("正在同步…"));
     try {
-      await emitTo("island", "appearance-changed", { version: 5, ...value });
+      await emitTo("island", "appearance-changed", {
+        version: 7,
+        ...normalized,
+      });
     } catch {
       setStatus(t("预览已更新，灵动岛将在保存后同步"));
     }
   }
+  const appearanceRef = useRef(appearance);
+  const updateAppearanceRef = useRef(updateAppearance);
+  useEffect(() => {
+    appearanceRef.current = appearance;
+    updateAppearanceRef.current = updateAppearance;
+  });
+  useEffect(() => {
+    if (!hasDesktopStorage) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<boolean>("island-lyrics-changed", ({ payload }) => {
+      if (active) {
+        void updateAppearanceRef.current({
+          ...appearanceRef.current,
+          islandLyrics: !!payload,
+        });
+      }
+    })
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
   async function reloadFromStorage() {
     const value = await loadAppearance();
     revision.current += 1;
@@ -129,7 +193,7 @@ export default function App() {
     setDirty(false);
     setStatus(t("已切换数据目录"));
     await Promise.all([
-      emitTo("island", "appearance-changed", { version: 5, ...value }),
+      emitTo("island", "appearance-changed", { version: 7, ...value }),
       emitTo("island", "mail-accounts-changed"),
       emitTo("island", "ai-accounts-changed"),
     ]);
@@ -138,7 +202,19 @@ export default function App() {
     <SettingsPage
       appearance={appearance}
       onAppearanceChange={(value) => void updateAppearance(value)}
-      preview={<IslandPreview appearance={appearance} quota={previewQuota} />}
+      preview={
+        <IslandPreview
+          appearance={appearance}
+          quota={previewQuota}
+          water={{
+            percent: waterPercent(todayStat?.waterMl ?? 0, waterGoal),
+          }}
+          pomodoros={todayStat?.pomodoros ?? 0}
+          onReorder={(widgets) =>
+            void updateAppearance({ ...appearance, idleWidgets: widgets })
+          }
+        />
+      }
       status={status}
       canEdit={ready && !saving}
       canSwitchStorage={ready && !saving && !dirty}

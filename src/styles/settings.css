@@ -338,7 +338,7 @@
 
 .setting-row-copy strong {
   font-size: var(--text-sm);
-  font-weight: 550;
+  font-weight: 500;
   color: var(--settings-text);
 }
 
@@ -791,7 +791,7 @@
   align-items: center;
   gap: 6px;
   font-size: var(--text-sm);
-  font-weight: 550;
+  font-weight: 500;
   color: var(--settings-text-strong);
   overflow-wrap: anywhere;
 }
@@ -1231,6 +1231,93 @@
   min-height: 132px;
 }
 
+/* —— Idle capsule widgets —— */
+.idle-widget-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--settings-border-soft);
+}
+
+.idle-widget-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.idle-widget-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--settings-border-soft);
+  border-radius: 10px;
+  background: var(--settings-input-bg);
+}
+
+.idle-widget-row.is-off {
+  opacity: 0.55;
+}
+
+.idle-widget-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--settings-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.idle-widget-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--settings-accent);
+  cursor: pointer;
+}
+
+.idle-widget-toggle svg {
+  flex: none;
+  color: var(--settings-muted);
+}
+
+.idle-widget-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.idle-widget-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--settings-border-soft);
+  border-radius: 6px;
+  background: var(--settings-surface-2);
+  color: var(--settings-text);
+  cursor: pointer;
+}
+
+.idle-widget-actions button:hover:not(:disabled) {
+  background: var(--settings-hover);
+}
+
+.idle-widget-actions button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+@media (max-width: 1100px) {
+  .idle-widget-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* —— Water dashboard —— */
 .settings-water-hero {
   display: grid;
@@ -1277,7 +1364,7 @@
 .settings-pomodoro-value strong {
   color: var(--settings-text-strong);
   font-size: 40px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -1344,7 +1431,7 @@
 .settings-water-value strong {
   color: var(--settings-text-strong);
   font-size: 40px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -1508,7 +1595,7 @@
 .settings-stats-strip strong {
   color: var(--settings-text-strong);
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 

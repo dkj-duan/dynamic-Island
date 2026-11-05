@@ -48,18 +48,11 @@ export function QuotaRings({
           );
         })}
       </svg>
-      {!compact &&
-        (provider ? (
-          <span className="quota-ring-center">
-            <span className="quota-ring-logo">
-              <ProviderIcon provider={provider} size="normal" />
-            </span>
-          </span>
-        ) : (
-          <span className="quota-ring-center">
-            <strong>{rings[0].item.value}</strong>
-          </span>
-        ))}
+      {!compact && rings.length === 1 && (
+        <span className="quota-ring-center">
+          <strong>{Math.round(rings[0].percent)}%</strong>
+        </span>
+      )}
       {compact && provider && (
         <span className="quota-ring-logo">
           <ProviderIcon provider={provider} size="tiny" />

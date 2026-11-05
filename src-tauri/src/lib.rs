@@ -528,18 +528,63 @@ fn schedule_position_save(app: &tauri::AppHandle) {
     });
 }
 
+/// Paints the native caption to the same colour as the settings surface.
+#[cfg(target_os = "windows")]
+fn apply_caption_colors(window: &tauri::WebviewWindow, dark: bool) {
+    use windows_sys::Win32::{
+        Foundation::HWND,
+        Graphics::Dwm::{DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DwmSetWindowAttribute},
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let handle = hwnd.0 as HWND;
+    // COLORREF is 0x00BBGGRR.
+    let (background, text) = if dark {
+        (0x0014_1414u32, 0x00F0_ECECu32)
+    } else {
+        (0x00FF_FFFFu32, 0x0022_1C1Bu32)
+    };
+    let size = std::mem::size_of::<u32>() as u32;
+    unsafe {
+        DwmSetWindowAttribute(
+            handle,
+            DWMWA_CAPTION_COLOR as u32,
+            &background as *const u32 as *const _,
+            size,
+        );
+        DwmSetWindowAttribute(
+            handle,
+            DWMWA_TEXT_COLOR as u32,
+            &text as *const u32 as *const _,
+            size,
+        );
+    }
+}
+
 /// Follows the settings window chrome to the chosen light/dark theme.
 #[tauri::command]
 fn set_window_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
     if window.label() != "main" {
         return Err("当前窗口不支持该操作".into());
     }
-    let theme = match theme.as_str() {
+    let requested = theme.as_str();
+    let tauri_theme = match requested {
         "light" => Some(tauri::Theme::Light),
         "dark" => Some(tauri::Theme::Dark),
         _ => None,
     };
-    window.set_theme(theme).map_err(|e| e.to_string())
+    window.set_theme(tauri_theme).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        let dark = match requested {
+            "dark" => true,
+            "light" => false,
+            _ => matches!(window.theme(), Ok(tauri::Theme::Dark)),
+        };
+        apply_caption_colors(&window, dark);
+    }
+    Ok(())
 }
 
 /// Puts the island back above the primary monitor's centre (settings window only).
@@ -589,7 +634,7 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
         let scale = window.scale_factor().map_err(|e| e.to_string())?;
         let size = window.outer_size().map_err(|e| e.to_string())?;
-        let inset = (30.0 * scale).round() as i32;
+        let inset = (10.0 * scale).round() as i32;
         let height = (64.0 * scale).round() as i32;
         // Keep WebView dimensions fixed; the region also excludes the empty
         // transparent area from hit testing when the island is collapsed.
@@ -689,15 +734,15 @@ pub fn run() {
         .setup(|app| {
             app.manage(storage::initialize(app.handle()).map_err(std::io::Error::other)?);
             app.manage(mail::MailMonitor::default());
-            // Keep the settings window inside the monitor's usable area so it
-            // never overflows on small screens or high scaling.
+            // Scale the settings window with the monitor so every page fits
+            // without a scrollbar on common desktop resolutions.
             if let Some(window) = app.get_webview_window("main")
                 && let Some(monitor) = window.current_monitor()?.or(window.primary_monitor()?)
             {
                 let scale = monitor.scale_factor();
                 let size = monitor.size();
-                let width = (size.width as f64 / scale * 0.94).clamp(760.0, 1100.0);
-                let height = (size.height as f64 / scale * 0.90).clamp(520.0, 760.0);
+                let width = (size.width as f64 / scale * 0.72).clamp(900.0, 1500.0);
+                let height = (size.height as f64 / scale * 0.88).clamp(640.0, 960.0);
                 window.set_size(tauri::LogicalSize::new(width, height))?;
                 window.center()?;
             }

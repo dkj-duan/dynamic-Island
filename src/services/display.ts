@@ -11,6 +11,21 @@ export function largeDisplayForWidth(width: number): boolean {
   return width >= LARGE_DISPLAY_MIN_WIDTH;
 }
 
+/** Settings page zoom, tuned by monitor width so small UI text stays crisp. */
+export function settingsZoomForWidth(width: number): number {
+  if (width >= 3000) return 1.2;
+  if (width >= 2200) return 1.16;
+  if (width >= 1600) return 1.12;
+  return 1.06;
+}
+
+/** Extra capsule scale on wide monitors, on top of the user's size setting. */
+export function islandScaleForWidth(width: number): number {
+  if (width >= 2900) return 1.12;
+  if (width >= 2200) return 1.06;
+  return 1;
+}
+
 export function isLargeDisplay(): boolean {
   return largeDisplayForWidth(displayWidth());
 }

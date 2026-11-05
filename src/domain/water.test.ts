@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { waterPercent, waterTone } from "./water";
+import { parseWaterSettings, waterPercent, waterTone } from "./water";
+
+describe("water settings", () => {
+  const base = {
+    version: 1,
+    goalMl: 2000,
+    cupMl: 250,
+    reminderMinutes: 60,
+    activeStart: 9,
+    activeEnd: 21,
+    enabled: true,
+  };
+
+  it("accepts any positive reminder interval", () => {
+    for (const minutes of [1, 5, 15, 240, 1440, 99999]) {
+      expect(
+        parseWaterSettings({ ...base, reminderMinutes: minutes }),
+      ).not.toBeNull();
+    }
+    expect(parseWaterSettings({ ...base, reminderMinutes: 0 })).toBeNull();
+    expect(parseWaterSettings({ ...base, reminderMinutes: 2.5 })).toBeNull();
+  });
+});
 
 describe("water status tone", () => {
   it("marks low, normal and reached states", () => {

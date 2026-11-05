@@ -35,7 +35,7 @@ export function parseWaterSettings(value: unknown): WaterSettings | null {
   if (
     !integerInRange(record.goalMl, 500, 10000) ||
     !integerInRange(record.cupMl, 50, 2000) ||
-    !integerInRange(record.reminderMinutes, 15, 240) ||
+    !integerInRange(record.reminderMinutes, 1, Number.MAX_SAFE_INTEGER) ||
     !integerInRange(record.activeStart, 0, 23) ||
     !integerInRange(record.activeEnd, 1, 24) ||
     (record.activeStart as number) >= (record.activeEnd as number) ||

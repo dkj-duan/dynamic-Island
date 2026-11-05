@@ -47,34 +47,37 @@
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="music"] .island-panel {
-  --panel-h: 174px;
+  --panel-h: 214px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="timer"] .island-panel {
-  --panel-h: 170px;
+  --panel-h: 194px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="water"] .island-panel {
-  --panel-h: 182px;
+  --panel-h: 188px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="mail"] .island-panel {
-  --panel-h: 176px;
+  --panel-h: 182px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="ai"] .island-panel {
-  --panel-h: 164px;
+  --panel-h: 144px;
 }
 
 :root[data-large-display="true"] .island-page-title {
-  font-size: 13px;
+  font-size: 14px;
+}
+
+:root[data-large-display="true"] .media-info strong {
+  font-size: 15px;
 }
 
 :root[data-large-display="true"] .compact-primary,
-:root[data-large-display="true"] .media-copy strong,
 :root[data-large-display="true"] .custom-timer label,
 :root[data-large-display="true"] .island-mail-subject {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 :root[data-large-display="true"] .pager-arrow {
@@ -82,7 +85,7 @@
 }
 
 :root[data-large-display="true"] .island-head-clock {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 :root[data-large-display="true"] .timer-clock {
@@ -96,52 +99,56 @@
 :root[data-large-display="true"] .compact-secondary,
 :root[data-large-display="true"] .compact-idle-copy span:last-child,
 :root[data-large-display="true"] .media-playing-mark,
-:root[data-large-display="true"] .media-copy span,
-:root[data-large-display="true"] .media-times,
+:root[data-large-display="true"] .media-byline,
+:root[data-large-display="true"] .media-time-start,
+:root[data-large-display="true"] .media-time-end,
 :root[data-large-display="true"] .media-timeline-unavailable,
 :root[data-large-display="true"] .system-notice-banner,
 :root[data-large-display="true"] .island-mail-empty,
 :root[data-large-display="true"] .island-mail-navigation,
 :root[data-large-display="true"] .duration-error {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 /* Chips stay 10px: four of them plus the clock already fill the 340px panel. */
 :root[data-large-display="true"] .custom-timer input {
-  font-size: 11px;
+  font-size: 12px;
+}
+
+:root[data-large-display="true"] .island-actions .island-lyric-toggle {
+  font-size: 12px;
 }
 
 :root[data-large-display="true"] .music-lyric {
-  width: 104px;
-  font-size: 10px;
-}
-
-:root[data-large-display="true"] .compact-clock > span:first-child {
   font-size: 13px;
 }
 
-:root[data-large-display="true"] .compact-clock > span:last-child {
-  font-size: 10px;
+:root[data-large-display="true"] .music-lyric.is-active {
+  font-size: 14px;
+}
+
+:root[data-large-display="true"] .compact-clock {
+  font-size: 15px;
 }
 
 :root[data-large-display="true"] .island-ai-name {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 :root[data-large-display="true"] .quota-switcher button,
 :root[data-large-display="true"] .quota-metric-head,
 :root[data-large-display="true"] .quota-message {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 :root[data-large-display="true"] .quota-hero-copy strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 :root[data-large-display="true"] .quota-metric-head strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 :root[data-large-display="true"] .quota-ring-center strong {
-  font-size: 12px;
+  font-size: 13px;
 }
