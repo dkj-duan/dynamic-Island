@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Dynamic Island 设置",
+        "title": "设置",
         "center": true,
         "width": 1100,
         "height": 760,
