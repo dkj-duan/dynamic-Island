@@ -20,6 +20,93 @@ pub async fn get_device_status() -> Result<DeviceStatus, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Classic headsets report their battery on the Hands-Free profile node;
+/// `System.Devices.BatteryLife` is not populated for them.
+#[cfg(target_os = "windows")]
+fn bluetooth_hfp_battery(address: &str) -> Option<u8> {
+    use windows::Win32::Devices::DeviceAndDriverInstallation::{
+        CM_GETIDLIST_FILTER_ENUMERATOR, CM_Get_DevNode_PropertyW, CM_Get_Device_ID_List_SizeW,
+        CM_Get_Device_ID_ListW, CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, CR_SUCCESS,
+    };
+    use windows::Win32::Devices::Properties::{
+        DEVPROP_TYPE_BYTE, DEVPROP_TYPE_UINT32, DEVPROPTYPE,
+    };
+    use windows::Win32::Foundation::DEVPROPKEY;
+    use windows::core::{GUID, PCWSTR};
+
+    const BLUETOOTH_BATTERY: DEVPROPKEY = DEVPROPKEY {
+        fmtid: GUID::from_u128(0x104ea319_6ee2_4701_bd47_8ddbf425bbe5),
+        pid: 2,
+    };
+    let mac: String = address
+        .chars()
+        .filter(|character| character.is_ascii_hexdigit())
+        .collect::<String>()
+        .to_ascii_uppercase();
+    if mac.len() != 12 {
+        return None;
+    }
+    unsafe {
+        let filter: Vec<u16> = "BTHENUM".encode_utf16().chain(std::iter::once(0)).collect();
+        let mut length = 0u32;
+        if CM_Get_Device_ID_List_SizeW(
+            &mut length,
+            PCWSTR(filter.as_ptr()),
+            CM_GETIDLIST_FILTER_ENUMERATOR,
+        ) != CR_SUCCESS
+        {
+            return None;
+        }
+        let mut list = vec![0u16; length as usize];
+        if CM_Get_Device_ID_ListW(
+            PCWSTR(filter.as_ptr()),
+            &mut list,
+            CM_GETIDLIST_FILTER_ENUMERATOR,
+        ) != CR_SUCCESS
+        {
+            return None;
+        }
+        for id in list.split(|value| *value == 0) {
+            let text = String::from_utf16_lossy(id).to_ascii_uppercase();
+            // Hands-Free profile node: {0000111E-...} and the remote address.
+            if !text.contains("0000111E") || !text.contains(&mac) {
+                continue;
+            }
+            let mut devinst = 0u32;
+            if CM_Locate_DevNodeW(&mut devinst, PCWSTR(id.as_ptr()), CM_LOCATE_DEVNODE_NORMAL)
+                != CR_SUCCESS
+            {
+                continue;
+            }
+            let mut property_type = DEVPROPTYPE(0);
+            let mut value = [0u8; 8];
+            let mut value_size = value.len() as u32;
+            if CM_Get_DevNode_PropertyW(
+                devinst,
+                &BLUETOOTH_BATTERY,
+                &mut property_type,
+                Some(value.as_mut_ptr()),
+                &mut value_size,
+                0,
+            ) != CR_SUCCESS
+            {
+                continue;
+            }
+            let percent = if property_type == DEVPROP_TYPE_BYTE && value_size >= 1 {
+                Some(value[0])
+            } else if property_type == DEVPROP_TYPE_UINT32 && value_size >= 4 {
+                Some(u32::from_le_bytes([value[0], value[1], value[2], value[3]]) as u8)
+            } else {
+                None
+            };
+            if let Some(percent) = percent.filter(|percent| *percent <= 100) {
+                return Some(percent);
+            }
+        }
+    }
+    None
+}
+
 fn read_devices() -> DeviceStatus {
     #[cfg(target_os = "windows")]
     {
@@ -59,12 +146,14 @@ fn read_devices() -> DeviceStatus {
             ];
             let mut devices = Vec::new();
             for selector in selectors {
-                let properties: IIterable<HSTRING> =
-                    vec![HSTRING::from("System.Devices.BatteryLife")].into();
+                let requested: IIterable<HSTRING> = vec![
+                    HSTRING::from("System.Devices.BatteryLife"),
+                    HSTRING::from("System.Devices.Aep.DeviceAddress"),
+                ]
+                .into();
                 let collection = futures::executor::block_on(
                     DeviceInformation::FindAllAsyncAqsFilterAndAdditionalProperties(
-                        &selector,
-                        &properties,
+                        &selector, &requested,
                     )
                     .ok()?
                     .into_future(),
@@ -75,21 +164,37 @@ fn read_devices() -> DeviceStatus {
                     let name = device.Name().ok()?.to_string();
                     if !name.is_empty() && !devices.iter().any(|d: &BluetoothStatus| d.name == name)
                     {
-                        let battery = device
-                            .Properties()
-                            .ok()
-                            .and_then(|p| {
-                                p.Lookup(&HSTRING::from("System.Devices.BatteryLife")).ok()
+                        let store = device.Properties().ok();
+                        let address = store
+                            .as_ref()
+                            .and_then(|props| {
+                                props
+                                    .Lookup(&HSTRING::from("System.Devices.Aep.DeviceAddress"))
+                                    .ok()
                             })
-                            .and_then(|v| v.cast::<IPropertyValue>().ok())
-                            .and_then(|v| {
-                                v.GetUInt8().ok().or_else(|| {
-                                    v.GetUInt32()
+                            .and_then(|value| value.cast::<IPropertyValue>().ok())
+                            .and_then(|value| value.GetString().ok())
+                            .map(|value| value.to_string());
+                        let battery = store
+                            .as_ref()
+                            .and_then(|props| {
+                                props
+                                    .Lookup(&HSTRING::from("System.Devices.BatteryLife"))
+                                    .ok()
+                            })
+                            .and_then(|value| value.cast::<IPropertyValue>().ok())
+                            .and_then(|value| {
+                                value.GetUInt8().ok().or_else(|| {
+                                    value
+                                        .GetUInt32()
                                         .ok()
                                         .and_then(|value| u8::try_from(value).ok())
                                 })
                             })
-                            .filter(|value| *value <= 100);
+                            .filter(|value| *value <= 100)
+                            // Classic headsets report their battery on the
+                            // Hands-Free node instead of BatteryLife.
+                            .or_else(|| address.as_deref().and_then(bluetooth_hfp_battery));
                         devices.push(BluetoothStatus {
                             id: device.Id().ok()?.to_string(),
                             name,

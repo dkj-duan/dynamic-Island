@@ -13,6 +13,7 @@ describe("parseAppearance", () => {
       expandTrigger: "click",
       language: "zh-CN",
       idleWidgets: ["quota"],
+      pomodoroView: "count",
       islandLyrics: false,
     });
   });
@@ -150,5 +151,27 @@ describe("parseAppearance", () => {
     { version: 1, scale: 1, showClock: "yes" },
   ])("rejects invalid or unsupported data: %s", (input) => {
     expect(() => parseAppearance(input)).toThrow();
+  });
+  it("reads the pomodoro widget view from version 8", () => {
+    const base = {
+      version: 8,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock", "pomodoro"],
+      islandLyrics: false,
+    };
+    expect(
+      parseAppearance({ ...base, pomodoroView: "cycle" }).pomodoroView,
+    ).toBe("cycle");
+    expect(
+      parseAppearance({ ...base, pomodoroView: "count" }).pomodoroView,
+    ).toBe("count");
+    expect(() =>
+      parseAppearance({ ...base, pomodoroView: "unknown" }),
+    ).toThrow();
   });
 });

@@ -25,7 +25,7 @@ import {
   ChevronRight,
   ChevronUp,
   Bot,
-  Plus,
+  Hourglass,
   Headphones,
   Droplet,
   RefreshCw,
@@ -41,7 +41,7 @@ import {
   watchDisplayTier,
 } from "../../services/display";
 import { IdleWidgets } from "./IdleWidgets";
-import type { IdleData } from "./idleWidgetData";
+import type { IdleData, IdleWaterTimer } from "./idleWidgetData";
 import {
   formatRemaining,
   extendTimer,
@@ -49,8 +49,23 @@ import {
   pauseTimer,
   remainingMilliseconds,
   resumeTimer,
+  restorePersistedTimer,
+  type PersistedTimer,
+  type TimerMode,
   type TimerState,
 } from "../../domain/timer";
+import {
+  defaultCountdowns,
+  formatDurationSeconds,
+  targetRemainingMilliseconds,
+  type CountdownItem,
+  type CountdownSettings,
+} from "../../domain/countdown";
+import {
+  loadCountdowns,
+  loadPersistedTimer,
+  savePersistedTimer,
+} from "../../services/countdownRepository";
 import "../../styles/index.css";
 import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
@@ -90,6 +105,7 @@ import {
   recordPomodoro,
 } from "../../services/waterRepository";
 import { useDailyStats } from "../stats/useDailyStats";
+import { focusStreak } from "../../domain/dailyStats";
 import { WaterGlass } from "../water/WaterGlass";
 import { setLanguage, t } from "../../services/i18n";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
@@ -237,7 +253,7 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
 }
 
 export function IslandWindow() {
-  const notice = useSystemNotice();
+  const { notice, system, devices } = useSystemNotice();
   const ai = useAiQuota();
   const reloadAiQuota = ai.reload;
   const pinnedAi = ai.accounts.find((account) => account.pinned);
@@ -303,9 +319,12 @@ export function IslandWindow() {
   const [seconds, setSeconds] = useState("");
   const [durationError, setDurationError] = useState("");
   const [lastDuration, setLastDuration] = useState(0);
-  const [timerMode, setTimerMode] = useState<
-    "timer" | "focus" | "break" | "longBreak"
-  >("focus");
+  const [timerMode, setTimerMode] = useState<TimerMode>("focus");
+  const [countdownOpen, setCountdownOpen] = useState(false);
+  const [countdowns, setCountdowns] =
+    useState<CountdownSettings>(defaultCountdowns);
+  const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
+  const [countdownId, setCountdownId] = useState<string | null>(null);
   const [pomodoro, setPomodoro] = useState<PomodoroSettings>(
     defaultPomodoroSettings,
   );
@@ -315,6 +334,7 @@ export function IslandWindow() {
   const pomodoroRef = useRef(pomodoro);
   const progressRef = useRef(pomodoroProgress);
   const timerModeRef = useRef(timerMode);
+  const restoredTimerRef = useRef(false);
   const finishCountedRef = useRef(false);
   const dailyStats = useDailyStats(30);
   const [water, setWater] = useState<WaterSettings>(defaultWaterSettings);
@@ -326,12 +346,14 @@ export function IslandWindow() {
   const [customWaterMl, setCustomWaterMl] = useState("300");
   const [waterError, setWaterError] = useState("");
   const lastReminderRef = useRef(Date.now());
-  const todayWater =
-    dailyStats.stats.find((stat) => stat.day === dailyStats.today)?.waterMl ??
-    0;
+  const todayStat = dailyStats.stats.find(
+    (stat) => stat.day === dailyStats.today,
+  );
+  const todayWater = todayStat?.waterMl ?? 0;
   const todayPomodoros =
-    dailyStats.stats.find((stat) => stat.day === dailyStats.today)?.pomodoros ??
-    pomodoroProgress.completedToday;
+    todayStat?.pomodoros ?? pomodoroProgress.completedToday;
+  const todayFocusMinutes = Math.floor((todayStat?.focusSeconds ?? 0) / 60);
+  const focusDays = focusStreak(dailyStats.stats, dailyStats.today);
   const waterTodayRef = useRef(todayWater);
   const [now, setNow] = useState(() => Date.now());
   const [media, setMedia] = useState<MediaState | null>(null);
@@ -612,12 +634,78 @@ export function IslandWindow() {
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
   }, [timer]);
-  // The panel header shows a live clock, so it needs its own beat.
+  // The header clock and the idle water countdown both need a live beat, so
+  // this keeps ticking while the panel is collapsed too.
   useEffect(() => {
-    if (!expanded) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [expanded]);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      void loadCountdowns().then((next) => {
+        if (active) setCountdowns(next);
+      });
+    };
+    load();
+    let unlisten: (() => void) | undefined;
+    void listen("countdowns-changed", load)
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const stored = await loadPersistedTimer();
+      if (!active) return;
+      if (stored) {
+        const current = Date.now();
+        const { state } = restorePersistedTimer(stored, current);
+        setNow(current);
+        setTimerMode(stored.mode);
+        setLastDuration(stored.durationMs);
+        setCountdownLabel(stored.label);
+        setCountdownId(stored.countdownId);
+        setTimer(state);
+      }
+      restoredTimerRef.current = true;
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!restoredTimerRef.current) return;
+    const snapshot: PersistedTimer | null =
+      timer.status === "idle"
+        ? null
+        : {
+            version: 1,
+            kind:
+              timerMode === "countdown"
+                ? "countdown"
+                : timerMode === "timer"
+                  ? "timer"
+                  : "pomodoro",
+            mode: timerMode,
+            durationMs: Math.max(
+              1000,
+              lastDuration || remainingMilliseconds(timer, Date.now()),
+            ),
+            label: countdownLabel,
+            countdownId,
+            state: timer,
+          };
+    if (snapshot?.kind === "countdown" && !snapshot.countdownId) return;
+    void savePersistedTimer(snapshot).catch(() => {});
+  }, [timer, timerMode, lastDuration, countdownLabel, countdownId]);
   useEffect(() => {
     let active = true;
     let unlisten: (() => void) | undefined;
@@ -831,6 +919,13 @@ export function IslandWindow() {
     finishCountedRef.current = false;
     setTimer({ status: "running", endsAt: current + durationMs });
   }
+  function resetTimer() {
+    setTimer({ status: "idle" });
+    setTimerMode("focus");
+    setCountdownLabel(null);
+    setCountdownId(null);
+    setDurationError("");
+  }
   function saveProgress(next: PomodoroProgress) {
     progressRef.current = next;
     setPomodoroProgress(next);
@@ -841,10 +936,14 @@ export function IslandWindow() {
     const next = startFocusCycle(progressRef.current, pomodoroRef.current, now);
     if (next !== progressRef.current) saveProgress(next);
     setTimerMode("focus");
+    setCountdownLabel(null);
+    setCountdownId(null);
     startTimer(durationMs, now);
   }
   function beginBreak(kind: "break" | "longBreak") {
     setTimerMode(kind);
+    setCountdownLabel(null);
+    setCountdownId(null);
     startTimer(
       (kind === "longBreak"
         ? pomodoroRef.current.longBreakMinutes
@@ -852,11 +951,55 @@ export function IslandWindow() {
       Date.now(),
     );
   }
+  function startCountdown(item: CountdownItem) {
+    if (item.kind !== "duration" || !item.durationSeconds) return;
+    setTimerMode("countdown");
+    setCountdownLabel(item.label);
+    setCountdownId(item.id);
+    setCountdownOpen(false);
+    setCustomTimerOpen(false);
+    startTimer(item.durationSeconds * 1000, Date.now());
+  }
   function presetMilliseconds() {
     if (timerMode === "focus") return pomodoro.focusMinutes * 60_000;
     if (timerMode === "break") return pomodoro.shortBreakMinutes * 60_000;
     if (timerMode === "longBreak") return pomodoro.longBreakMinutes * 60_000;
     return 0;
+  }
+  // The idle widget mirrors the reminder rules and always names the next
+  // reminder: minutes while active, otherwise the next active window.
+  function waterTimerState(): IdleWaterTimer | null {
+    if (!water.enabled) return null;
+    if (todayWater >= water.goalMl) return { done: true };
+    const current = new Date(now);
+    const todayStart = new Date(current);
+    todayStart.setHours(water.activeStart, 0, 0, 0);
+    const todayEnd = new Date(current);
+    todayEnd.setHours(water.activeEnd, 0, 0, 0);
+    const clock = (date: Date) =>
+      date.toLocaleTimeString(appearance.language, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    const tomorrow = (): IdleWaterTimer => {
+      const date = new Date(todayStart);
+      date.setDate(date.getDate() + 1);
+      return { at: clock(date), tomorrow: true };
+    };
+    const hour = current.getHours();
+    if (hour >= water.activeStart && hour < water.activeEnd) {
+      const next = lastReminderRef.current + water.reminderMinutes * 60_000;
+      if (next < todayEnd.getTime()) {
+        if (next <= now) return { soon: true };
+        return { minutes: Math.ceil((next - now) / 60_000) };
+      }
+      return tomorrow();
+    }
+    if (now < todayStart.getTime()) {
+      return { at: clock(todayStart), tomorrow: false };
+    }
+    return tomorrow();
   }
   async function drinkWater(amountMl: number) {
     setWaterError("");
@@ -879,6 +1022,18 @@ export function IslandWindow() {
     // lyrics are off, music only appears through the idle music widget.
     media: !!(media?.title && media.playing && appearance.islandLyrics),
   });
+  const isPomodoroMode =
+    timerMode === "focus" || timerMode === "break" || timerMode === "longBreak";
+  function timerModeLabel(): string {
+    if (timerMode === "focus") return t("专注");
+    if (timerMode === "break") return t("短休");
+    if (timerMode === "longBreak") return t("长休");
+    if (timerMode === "countdown") return countdownLabel || t("倒计时");
+    return t("计时器");
+  }
+  const durationCountdowns = countdowns.items.filter(
+    (item) => item.kind === "duration",
+  );
   const remaining = formatRemaining(remainingMilliseconds(timer, now));
   const waterPercentToday = waterPercent(todayWater, water.goalMl);
   const waterCupsToday = waterCups(todayWater, water.cupMl);
@@ -895,6 +1050,34 @@ export function IslandWindow() {
         artwork: artwork?.key === mediaKey ? artwork.src : null,
       }
     : null;
+  const connectedBluetooth =
+    devices?.bluetooth?.find((device) => device.battery !== null) ?? null;
+  const islandCountdown =
+    countdowns.items.find((item) => item.id === countdowns.islandId) ?? null;
+  const idleCountdown = (() => {
+    if (!islandCountdown) return null;
+    if (islandCountdown.kind === "target") {
+      const remaining = targetRemainingMilliseconds(islandCountdown, now);
+      return {
+        label: islandCountdown.label,
+        remainingMs: remaining,
+        reached: remaining <= 0,
+      };
+    }
+    if (
+      timerMode === "countdown" &&
+      countdownId === islandCountdown.id &&
+      timer.status !== "idle"
+    ) {
+      const remaining = remainingMilliseconds(timer, now);
+      return {
+        label: islandCountdown.label,
+        remainingMs: remaining,
+        reached: timer.status === "finished" || remaining <= 0,
+      };
+    }
+    return null;
+  })();
   const idleData: IdleData = {
     quota:
       pinnedAi && pinnedAiResult?.quota
@@ -903,6 +1086,26 @@ export function IslandWindow() {
     water: { percent: waterPercentToday },
     pomodoros: todayPomodoros,
     music: idleMusic,
+    battery:
+      system?.battery != null
+        ? { percent: system.battery, charging: !!system.charging }
+        : null,
+    focusMinutes: todayFocusMinutes,
+    streak: focusDays,
+    volume:
+      system?.volume != null
+        ? { percent: system.volume, muted: !!system.muted }
+        : null,
+    bluetooth:
+      connectedBluetooth && connectedBluetooth.battery !== null
+        ? { name: connectedBluetooth.name, battery: connectedBluetooth.battery }
+        : null,
+    waterTimer: waterTimerState(),
+    countdown: idleCountdown,
+    pomodoroCycle: {
+      done: Math.min(pomodoroProgress.cycle, pomodoro.longBreakEvery),
+      total: pomodoro.longBreakEvery,
+    },
   };
   // The media capsule has one spare slot: cycle it at random between the
   // pomodoro cycle, today's water and the pinned quota ring.
@@ -1165,7 +1368,7 @@ export function IslandWindow() {
             </span>
           ) : display === "timer" || display === "finished" ? (
             <span className="island-current compact-timer timer-only">
-              {timerMode !== "timer" ? (
+              {isPomodoroMode ? (
                 <img
                   className="timer-indicator tomato-photo"
                   src={pomodoroClock}
@@ -1181,16 +1384,7 @@ export function IslandWindow() {
               )}
               <span className="compact-copy">
                 <span className="compact-primary">
-                  {t(
-                    timerMode === "focus"
-                      ? "专注"
-                      : timerMode === "longBreak"
-                        ? "长休"
-                        : timerMode === "break"
-                          ? "短休"
-                          : "计时器",
-                  )}{" "}
-                  ·{" "}
+                  {timerModeLabel()} ·{" "}
                   {t(
                     timer.status === "paused"
                       ? "已暂停"
@@ -1273,6 +1467,7 @@ export function IslandWindow() {
             </span>
           ) : (
             <IdleWidgets
+              key={appearance.idleWidgets.join(",")}
               appearance={appearance}
               data={idleData}
               onWidthChange={setIdleWidth}
@@ -1916,20 +2111,43 @@ export function IslandWindow() {
                   />
                 )}
               </div>
+            ) : countdownOpen ? (
+              <div className="countdown-picker">
+                {durationCountdowns.slice(0, 3).map((item) => (
+                  <button
+                    key={item.id}
+                    className="countdown-row"
+                    onClick={() => startCountdown(item)}
+                  >
+                    <span>{item.label}</span>
+                    <span className="countdown-row-value">
+                      {formatDurationSeconds(item.durationSeconds ?? 0)}
+                    </span>
+                  </button>
+                ))}
+                {durationCountdowns.length === 0 && (
+                  <span className="countdown-empty">
+                    {t("设置里还没有时长倒计时")}
+                  </span>
+                )}
+                <div className="countdown-picker-actions">
+                  <button
+                    onClick={() => {
+                      setCountdownOpen(false);
+                      setCustomTimerOpen(true);
+                    }}
+                  >
+                    {t("临时倒计时")}
+                  </button>
+                  <button onClick={() => setCountdownOpen(false)}>
+                    {t("返回")}
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="timer-view">
                 <div className="timer-status">
-                  <span>
-                    {t(
-                      timerMode === "focus"
-                        ? "专注"
-                        : timerMode === "longBreak"
-                          ? "长休"
-                          : timerMode === "break"
-                            ? "短休"
-                            : "计时器",
-                    )}
-                  </span>
+                  <span>{timerModeLabel()}</span>
                   <i aria-hidden="true" />
                   <span>
                     {t(
@@ -1944,7 +2162,7 @@ export function IslandWindow() {
                   </span>
                 </div>
                 <div className="timer-main">
-                  {timerMode !== "timer" && (
+                  {isPomodoroMode && (
                     <img
                       className="pomodoro-face"
                       src={pomodoroClock}
@@ -1967,7 +2185,7 @@ export function IslandWindow() {
                         : remaining}
                   </div>
                 </div>
-                {timerMode !== "timer" && (
+                {isPomodoroMode && (
                   <div className="timer-pomodoro">
                     <span
                       className="pomodoro-tomatoes"
@@ -2026,6 +2244,8 @@ export function IslandWindow() {
                             return;
                           }
                           setTimerMode("timer");
+                          setCountdownLabel(null);
+                          setCountdownId(null);
                           startTimer(duration, Date.now());
                           setCustomTimerOpen(false);
                         }}
@@ -2114,12 +2334,15 @@ export function IslandWindow() {
                         </button>
                         <button
                           className="timer-preset is-ghost"
-                          onClick={() => setCustomTimerOpen(true)}
+                          onClick={() => {
+                            setCustomTimerOpen(false);
+                            setCountdownOpen(true);
+                          }}
                         >
                           <span className="timer-preset-label">
-                            {t("自定义")}
+                            {t("倒计时")}
                           </span>
-                          <Plus
+                          <Hourglass
                             className="timer-preset-icon"
                             size={13}
                             aria-hidden="true"
@@ -2135,9 +2358,7 @@ export function IslandWindow() {
                   </>
                 ) : timer.status === "finished" ? (
                   <div className="timer-controls">
-                    <button onClick={() => setTimer({ status: "idle" })}>
-                      {t("知道了")}
-                    </button>
+                    <button onClick={resetTimer}>{t("知道了")}</button>
                     <button
                       onClick={() =>
                         timerMode === "focus"
@@ -2161,7 +2382,7 @@ export function IslandWindow() {
                           ? t("开始长休")
                           : t("开始短休")}
                       </button>
-                    ) : timerMode !== "timer" ? (
+                    ) : timerMode === "break" || timerMode === "longBreak" ? (
                       <button
                         onClick={() =>
                           beginFocus(pomodoro.focusMinutes * 60_000)
@@ -2186,9 +2407,7 @@ export function IslandWindow() {
                     >
                       {timer.status === "running" ? t("暂停") : t("继续")}
                     </button>
-                    <button onClick={() => setTimer({ status: "idle" })}>
-                      {t("取消")}
-                    </button>
+                    <button onClick={resetTimer}>{t("取消")}</button>
                     <button
                       onClick={() => {
                         setTimer((current) => extendTimer(current, 60_000));

@@ -1,14 +1,29 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Clock3, Music2 } from "lucide-react";
+import {
+  BatteryCharging,
+  BatteryMedium,
+  CalendarCheck,
+  Check,
+  Clock3,
+  Flame,
+  Headphones,
+  Hourglass,
+  Music2,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { quotaRings } from "../../domain/aiQuota";
 import type { AppearanceSettings, IdleWidgetId } from "../../domain/settings";
 import { QuotaRings } from "../ai/QuotaRings";
 import { ProviderIcon } from "../ai/ProviderIcon";
+import { formatCountdown } from "../../domain/countdown";
+import { t } from "../../services/i18n";
 import { availableIdleWidgets, type IdleData } from "./idleWidgetData";
 import waterDrop from "../../assets/water-drop.webp";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
@@ -29,6 +44,8 @@ function CompactClock() {
     </span>
   );
 }
+
+const MAX_IDLE_WIDTH = 338;
 
 const demoMusic = [
   { title: "Midnight Drive", artist: "Nova Lane" },
@@ -74,24 +91,39 @@ export function IdleWidgets({
 }) {
   const [dragId, setDragId] = useState<IdleWidgetId | null>(null);
   const [overId, setOverId] = useState<IdleWidgetId | null>(null);
+  const [fitLevel, setFitLevel] = useState(0);
+  const fitLevelRef = useRef(0);
   const stopDrag = useRef<(() => void) | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => () => stopDrag.current?.(), []);
-  useEffect(() => {
-    const element = rootRef.current;
-    if (!onWidthChange || !element) return;
-    const report = () => {
-      const width = element.offsetWidth;
-      if (width > 0) onWidthChange(width);
-    };
-    const observer = new ResizeObserver(report);
-    observer.observe(element);
-    report();
-    return () => observer.disconnect();
-  }, [onWidthChange]);
 
   const widgets = availableIdleWidgets(appearance, data);
   const music = useIdleMusic(data.music);
+  const widgetKey = widgets.join(",");
+  const reportedWidth = useRef(0);
+  useLayoutEffect(() => {
+    const element = rootRef.current;
+    if (!element) return;
+    const style = getComputedStyle(element);
+    const padding =
+      parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const gap = parseFloat(style.columnGap || style.gap) || 0;
+    const children = Array.from(element.children) as HTMLElement[];
+    const content =
+      children.reduce((sum, child) => sum + child.offsetWidth, 0) +
+      gap * Math.max(0, children.length - 1);
+    const desired = Math.min(MAX_IDLE_WIDTH, Math.ceil(content + padding));
+    if (desired > 0 && desired !== reportedWidth.current) {
+      reportedWidth.current = desired;
+      onWidthChange?.(desired);
+    }
+    // The panel otherwise keeps the width from the first render and clips the
+    // tail once a value gets longer, so compact before that can happen.
+    if (content + padding > MAX_IDLE_WIDTH + 0.5 && fitLevelRef.current < 2) {
+      fitLevelRef.current += 1;
+      setFitLevel(fitLevelRef.current);
+    }
+  }, [widgetKey, fitLevel, data, onWidthChange]);
   const style = { width: "fit-content" } as const;
 
   function applyMove(from: IdleWidgetId, to: IdleWidgetId) {
@@ -152,74 +184,214 @@ export function IdleWidgets({
       </div>
     );
   }
+  function widgetTitle(id: IdleWidgetId): string | undefined {
+    if (id === "music") return `${music.title} · ${music.artist}`;
+    if (id === "water" && data.water) {
+      return `${t("喝水进度")} ${data.water.percent}%`;
+    }
+    if (id === "pomodoro") {
+      if (appearance.pomodoroView === "focus" && data.focusMinutes != null) {
+        return `${t("今日专注")} ${data.focusMinutes} ${t("分钟")}`;
+      }
+      if (appearance.pomodoroView === "cycle" && data.pomodoroCycle) {
+        return `${t("本轮")} ${data.pomodoroCycle.done}/${data.pomodoroCycle.total}`;
+      }
+      return data.pomodoros != null
+        ? `${t("今日番茄")} ${data.pomodoros}`
+        : undefined;
+    }
+    if (id === "battery" && data.battery) {
+      return `${t("电池")} ${data.battery.percent}%${data.battery.charging ? ` · ${t("充电中")}` : ""}`;
+    }
+    if (id === "focus" && data.focusMinutes != null) {
+      return `${t("今日专注")} ${data.focusMinutes} ${t("分钟")}`;
+    }
+    if (id === "streak" && data.streak != null) {
+      return `${t("连续专注")} ${data.streak} ${t("天")}`;
+    }
+    if (id === "volume" && data.volume) {
+      return data.volume.muted
+        ? t("已静音")
+        : `${t("音量")} ${data.volume.percent}%`;
+    }
+    if (id === "bluetooth" && data.bluetooth) {
+      return `${data.bluetooth.name} · ${data.bluetooth.battery}%`;
+    }
+    if (id === "countdown" && data.countdown) {
+      return `${data.countdown.label} · ${data.countdown.reached ? t("已到") : formatCountdown(data.countdown.remainingMs)}`;
+    }
+    if (id === "waterTimer" && data.waterTimer) {
+      if ("done" in data.waterTimer) return t("今日饮水已达标");
+      if ("soon" in data.waterTimer) {
+        return `${t("下次喝水提醒")} ${t("即将")}`;
+      }
+      if ("minutes" in data.waterTimer) {
+        return `${t("下次喝水提醒")} ${data.waterTimer.minutes} ${t("分")}`;
+      }
+      return `${t("下次喝水提醒")} · ${data.waterTimer.tomorrow ? `${t("明天")} ` : ""}${data.waterTimer.at}`;
+    }
+    return undefined;
+  }
   return (
-    <div className="island idle-widgets" style={style} ref={rootRef}>
-      {widgets.map((id) => (
-        <span
-          className={`idle-widget idle-widget-${id} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""}`}
-          key={id}
-          data-idle-widget={id}
-          title={
-            id === "music" ? `${music.title} · ${music.artist}` : undefined
-          }
-          draggable={false}
-          onPointerDown={(event) => startDrag(event, id)}
-        >
-          {id === "clock" && (
-            <>
-              <Clock3 size={16} aria-hidden="true" />
-              <CompactClock />
-            </>
-          )}
-          {id === "quota" && data.quota && (
-            <>
-              {quotaRings(data.quota.items).length ? (
-                <QuotaRings
-                  items={data.quota.items}
-                  compact
-                  provider={data.quota.provider}
-                />
-              ) : (
-                <ProviderIcon provider={data.quota.provider} size="normal" />
-              )}
-            </>
-          )}
-          {id === "water" && data.water && (
-            <>
-              <img className="idle-widget-drop" src={waterDrop} alt="" />
-              <span>{data.water.percent}%</span>
-            </>
-          )}
-          {id === "pomodoro" && data.pomodoros != null && (
-            <>
-              <img className="idle-widget-tomato" src={pomodoroClock} alt="" />
-              <span>{data.pomodoros}</span>
-            </>
-          )}
-          {id === "music" && (
-            <>
-              {data.music?.artwork ? (
+    <div
+      className={`island idle-widgets ${fitLevel === 1 ? "is-compact-1" : fitLevel === 2 ? "is-compact-2" : ""}`}
+      style={style}
+      ref={rootRef}
+    >
+      {widgets.map((id) => {
+        const lowBattery =
+          id === "battery" && (data.battery?.percent ?? 100) <= 20;
+        const waterDone =
+          id === "waterTimer" && !!data.waterTimer && "done" in data.waterTimer;
+        const countdownDone = id === "countdown" && !!data.countdown?.reached;
+        return (
+          <span
+            className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone ? "is-done" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""}`}
+            key={id}
+            data-idle-widget={id}
+            title={widgetTitle(id)}
+            draggable={false}
+            onPointerDown={(event) => startDrag(event, id)}
+          >
+            {id === "clock" && (
+              <>
+                <Clock3 size={14} aria-hidden="true" />
+                <CompactClock />
+              </>
+            )}
+            {id === "quota" && data.quota && (
+              <>
+                {quotaRings(data.quota.items).length ? (
+                  <QuotaRings
+                    items={data.quota.items}
+                    compact
+                    provider={data.quota.provider}
+                  />
+                ) : (
+                  <ProviderIcon provider={data.quota.provider} size="normal" />
+                )}
+              </>
+            )}
+            {id === "water" && data.water && (
+              <>
+                <img className="idle-widget-drop" src={waterDrop} alt="" />
+                <span>{data.water.percent}%</span>
+              </>
+            )}
+            {id === "pomodoro" && (
+              <>
                 <img
-                  className="idle-widget-cover"
-                  src={data.music.artwork}
+                  className="idle-widget-tomato"
+                  src={pomodoroClock}
                   alt=""
                 />
-              ) : (
-                <span className="idle-widget-cover is-empty">
-                  <Music2 size={14} aria-hidden="true" />
+                <span>
+                  {appearance.pomodoroView === "focus" &&
+                  data.focusMinutes != null
+                    ? `${data.focusMinutes}${t("分")}`
+                    : appearance.pomodoroView === "cycle" && data.pomodoroCycle
+                      ? `${data.pomodoroCycle.done}/${data.pomodoroCycle.total}`
+                      : (data.pomodoros ?? 0)}
                 </span>
-              )}
-              <span className="idle-widget-wave" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-                <i />
-                <i />
-              </span>
-            </>
-          )}
-        </span>
-      ))}
+              </>
+            )}
+            {id === "battery" && data.battery && (
+              <>
+                {data.battery.charging ? (
+                  <BatteryCharging size={14} aria-hidden="true" />
+                ) : (
+                  <BatteryMedium size={14} aria-hidden="true" />
+                )}
+                <span>{data.battery.percent}%</span>
+              </>
+            )}
+            {id === "focus" && data.focusMinutes != null && (
+              <>
+                <Flame size={14} aria-hidden="true" />
+                <span>{`${data.focusMinutes}${t("分")}`}</span>
+              </>
+            )}
+            {id === "streak" && data.streak != null && (
+              <>
+                <CalendarCheck size={14} aria-hidden="true" />
+                <span>{`${data.streak}${t("天")}`}</span>
+              </>
+            )}
+            {id === "volume" && data.volume && (
+              <>
+                {data.volume.muted ? (
+                  <VolumeX size={14} aria-hidden="true" />
+                ) : (
+                  <Volume2 size={14} aria-hidden="true" />
+                )}
+                <span>
+                  {data.volume.muted ? t("静音") : `${data.volume.percent}%`}
+                </span>
+              </>
+            )}
+            {id === "bluetooth" && data.bluetooth && (
+              <>
+                <Headphones size={14} aria-hidden="true" />
+                <span>{data.bluetooth.battery}%</span>
+              </>
+            )}
+            {id === "countdown" && data.countdown && (
+              <>
+                {data.countdown.reached ? (
+                  <Check size={14} aria-hidden="true" />
+                ) : (
+                  <Hourglass size={14} aria-hidden="true" />
+                )}
+                <span>
+                  {data.countdown.reached
+                    ? t("已到")
+                    : formatCountdown(data.countdown.remainingMs)}
+                </span>
+              </>
+            )}
+            {id === "waterTimer" && data.waterTimer && (
+              <>
+                {"done" in data.waterTimer ? (
+                  <Check size={14} aria-hidden="true" />
+                ) : (
+                  <Hourglass size={14} aria-hidden="true" />
+                )}
+                <span>
+                  {"done" in data.waterTimer
+                    ? t("已达标")
+                    : "soon" in data.waterTimer
+                      ? t("即将")
+                      : "minutes" in data.waterTimer
+                        ? `${data.waterTimer.minutes}${t("分")}`
+                        : data.waterTimer.at}
+                </span>
+              </>
+            )}
+            {id === "music" && (
+              <>
+                {data.music?.artwork ? (
+                  <img
+                    className="idle-widget-cover"
+                    src={data.music.artwork}
+                    alt=""
+                  />
+                ) : (
+                  <span className="idle-widget-cover is-empty">
+                    <Music2 size={13} aria-hidden="true" />
+                  </span>
+                )}
+                <span className="idle-widget-wave" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </>
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }

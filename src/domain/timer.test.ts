@@ -3,8 +3,10 @@ import {
   formatRemaining,
   extendTimer,
   parseDuration,
+  parsePersistedTimer,
   pauseTimer,
   remainingMilliseconds,
+  restorePersistedTimer,
   resumeTimer,
 } from "./timer";
 
@@ -57,5 +59,37 @@ describe("countdown", () => {
       status: "running",
       endsAt: 5000,
     });
+  });
+});
+
+describe("persisted timers", () => {
+  const snapshot = {
+    version: 1,
+    kind: "countdown",
+    mode: "countdown",
+    durationMs: 300000,
+    label: "泡茶",
+    countdownId: "tea",
+    state: { status: "running", endsAt: 500000 },
+  };
+
+  it("parses a valid snapshot and rejects malformed ones", () => {
+    expect(parsePersistedTimer(snapshot)).toEqual(snapshot);
+    expect(parsePersistedTimer({ ...snapshot, version: 2 })).toBeNull();
+    expect(parsePersistedTimer({ ...snapshot, durationMs: 0 })).toBeNull();
+    expect(
+      parsePersistedTimer({ ...snapshot, state: { status: "running" } }),
+    ).toBeNull();
+    expect(parsePersistedTimer({ ...snapshot, kind: "timer" })).toBeNull();
+    expect(parsePersistedTimer({ ...snapshot, countdownId: null })).toBeNull();
+  });
+
+  it("restores running timers and finishes ones that expired while closed", () => {
+    expect(
+      restorePersistedTimer(parsePersistedTimer(snapshot)!, 400000),
+    ).toEqual({ state: { status: "running", endsAt: 500000 }, expired: false });
+    expect(
+      restorePersistedTimer(parsePersistedTimer(snapshot)!, 600000),
+    ).toEqual({ state: { status: "finished" }, expired: true });
   });
 });

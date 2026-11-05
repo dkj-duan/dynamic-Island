@@ -10,8 +10,15 @@ import {
   type SystemStatus,
 } from "../../domain/systemNotices";
 
+export type DeviceSnapshot = {
+  brightness: number | null;
+  bluetooth: BluetoothStatus[] | null;
+};
+
 export function useSystemNotice() {
   const [notice, setNotice] = useState<SystemNotice | null>(null);
+  const [system, setSystem] = useState<SystemStatus | null>(null);
+  const [devices, setDevices] = useState<DeviceSnapshot | null>(null);
   useEffect(() => {
     let active = true;
     let previous: SystemStatus | undefined;
@@ -70,6 +77,7 @@ export function useSystemNotice() {
       try {
         const state = await invoke<SystemStatus>("get_system_status");
         if (!active) return;
+        setSystem(state);
         systemChanges(previous, state).forEach(show);
         previous = state;
       } catch (error) {
@@ -80,11 +88,9 @@ export function useSystemNotice() {
     }
     async function pollDevices() {
       try {
-        const state = await invoke<{
-          brightness: number | null;
-          bluetooth: BluetoothStatus[] | null;
-        }>("get_device_status");
+        const state = await invoke<DeviceSnapshot>("get_device_status");
         if (!active) return;
+        setDevices(state);
         if (state.brightness !== null) {
           if (
             previousBrightness !== null &&
@@ -116,5 +122,5 @@ export function useSystemNotice() {
       window.clearTimeout(dismissal);
     };
   }, []);
-  return notice;
+  return { notice, system, devices };
 }

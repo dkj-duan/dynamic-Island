@@ -22,6 +22,34 @@ export function recentDays(count: number, now = Date.now()): string[] {
   return days;
 }
 
+function previousDay(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const value = new Date(year, month - 1, date, 12);
+  value.setDate(value.getDate() - 1);
+  return localDay(value.getTime());
+}
+
+/**
+ * Consecutive focused days ending today. A not-yet-focused today keeps the
+ * streak alive by looking back from yesterday.
+ */
+export function focusStreak(
+  stats: DailyStat[],
+  today: string,
+  minimumSeconds = 1,
+): number {
+  if (!stats.length) return 0;
+  const focused = new Map(stats.map((stat) => [stat.day, stat.focusSeconds]));
+  let cursor = today;
+  if ((focused.get(cursor) ?? 0) < minimumSeconds) cursor = previousDay(cursor);
+  let count = 0;
+  while ((focused.get(cursor) ?? 0) >= minimumSeconds) {
+    count += 1;
+    cursor = previousDay(cursor);
+  }
+  return count;
+}
+
 export function statForDay(
   stats: DailyStat[],
   day: string,

@@ -215,7 +215,38 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .and_then(|v| v.as_u64())
         .filter(|v| [0, 1, 3, 5, 10, 15].contains(v));
     let language = value.get("language").and_then(|v| v.as_str());
-    let idle_widgets_valid = match value.get("version").and_then(|v| v.as_u64()) {
+    let version = value.get("version").and_then(|v| v.as_u64());
+    let idle_widgets_valid = match version {
+        Some(8) => value
+            .get("idleWidgets")
+            .and_then(|v| v.as_array())
+            .is_some_and(|items| {
+                let mut seen: Vec<&str> = Vec::new();
+                items.len() <= 6
+                    && items.iter().all(|item| match item.as_str() {
+                        Some(id)
+                            if matches!(
+                                id,
+                                "clock"
+                                    | "quota"
+                                    | "water"
+                                    | "pomodoro"
+                                    | "music"
+                                    | "battery"
+                                    | "focus"
+                                    | "streak"
+                                    | "volume"
+                                    | "bluetooth"
+                                    | "waterTimer"
+                                    | "countdown"
+                            ) && !seen.contains(&id) =>
+                        {
+                            seen.push(id);
+                            true
+                        }
+                        _ => false,
+                    })
+            }),
         Some(6 | 7) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
@@ -236,15 +267,23 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         Some(5) => true,
         _ => false,
     };
-    let lyrics_valid = match value.get("version").and_then(|v| v.as_u64()) {
-        Some(7) => value
+    let lyrics_valid = match version {
+        Some(7 | 8) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
+    let pomodoro_view_valid = match version {
+        Some(8) => matches!(
+            value.get("pomodoroView").and_then(|v| v.as_str()),
+            Some("count" | "focus" | "cycle")
+        ),
+        _ => true,
+    };
     if !idle_widgets_valid
         || !lyrics_valid
+        || !pomodoro_view_valid
         || !matches!(
             value.get("theme").and_then(|v| v.as_str()),
             Some("system" | "light" | "dark")
@@ -267,6 +306,8 @@ const POSITION_KEY: &str = "island_position";
 const POMODORO_KEY: &str = "pomodoro";
 const POMODORO_PROGRESS_KEY: &str = "pomodoro_progress";
 const WATER_KEY: &str = "water";
+const COUNTDOWNS_KEY: &str = "countdowns";
+const TIMER_KEY: &str = "timer";
 
 fn load_json_setting(storage: &Storage, key: &str) -> Result<Option<serde_json::Value>, String> {
     let db = storage.0.lock().map_err(|e| e.to_string())?;
@@ -431,6 +472,211 @@ pub fn save_water(
     }
     validate_water(&value)?;
     save_json_setting(storage.inner(), WATER_KEY, &value)
+}
+
+#[tauri::command]
+pub fn load_countdowns(storage: State<'_, Storage>) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), COUNTDOWNS_KEY)
+}
+
+#[tauri::command]
+pub fn save_countdowns(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能修改倒计时设置".into());
+    }
+    validate_countdowns(&value)?;
+    save_json_setting(storage.inner(), COUNTDOWNS_KEY, &value)
+}
+
+#[tauri::command]
+pub fn load_timer(storage: State<'_, Storage>) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), TIMER_KEY)
+}
+
+#[tauri::command]
+pub fn save_timer(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: Option<serde_json::Value>,
+) -> Result<(), String> {
+    if !matches!(window.label(), "island" | "main") {
+        return Err("当前窗口不能保存计时状态".into());
+    }
+    match value {
+        Some(snapshot) => {
+            validate_timer(&snapshot)?;
+            save_json_setting(storage.inner(), TIMER_KEY, &snapshot)
+        }
+        None => {
+            let db = storage.0.lock().map_err(|error| error.to_string())?;
+            db.connection
+                .execute("DELETE FROM settings WHERE key=?1", params![TIMER_KEY])
+                .map_err(|error| error.to_string())?;
+            Ok(())
+        }
+    }
+}
+
+fn valid_clock(text: &str) -> bool {
+    let mut parts = text.split(':');
+    let (Some(hours), Some(minutes), None) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    hours.len() == 2
+        && minutes.len() == 2
+        && hours.chars().all(|value| value.is_ascii_digit())
+        && minutes.chars().all(|value| value.is_ascii_digit())
+        && hours.parse::<u32>().is_ok_and(|value| value <= 23)
+        && minutes.parse::<u32>().is_ok_and(|value| value <= 59)
+}
+
+fn validate_countdowns(value: &serde_json::Value) -> Result<(), String> {
+    let record = value.as_object().ok_or("倒计时设置无效")?;
+    if record.get("version") != Some(&serde_json::json!(1)) {
+        return Err("倒计时设置版本无效".into());
+    }
+    let items = record
+        .get("items")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("倒计时列表无效")?;
+    if items.len() > 8 {
+        return Err("倒计时数量过多".into());
+    }
+    let mut ids: Vec<String> = Vec::new();
+    for item in items {
+        let entry = item.as_object().ok_or("倒计时项目无效")?;
+        let id = entry
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty() && value.len() <= 64)
+            .ok_or("倒计时标识无效")?;
+        let label = entry
+            .get("label")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty() && value.chars().count() <= 24)
+            .ok_or("倒计时名称无效")?;
+        let _ = label;
+        if ids.iter().any(|existing| existing == id) {
+            return Err("倒计时标识重复".into());
+        }
+        match entry.get("kind").and_then(serde_json::Value::as_str) {
+            Some("target") => {
+                let time = entry
+                    .get("targetTime")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or("倒计时时间无效")?;
+                if !valid_clock(time) {
+                    return Err("倒计时时间无效".into());
+                }
+            }
+            Some("duration") => {
+                let seconds = entry
+                    .get("durationSeconds")
+                    .and_then(serde_json::Value::as_u64)
+                    .ok_or("倒计时时长无效")?;
+                if !(1..=59_999).contains(&seconds) {
+                    return Err("倒计时时长无效".into());
+                }
+            }
+            _ => return Err("倒计时类型无效".into()),
+        }
+        ids.push(id.to_string());
+    }
+    if let Some(island) = record.get("islandId")
+        && !island.is_null()
+    {
+        let id = island.as_str().ok_or("岛上倒计时选择无效")?;
+        if !ids.iter().any(|existing| existing == id) {
+            return Err("岛上倒计时选择无效".into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_timer(value: &serde_json::Value) -> Result<(), String> {
+    let record = value.as_object().ok_or("计时器状态无效")?;
+    if record.get("version") != Some(&serde_json::json!(1)) {
+        return Err("计时器状态版本无效".into());
+    }
+    let kind = record
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("计时器类型无效")?;
+    let mode = record
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("计时器模式无效")?;
+    let mode_valid = match kind {
+        "pomodoro" => matches!(mode, "focus" | "break" | "longBreak"),
+        "timer" => mode == "timer",
+        "countdown" => mode == "countdown",
+        _ => false,
+    };
+    if !mode_valid {
+        return Err("计时器类型无效".into());
+    }
+    let duration_ms = record
+        .get("durationMs")
+        .and_then(serde_json::Value::as_u64)
+        .filter(|value| (1000..=59_999_000).contains(value))
+        .ok_or("计时器时长无效")?;
+    let _ = duration_ms;
+    if let Some(label) = record.get("label")
+        && !label.is_null()
+    {
+        let text = label.as_str().ok_or("计时器名称无效")?;
+        if text.is_empty() || text.chars().count() > 24 {
+            return Err("计时器名称无效".into());
+        }
+    }
+    let countdown_id = record
+        .get("countdownId")
+        .and_then(serde_json::Value::as_str);
+    if let Some(id) = countdown_id {
+        if id.is_empty() || id.len() > 64 {
+            return Err("倒计时标识无效".into());
+        }
+    } else if kind == "countdown" {
+        return Err("倒计时标识缺失".into());
+    }
+    let state = record
+        .get("state")
+        .and_then(serde_json::Value::as_object)
+        .ok_or("计时器状态无效")?;
+    let status = state
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("计时器状态无效")?;
+    match status {
+        "idle" | "finished" => {}
+        "running" => {
+            if state
+                .get("endsAt")
+                .and_then(serde_json::Value::as_f64)
+                .filter(|value| value.is_finite() && *value > 0.0)
+                .is_none()
+            {
+                return Err("计时器结束时间无效".into());
+            }
+        }
+        "paused" => {
+            if state
+                .get("remainingMs")
+                .and_then(serde_json::Value::as_f64)
+                .filter(|value| value.is_finite() && *value > 0.0)
+                .is_none()
+            {
+                return Err("计时器剩余时间无效".into());
+            }
+        }
+        _ => return Err("计时器状态无效".into()),
+    }
+    Ok(())
 }
 
 fn read_daily_stat(connection: &Connection, day: &str) -> Result<DailyStat, String> {
@@ -904,6 +1150,82 @@ mod tests {
         assert!(validate_appearance(&serde_json::json!({"version": 7, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock", "music"], "islandLyrics": false})).is_ok());
         assert!(validate_appearance(&serde_json::json!({"version": 7, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock"], "islandLyrics": true})).is_ok());
         assert!(validate_appearance(&serde_json::json!({"version": 7, "theme": "system", "scale": 1.0, "showClock": true, "autoCollapseSeconds": 3, "expandTrigger": "click", "language": "zh-CN", "idleWidgets": ["clock"]})).is_err());
+
+        let v8 = serde_json::json!({
+            "version": 8,
+            "theme": "system",
+            "scale": 1.0,
+            "showClock": true,
+            "autoCollapseSeconds": 3,
+            "expandTrigger": "hover",
+            "language": "zh-CN",
+            "idleWidgets": ["clock", "battery", "focus", "streak", "volume", "bluetooth"],
+            "pomodoroView": "cycle",
+            "islandLyrics": false
+        });
+        assert!(validate_appearance(&v8).is_ok());
+        let mut too_many = v8.clone();
+        too_many["idleWidgets"] = serde_json::json!([
+            "clock",
+            "battery",
+            "focus",
+            "streak",
+            "volume",
+            "bluetooth",
+            "waterTimer"
+        ]);
+        assert!(validate_appearance(&too_many).is_err());
+        let mut unknown_widget = v8.clone();
+        unknown_widget["idleWidgets"] = serde_json::json!(["clock", "weather"]);
+        assert!(validate_appearance(&unknown_widget).is_err());
+        let mut bad_view = v8.clone();
+        bad_view["pomodoroView"] = serde_json::json!("unknown");
+        assert!(validate_appearance(&bad_view).is_err());
+        let mut missing_view = v8.clone();
+        missing_view.as_object_mut().unwrap().remove("pomodoroView");
+        assert!(validate_appearance(&missing_view).is_err());
+    }
+
+    #[test]
+    fn validates_countdowns_and_timer_snapshots() {
+        let countdowns = serde_json::json!({
+            "version": 1,
+            "items": [
+                {"id": "off-work", "label": "下班", "kind": "target", "targetTime": "18:00"},
+                {"id": "tea", "label": "泡茶", "kind": "duration", "durationSeconds": 300}
+            ],
+            "islandId": "off-work"
+        });
+        assert!(validate_countdowns(&countdowns).is_ok());
+        let mut bad_time = countdowns.clone();
+        bad_time["items"][0]["targetTime"] = serde_json::json!("25:00");
+        assert!(validate_countdowns(&bad_time).is_err());
+        let mut bad_island = countdowns.clone();
+        bad_island["islandId"] = serde_json::json!("missing");
+        assert!(validate_countdowns(&bad_island).is_err());
+        let mut duplicate = countdowns.clone();
+        duplicate["items"][1]["id"] = serde_json::json!("off-work");
+        assert!(validate_countdowns(&duplicate).is_err());
+
+        let timer = serde_json::json!({
+            "version": 1,
+            "kind": "countdown",
+            "mode": "countdown",
+            "durationMs": 300000,
+            "label": "泡茶",
+            "countdownId": "tea",
+            "state": {"status": "running", "endsAt": 123456}
+        });
+        assert!(validate_timer(&timer).is_ok());
+        let mut bad_duration = timer.clone();
+        bad_duration["durationMs"] = serde_json::json!(0);
+        assert!(validate_timer(&bad_duration).is_err());
+        let mut bad_state = timer.clone();
+        bad_state["state"] = serde_json::json!({"status": "running"});
+        assert!(validate_timer(&bad_state).is_err());
+        let mut missing_id = timer.clone();
+        missing_id["countdownId"] = serde_json::Value::Null;
+        assert!(validate_timer(&missing_id).is_err());
     }
 
     #[test]

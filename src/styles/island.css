@@ -1283,20 +1283,19 @@ html.island-window #root {
 
 .idle-widget-tomato {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   object-fit: contain;
 }
 
 .idle-widget-music {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: none;
 }
 
 .idle-widget-cover {
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   object-fit: cover;
   animation: idle-cover-spin 9s linear infinite;
@@ -2504,20 +2503,23 @@ html.island-window #root {
 }
 
 /* —— Idle widgets: user-selected capsule content —— */
-.idle-widgets {
+.island.idle-widgets {
   min-width: 170px;
   max-width: 338px;
   overflow: hidden;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 4px;
+  padding: 0 10px;
 }
 
 .idle-widget {
   display: flex;
   align-items: center;
   flex: none;
-  gap: 6px;
+  gap: 4px;
   color: #b4b4be;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .idle-widget svg {
@@ -2525,10 +2527,20 @@ html.island-window #root {
   color: #a5a5ae;
 }
 
+.idle-widget.is-low,
+.idle-widget.is-low svg {
+  color: #f0b26b;
+}
+
+.idle-widget.is-done,
+.idle-widget.is-done svg {
+  color: #79d6a3;
+}
+
 .idle-widget-drop {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   object-fit: contain;
 }
 
@@ -2572,6 +2584,10 @@ html.island-window #root {
   width: auto;
 }
 
+.island.idle-widgets .idle-widget .compact-clock {
+  font-size: 12px;
+}
+
 .idle-widget-quota .quota-rings-compact {
   width: 28px;
   height: 28px;
@@ -2598,4 +2614,98 @@ html.island-window #root {
   .idle-widget-cover {
     animation: none;
   }
+}
+
+/* —— Countdown picker (timer page) —— */
+.countdown-picker {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 2px;
+}
+
+.countdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #36363d;
+  border-radius: 10px;
+  background: #222227;
+  color: #e0e0e6;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.countdown-row:hover {
+  background: #2c2c33;
+  border-color: #44444c;
+}
+
+.countdown-row-value {
+  color: #b0b0ba;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-empty {
+  color: #8f8f99;
+  font-size: 12px;
+  text-align: center;
+}
+
+.countdown-picker-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.countdown-picker-actions button {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #32323a;
+  border-radius: 999px;
+  background: transparent;
+  color: #b9b9c2;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.countdown-picker-actions button:hover {
+  background: #2c2c33;
+}
+
+/* Auto-fit: tighten gaps and type before the last widget can be clipped. */
+.island.idle-widgets.is-compact-1 {
+  gap: 3px;
+  padding: 0 8px;
+}
+
+.island.idle-widgets.is-compact-1 .idle-widget {
+  gap: 3px;
+  font-size: 10.5px;
+}
+
+.island.idle-widgets.is-compact-1 .idle-widget .compact-clock {
+  font-size: 11.5px;
+}
+
+.island.idle-widgets.is-compact-2 {
+  gap: 2px;
+  padding: 0 6px;
+}
+
+.island.idle-widgets.is-compact-2 .idle-widget {
+  gap: 2px;
+  font-size: 10px;
+}
+
+.island.idle-widgets.is-compact-2 .idle-widget .compact-clock {
+  font-size: 11px;
 }

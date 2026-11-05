@@ -18,7 +18,7 @@ export async function saveAppearance(
 ): Promise<void> {
   if (!hasDesktopStorage) throw new Error("浏览器预览不支持保存设置");
   const value = {
-    version: 7,
+    version: 8,
     ...appearance,
     showClock: appearance.idleWidgets.includes("clock"),
   };

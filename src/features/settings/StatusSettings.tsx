@@ -183,7 +183,7 @@ export function StatusSettings() {
     },
   ];
   return (
-    <>
+    <div className="settings-stack">
       <section className="settings-card">
         <div className="card-head">
           <h2>{t("当前状态")}</h2>
@@ -310,6 +310,6 @@ export function StatusSettings() {
           {audioMessage}
         </p>
       </section>
-    </>
+    </div>
   );
 }

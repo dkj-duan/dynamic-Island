@@ -18,8 +18,27 @@ export function IslandPreview({
   pomodoros?: number | null;
   onReorder?: (widgets: IdleWidgetId[]) => void;
 }) {
-  const data: IdleData = { quota, water, pomodoros };
+  // Sample values keep newly enabled widgets visible in the preview; the real
+  // island only renders live data.
+  const data: IdleData = {
+    quota,
+    water,
+    pomodoros,
+    battery: { percent: 76, charging: false },
+    focusMinutes: 92,
+    streak: 4,
+    volume: { percent: 48, muted: false },
+    bluetooth: { name: "耳机", battery: 70 },
+    waterTimer: { minutes: 23 },
+    countdown: { label: "下班", remainingMs: 2 * 3600_000, reached: false },
+    pomodoroCycle: { done: 2, total: 4 },
+  };
   return (
-    <IdleWidgets appearance={appearance} data={data} onReorder={onReorder} />
+    <IdleWidgets
+      key={appearance.idleWidgets.join(",")}
+      appearance={appearance}
+      data={data}
+      onReorder={onReorder}
+    />
   );
 }

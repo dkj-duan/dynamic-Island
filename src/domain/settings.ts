@@ -12,8 +12,21 @@ export const idleWidgetIds = [
   "water",
   "pomodoro",
   "music",
+  "battery",
+  "focus",
+  "streak",
+  "volume",
+  "bluetooth",
+  "waterTimer",
+  "countdown",
 ] as const;
 export type IdleWidgetId = (typeof idleWidgetIds)[number];
+
+/** The capsule is 338px wide; six compact widgets are the safe ceiling. */
+export const MAX_IDLE_WIDGETS = 6;
+
+export const pomodoroIdleViews = ["count", "focus", "cycle"] as const;
+export type PomodoroIdleView = (typeof pomodoroIdleViews)[number];
 
 export interface AppearanceSettings {
   theme: "system" | "light" | "dark";
@@ -26,6 +39,8 @@ export interface AppearanceSettings {
   language: Language;
   /** Ordered pieces shown in the capsule while the island is idle. */
   idleWidgets: IdleWidgetId[];
+  /** What the pomodoro idle widget reports. */
+  pomodoroView: PomodoroIdleView;
   /** Show the current lyric instead of the artist in the music capsule. */
   islandLyrics: boolean;
 }
@@ -37,6 +52,7 @@ export const defaultAppearance: AppearanceSettings = {
   expandTrigger: "click",
   language: defaultLanguage,
   idleWidgets: ["clock", "quota"],
+  pomodoroView: "count",
   islandLyrics: false,
 };
 
@@ -68,7 +84,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 4 &&
       item.version !== 5 &&
       item.version !== 6 &&
-      item.version !== 7) ||
+      item.version !== 7 &&
+      item.version !== 8) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -105,10 +122,16 @@ export function parseAppearance(value: unknown): AppearanceSettings {
         ? ["clock", "quota"]
         : ["quota"];
   let islandLyrics = false;
-  if (item.version === 7) {
+  if (item.version === 7 || item.version === 8) {
     if (typeof item.islandLyrics !== "boolean")
       throw new Error("岛上歌词设置无效");
     islandLyrics = item.islandLyrics;
+  }
+  let pomodoroView = defaultAppearance.pomodoroView;
+  if (item.version >= 8) {
+    if (!pomodoroIdleViews.includes(item.pomodoroView as PomodoroIdleView))
+      throw new Error("番茄组件显示方式无效");
+    pomodoroView = item.pomodoroView as PomodoroIdleView;
   }
   return {
     theme,
@@ -118,6 +141,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     expandTrigger,
     language,
     idleWidgets,
+    pomodoroView,
     islandLyrics,
   };
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
+  BatteryMedium,
+  CalendarCheck,
   CircleHelp,
   MousePointer2,
   Palette,
@@ -12,11 +14,21 @@ import {
   Timer,
   Droplets,
   Clock3,
+  Flame,
+  Headphones,
+  Hourglass,
   Music2,
+  Volume2,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
-import type { AppearanceSettings, IdleWidgetId } from "../../domain/settings";
+import {
+  MAX_IDLE_WIDGETS,
+  type AppearanceSettings,
+  type IdleWidgetId,
+  type PomodoroIdleView,
+} from "../../domain/settings";
+import { CountdownSettings } from "./CountdownSettings";
 import { StatusSettings } from "./StatusSettings";
 import { StorageSettings } from "./StorageSettings";
 import { MailSettings } from "./MailSettings";
@@ -32,6 +44,7 @@ type Page =
   | "pomodoro"
   | "status"
   | "water"
+  | "countdown"
   | "mail"
   | "ai"
   | "storage"
@@ -57,6 +70,10 @@ const pageMeta: Record<Page, { title: string; description: string }> = {
   water: {
     title: "喝水提醒",
     description: "设置每日目标与提醒时段，记录饮水并查看近 30 天数据。",
+  },
+  countdown: {
+    title: "倒计时",
+    description: "配置下班、午休等倒计时，并选择一条显示在空闲胶囊。",
   },
   mail: {
     title: "邮箱提醒",
@@ -94,6 +111,7 @@ const navItems: NavItem[] = [
   { id: "pomodoro", label: "番茄钟", icon: Timer },
   { id: "status", label: "状态", icon: Bell },
   { id: "water", label: "喝水", icon: Droplets },
+  { id: "countdown", label: "倒计时", icon: Hourglass },
   { id: "mail", label: "邮箱", icon: Mail },
   { id: "ai", label: "AI 额度", icon: Bot },
   { id: "storage", label: "存储", icon: Database },
@@ -103,7 +121,7 @@ const navItems: NavItem[] = [
 /* Grouped so the sidebar reads: island itself, its tools, its sources, then system. */
 const navGroups: { label: string; ids: Page[] }[] = [
   { label: "通用", ids: ["appearance", "behavior"] },
-  { label: "功能", ids: ["pomodoro", "water"] },
+  { label: "功能", ids: ["pomodoro", "water", "countdown"] },
   { label: "提醒源", ids: ["status", "mail", "ai"] },
   { label: "系统", ids: ["storage", "about"] },
 ];
@@ -151,6 +169,19 @@ const idleWidgetOptions: {
   { id: "water", label: "喝水进度", icon: Droplets },
   { id: "pomodoro", label: "番茄进度", icon: Timer },
   { id: "music", label: "正在播放", icon: Music2 },
+  { id: "battery", label: "电池与充电", icon: BatteryMedium },
+  { id: "focus", label: "今日专注", icon: Flame },
+  { id: "streak", label: "连续专注", icon: CalendarCheck },
+  { id: "volume", label: "音量与静音", icon: Volume2 },
+  { id: "bluetooth", label: "蓝牙耳机电量", icon: Headphones },
+  { id: "waterTimer", label: "喝水倒计时", icon: Hourglass },
+  { id: "countdown", label: "倒计时", icon: Hourglass },
+];
+
+const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [
+  { value: "count", label: "今日个数" },
+  { value: "focus", label: "专注分钟" },
+  { value: "cycle", label: "本轮轮次" },
 ];
 
 const themeOptions = [
@@ -184,8 +215,13 @@ export function SettingsPage({
       .filter((id) => !appearance.idleWidgets.includes(id)),
   ];
 
+  const idleWidgetLimitReached =
+    appearance.idleWidgets.length >= MAX_IDLE_WIDGETS;
+
   function toggleIdleWidget(id: IdleWidgetId) {
-    const widgets = appearance.idleWidgets.includes(id)
+    const enabled = appearance.idleWidgets.includes(id);
+    if (!enabled && idleWidgetLimitReached) return;
+    const widgets = enabled
       ? appearance.idleWidgets.filter((item) => item !== id)
       : [...appearance.idleWidgets, id];
     onAppearanceChange({ ...appearance, idleWidgets: widgets });
@@ -402,7 +438,10 @@ export function SettingsPage({
                             <label className="idle-widget-toggle">
                               <input
                                 type="checkbox"
-                                disabled={!canEdit}
+                                disabled={
+                                  !canEdit ||
+                                  (!enabled && idleWidgetLimitReached)
+                                }
                                 checked={enabled}
                                 onChange={() => toggleIdleWidget(id)}
                               />
@@ -437,9 +476,44 @@ export function SettingsPage({
                     </ul>
                     <p className="form-note">
                       {t(
-                        "常驻额度仅在有常驻 AI 账户时显示；喝水与番茄显示今日数据。全部关闭时显示 Dynamic Island。",
+                        "常驻额度仅在有常驻 AI 账户时显示；最多同时显示 6 个，没有数据的组件自动隐藏。",
                       )}
                     </p>
+                    <div className="setting-row">
+                      <span className="setting-row-copy">
+                        <strong>{t("番茄组件显示")}</strong>
+                        <small>{t("选择番茄组件在胶囊上展示的信息。")}</small>
+                      </span>
+                      <div
+                        className="segmented"
+                        role="group"
+                        aria-label={t("番茄组件显示")}
+                      >
+                        {pomodoroViewOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            disabled={!canEdit}
+                            aria-pressed={
+                              appearance.pomodoroView === option.value
+                            }
+                            className={
+                              appearance.pomodoroView === option.value
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() =>
+                              onAppearanceChange({
+                                ...appearance,
+                                pomodoroView: option.value,
+                              })
+                            }
+                          >
+                            {t(option.label)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </section>
               </div>
@@ -602,6 +676,7 @@ export function SettingsPage({
             {page === "pomodoro" && <PomodoroSettings />}
             {page === "status" && <StatusSettings />}
             {page === "water" && <WaterSettings />}
+            {page === "countdown" && <CountdownSettings />}
             {page === "storage" && (
               <StorageSettings
                 canSwitch={canSwitchStorage}

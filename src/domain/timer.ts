@@ -50,3 +50,105 @@ export function formatRemaining(milliseconds: number): string {
   const seconds = Math.ceil(Math.max(0, milliseconds) / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
+
+export type TimerKind = "pomodoro" | "timer" | "countdown";
+export type TimerMode = "focus" | "break" | "longBreak" | "timer" | "countdown";
+
+/** Snapshot kept in SQLite so a running timer survives a restart. */
+export type PersistedTimer = {
+  version: 1;
+  kind: TimerKind;
+  mode: TimerMode;
+  durationMs: number;
+  label: string | null;
+  countdownId: string | null;
+  state: TimerState;
+};
+
+const MAX_TIMER_MS = (999 * 60 + 59) * 1000;
+
+export function parsePersistedTimer(value: unknown): PersistedTimer | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (record.version !== 1) return null;
+  const kind = record.kind;
+  const mode = record.mode;
+  if (kind !== "pomodoro" && kind !== "timer" && kind !== "countdown") {
+    return null;
+  }
+  if (
+    kind === "pomodoro" &&
+    !["focus", "break", "longBreak"].includes(String(mode))
+  ) {
+    return null;
+  }
+  if (kind === "timer" && mode !== "timer") return null;
+  if (kind === "countdown" && mode !== "countdown") return null;
+  const durationMs = record.durationMs;
+  if (
+    typeof durationMs !== "number" ||
+    !Number.isInteger(durationMs) ||
+    durationMs < 1000 ||
+    durationMs > MAX_TIMER_MS
+  ) {
+    return null;
+  }
+  const label = record.label;
+  if (label !== null && (typeof label !== "string" || label.length > 24)) {
+    return null;
+  }
+  const countdownId = record.countdownId;
+  if (
+    countdownId !== null &&
+    (typeof countdownId !== "string" ||
+      countdownId.length === 0 ||
+      countdownId.length > 64)
+  ) {
+    return null;
+  }
+  if (kind === "countdown" && countdownId === null) return null;
+  const rawState = record.state;
+  if (typeof rawState !== "object" || rawState === null) return null;
+  const state = rawState as Record<string, unknown>;
+  let timer: TimerState;
+  if (state.status === "idle") {
+    timer = { status: "idle" };
+  } else if (state.status === "finished") {
+    timer = { status: "finished" };
+  } else if (
+    state.status === "running" &&
+    typeof state.endsAt === "number" &&
+    Number.isFinite(state.endsAt)
+  ) {
+    timer = { status: "running", endsAt: state.endsAt };
+  } else if (
+    state.status === "paused" &&
+    typeof state.remainingMs === "number" &&
+    Number.isFinite(state.remainingMs) &&
+    state.remainingMs > 0
+  ) {
+    timer = { status: "paused", remainingMs: state.remainingMs };
+  } else {
+    return null;
+  }
+  return {
+    version: 1,
+    kind,
+    mode: mode as TimerMode,
+    durationMs,
+    label,
+    countdownId,
+    state: timer,
+  };
+}
+
+/** Restores a running timer; a timer that ended while closed becomes finished. */
+export function restorePersistedTimer(
+  persisted: PersistedTimer,
+  now: number,
+): { state: TimerState; expired: boolean } {
+  if (persisted.state.status === "running" && persisted.state.endsAt <= now) {
+    return { state: { status: "finished" }, expired: true };
+  }
+  return { state: persisted.state, expired: false };
+}
