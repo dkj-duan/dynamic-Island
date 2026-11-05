@@ -50,6 +50,14 @@
   --panel-h: 174px;
 }
 
+:root[data-large-display="true"] .is-expanded[data-page="timer"] .island-panel {
+  --panel-h: 170px;
+}
+
+:root[data-large-display="true"] .is-expanded[data-page="water"] .island-panel {
+  --panel-h: 182px;
+}
+
 :root[data-large-display="true"] .is-expanded[data-page="mail"] .island-panel {
   --panel-h: 176px;
 }

@@ -52,7 +52,7 @@ export function AiSettings() {
     try {
       await emitTo("island", "ai-accounts-changed");
     } catch {
-      setMessage(t("已保存；灵动岛将在下次刷新时更新"));
+      setMessage(t("已保存；灵动岛会同步刷新"));
     }
     await reload();
   }
@@ -205,12 +205,15 @@ export function AiSettings() {
             <label className="field">
               <span>{t("本地服务端口")}</span>
               <input
-                type="number"
-                min="1"
-                max="65535"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={5}
                 value={port}
                 disabled={!desktop || busy}
-                onChange={(event) => setPort(event.target.value)}
+                onChange={(event) =>
+                  setPort(event.target.value.replace(/\D/g, ""))
+                }
                 required
               />
             </label>

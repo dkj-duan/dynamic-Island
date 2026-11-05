@@ -19,8 +19,9 @@ import {
   ChevronRight,
   ChevronUp,
   Bot,
+  RefreshCw,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { defaultAppearance, parseAppearance } from "../../domain/settings";
 import { loadAppearance } from "../../services/settingsRepository";
@@ -43,13 +44,47 @@ import {
 import "../../styles/index.css";
 import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
+import { TomatoIcon } from "./TomatoIcon";
 import { useMail } from "../mail/useMail";
 import { lyricAt, parseLyrics } from "../../domain/lyrics";
 import { useAiQuota } from "../ai/useAiQuota";
 import { QuotaRings } from "../ai/QuotaRings";
 import { ProviderIcon } from "../ai/ProviderIcon";
 import { aiProviderName, quotaRings } from "../../domain/aiQuota";
+import {
+  completeFocus,
+  defaultPomodoroSettings,
+  emptyProgress,
+  isLongBreakDue,
+  parsePomodoroSettings,
+  startFocusCycle,
+  type PomodoroProgress,
+  type PomodoroSettings,
+} from "../../domain/pomodoro";
+import {
+  loadPomodoroProgress,
+  loadPomodoroSettings,
+  savePomodoroProgress,
+} from "../../services/pomodoroRepository";
+import {
+  defaultWaterSettings,
+  parseWaterSettings,
+  waterCups,
+  waterPercent,
+  waterTone,
+  waterToneColors,
+  type WaterSettings,
+} from "../../domain/water";
+import {
+  addWater,
+  loadWaterSettings,
+  recordPomodoro,
+} from "../../services/waterRepository";
+import { useDailyStats } from "../stats/useDailyStats";
+import { WaterGlass } from "../water/WaterGlass";
 import { setLanguage, t } from "../../services/i18n";
+import pomodoroClock from "../../assets/pomodoro-clock.png";
+import waterDrop from "../../assets/water-drop.webp";
 
 type MediaState = {
   title: string;
@@ -64,8 +99,11 @@ const ISLAND_PAGES = [
   { id: "timer", label: "计时器" },
   { id: "music", label: "音乐" },
   { id: "mail", label: "邮件" },
+  { id: "water", label: "喝水" },
   { id: "ai", label: "AI 额度" },
 ] as const;
+
+type IslandTab = (typeof ISLAND_PAGES)[number]["id"];
 
 function formatMediaTime(seconds: number) {
   const total = Math.max(0, Math.floor(seconds));
@@ -134,6 +172,7 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
 export function IslandWindow() {
   const notice = useSystemNotice();
   const ai = useAiQuota();
+  const reloadAiQuota = ai.reload;
   const pinnedAi = ai.accounts.find((account) => account.pinned);
   const pinnedAiResult = pinnedAi ? ai.results[pinnedAi.id] : undefined;
   const [selectedAiId, setSelectedAiId] = useState("");
@@ -186,9 +225,33 @@ export function IslandWindow() {
   const [seconds, setSeconds] = useState("");
   const [durationError, setDurationError] = useState("");
   const [lastDuration, setLastDuration] = useState(0);
-  const [timerMode, setTimerMode] = useState<"timer" | "focus" | "break">(
-    "timer",
+  const [timerMode, setTimerMode] = useState<
+    "timer" | "focus" | "break" | "longBreak"
+  >("focus");
+  const [pomodoro, setPomodoro] = useState<PomodoroSettings>(
+    defaultPomodoroSettings,
   );
+  const [pomodoroProgress, setPomodoroProgress] = useState<PomodoroProgress>(
+    () => emptyProgress(Date.now()),
+  );
+  const pomodoroRef = useRef(pomodoro);
+  const progressRef = useRef(pomodoroProgress);
+  const timerModeRef = useRef(timerMode);
+  const finishCountedRef = useRef(false);
+  const dailyStats = useDailyStats(30);
+  const [water, setWater] = useState<WaterSettings>(defaultWaterSettings);
+  const waterRef = useRef(water);
+  const [waterReminder, setWaterReminder] = useState(false);
+  const [waterAdded, setWaterAdded] = useState(0);
+  const [waterAddedMl, setWaterAddedMl] = useState(0);
+  const [customWaterOpen, setCustomWaterOpen] = useState(false);
+  const [customWaterMl, setCustomWaterMl] = useState("300");
+  const [waterError, setWaterError] = useState("");
+  const lastReminderRef = useRef(Date.now());
+  const todayWater =
+    dailyStats.stats.find((stat) => stat.day === dailyStats.today)?.waterMl ??
+    0;
+  const waterTodayRef = useRef(todayWater);
   const [now, setNow] = useState(() => Date.now());
   const [media, setMedia] = useState<MediaState | null>(null);
   const mediaSample = useRef(Date.now());
@@ -272,10 +335,8 @@ export function IslandWindow() {
       window.clearTimeout(retry);
     };
   }, [mediaKey]);
-  const [activeTab, setActiveTab] = useState<"timer" | "music" | "mail" | "ai">(
-    "timer",
-  );
-  function selectPage(tab: "timer" | "music" | "mail" | "ai") {
+  const [activeTab, setActiveTab] = useState<IslandTab>("timer");
+  function selectPage(tab: IslandTab) {
     setActiveTab(tab);
     if (tab === "mail") {
       setMailIndex(0);
@@ -288,6 +349,11 @@ export function IslandWindow() {
       (index + direction + ISLAND_PAGES.length) % ISLAND_PAGES.length;
     selectPage(ISLAND_PAGES[next].id);
   }
+  // Opening the quota page pulls fresh numbers instead of showing up to two
+  // minutes of stale data.
+  useEffect(() => {
+    if (expanded && activeTab === "ai") void reloadAiQuota();
+  }, [expanded, activeTab, reloadAiQuota]);
   const [customTimerOpen, setCustomTimerOpen] = useState(false);
   const [mediaError, setMediaError] = useState("");
   useEffect(() => {
@@ -314,11 +380,137 @@ export function IslandWindow() {
     };
   }, []);
   useEffect(() => {
+    pomodoroRef.current = pomodoro;
+  }, [pomodoro]);
+  useEffect(() => {
+    progressRef.current = pomodoroProgress;
+  }, [pomodoroProgress]);
+  useEffect(() => {
+    timerModeRef.current = timerMode;
+  }, [timerMode]);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const [settings, progress] = await Promise.all([
+        loadPomodoroSettings(),
+        loadPomodoroProgress(),
+      ]);
+      if (!active) return;
+      pomodoroRef.current = settings;
+      progressRef.current = progress;
+      setPomodoro(settings);
+      setPomodoroProgress(progress);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<unknown>("pomodoro-changed", ({ payload }) => {
+      const next = parsePomodoroSettings(payload);
+      if (next && active) {
+        pomodoroRef.current = next;
+        setPomodoro(next);
+      }
+    })
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+  useEffect(() => {
+    waterRef.current = water;
+  }, [water]);
+  useEffect(() => {
+    waterTodayRef.current = todayWater;
+  }, [todayWater]);
+  useEffect(() => {
+    let active = true;
+    void loadWaterSettings().then((stored) => {
+      if (!active) return;
+      waterRef.current = stored;
+      setWater(stored);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<unknown>("water-changed", ({ payload }) => {
+      const next = parseWaterSettings(payload);
+      if (next && active) {
+        waterRef.current = next;
+        setWater(next);
+      }
+    })
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+  useEffect(() => {
+    const check = () => {
+      const settings = waterRef.current;
+      if (!settings.enabled || waterTodayRef.current >= settings.goalMl) {
+        return;
+      }
+      const hour = new Date().getHours();
+      if (hour < settings.activeStart || hour >= settings.activeEnd) return;
+      const current = Date.now();
+      if (
+        current - lastReminderRef.current <
+        settings.reminderMinutes * 60_000
+      ) {
+        return;
+      }
+      lastReminderRef.current = current;
+      setWaterReminder(true);
+    };
+    const id = window.setInterval(check, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  useEffect(() => {
+    if (!waterReminder) return;
+    const id = window.setTimeout(() => setWaterReminder(false), 30_000);
+    return () => window.clearTimeout(id);
+  }, [waterReminder]);
+  useEffect(() => {
     if (timer.status !== "running") return;
     const tick = () => {
       const current = Date.now();
       setNow(current);
-      if (current >= timer.endsAt) setTimer({ status: "finished" });
+      if (current >= timer.endsAt) {
+        if (!finishCountedRef.current) {
+          finishCountedRef.current = true;
+          if (timerModeRef.current === "focus") {
+            const next = completeFocus(progressRef.current, current);
+            progressRef.current = next;
+            setPomodoroProgress(next);
+            void savePomodoroProgress(next).catch(() => {});
+            void recordPomodoro(
+              pomodoroRef.current.focusMinutes,
+              current,
+            ).catch(() => {});
+          }
+        }
+        setTimer({ status: "finished" });
+      }
     };
     tick();
     const interval = window.setInterval(tick, 250);
@@ -500,16 +692,61 @@ export function IslandWindow() {
     setNow(current);
     setLastDuration(durationMs);
     setDurationError("");
+    finishCountedRef.current = false;
     setTimer({ status: "running", endsAt: current + durationMs });
+  }
+  function saveProgress(next: PomodoroProgress) {
+    progressRef.current = next;
+    setPomodoroProgress(next);
+    void savePomodoroProgress(next).catch(() => {});
+  }
+  function beginFocus(durationMs: number) {
+    const now = Date.now();
+    const next = startFocusCycle(progressRef.current, pomodoroRef.current, now);
+    if (next !== progressRef.current) saveProgress(next);
+    setTimerMode("focus");
+    startTimer(durationMs, now);
+  }
+  function beginBreak(kind: "break" | "longBreak") {
+    setTimerMode(kind);
+    startTimer(
+      (kind === "longBreak"
+        ? pomodoroRef.current.longBreakMinutes
+        : pomodoroRef.current.shortBreakMinutes) * 60_000,
+      Date.now(),
+    );
+  }
+  function presetMilliseconds() {
+    if (timerMode === "focus") return pomodoro.focusMinutes * 60_000;
+    if (timerMode === "break") return pomodoro.shortBreakMinutes * 60_000;
+    if (timerMode === "longBreak") return pomodoro.longBreakMinutes * 60_000;
+    return 0;
+  }
+  async function drinkWater(amountMl: number) {
+    setWaterError("");
+    try {
+      await addWater(amountMl);
+      lastReminderRef.current = Date.now();
+      setWaterReminder(false);
+      setWaterAddedMl(amountMl);
+      setWaterAdded((count) => count + 1);
+    } catch (error) {
+      setWaterError(String(error));
+    }
   }
   const display = selectIslandDisplay({
     timer: timer.status,
     mail: !!(mailHighlight && recentMail.length),
     notice: !!notice,
+    water: waterReminder,
     // Paused media stays in the panel but gives the island back.
     media: !!(media?.title && media.playing),
   });
   const remaining = formatRemaining(remainingMilliseconds(timer, now));
+  const waterPercentToday = waterPercent(todayWater, water.goalMl);
+  const waterCupsToday = waterCups(todayWater, water.cupMl);
+  const waterToneValue = waterTone(todayWater, water.goalMl);
+  const waterToneColor = waterToneColors[waterToneValue];
   // The mail capsule needs a little more room for the account line.
   // Only the capsule grows with the size setting; type stays the same.
   const collapsedBase =
@@ -628,6 +865,8 @@ export function IslandWindow() {
               setCopyStatus(null);
               // Opening the panel counts as handling the reminder.
               dismissHighlight();
+            } else if (!expanded && display === "water") {
+              setActiveTab("water");
             }
             void toggleExpanded();
           }}
@@ -637,6 +876,25 @@ export function IslandWindow() {
               <NoticeIcon kind={notice.kind} />
               <span className="system-notice-label">{notice.label}</span>
               <strong>{notice.value}</strong>
+            </span>
+          ) : display === "water" ? (
+            <span
+              className={`island-current island-water-current ${waterToneValue === "low" ? "is-low" : ""}`}
+              role="status"
+            >
+              <img
+                className="water-indicator water-drop-icon"
+                src={waterDrop}
+                alt=""
+                draggable={false}
+              />
+              <span className="compact-copy">
+                <span className="compact-primary">{t("该喝水了")}</span>
+                <span className="compact-secondary">
+                  {todayWater} / {water.goalMl} ml ·{" "}
+                  {waterCups(todayWater, water.cupMl)} {t("杯")}
+                </span>
+              </span>
             </span>
           ) : display === "mail" && capsuleMail ? (
             <span
@@ -681,15 +939,30 @@ export function IslandWindow() {
             </span>
           ) : display === "timer" || display === "finished" ? (
             <span className="island-current compact-timer timer-only">
-              <Timer className="timer-indicator" size={15} aria-hidden="true" />
+              {timerMode !== "timer" ? (
+                <img
+                  className="timer-indicator tomato-photo"
+                  src={pomodoroClock}
+                  alt=""
+                  draggable={false}
+                />
+              ) : (
+                <Timer
+                  className="timer-indicator"
+                  size={15}
+                  aria-hidden="true"
+                />
+              )}
               <span className="compact-copy">
                 <span className="compact-primary">
                   {t(
                     timerMode === "focus"
                       ? "专注"
-                      : timerMode === "break"
-                        ? "休息"
-                        : "计时器",
+                      : timerMode === "longBreak"
+                        ? "长休"
+                        : timerMode === "break"
+                          ? "短休"
+                          : "计时器",
                   )}{" "}
                   ·{" "}
                   {t(
@@ -701,7 +974,7 @@ export function IslandWindow() {
                   )}
                 </span>
               </span>
-              <span className="island-timer-value">
+              <span className={`island-timer-value mode-${timerMode}`}>
                 {timer.status === "finished" ? t("时间到") : remaining}
               </span>
             </span>
@@ -748,6 +1021,21 @@ export function IslandWindow() {
             <IslandContent appearance={appearance} />
           )}
         </button>
+        {!expanded && display === "water" && (
+          <button
+            className={`island-copy island-water-add ${waterToneValue === "low" ? "is-low" : ""}`}
+            aria-label={t("喝一杯")}
+            title={`${t("喝一杯")}（${water.cupMl} ml）`}
+            onClick={() => void drinkWater(water.cupMl)}
+          >
+            <img
+              className="water-drop-sm"
+              src={waterDrop}
+              alt=""
+              draggable={false}
+            />
+          </button>
+        )}
         {!expanded && display === "mail" && capsuleMail?.code && (
           <button
             className={`island-copy ${capsuleCopied ? "is-copied" : ""}`}
@@ -815,13 +1103,27 @@ export function IslandWindow() {
               })}
             </span>
             <div className="island-actions">
-              <button
-                aria-label={t("收起灵动岛")}
-                title={t("收起灵动岛")}
-                onClick={() => void toggleExpanded()}
-              >
-                <ChevronUp size={15} aria-hidden="true" />
-              </button>
+              {activeTab === "ai" && (
+                <button
+                  aria-label={t("刷新额度")}
+                  title={t("刷新额度")}
+                  onClick={() => void ai.reload()}
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                </button>
+              )}
+              {/* Without auto-collapse or hover mode this is the only way out
+                  of the expanded panel, so it stays for that case. */}
+              {appearance.expandTrigger !== "hover" &&
+                appearance.autoCollapseSeconds === 0 && (
+                  <button
+                    aria-label={t("收起灵动岛")}
+                    title={t("收起灵动岛")}
+                    onClick={() => void toggleExpanded()}
+                  >
+                    <ChevronUp size={15} aria-hidden="true" />
+                  </button>
+                )}
               <button
                 aria-label={t("打开设置")}
                 title={t("打开设置")}
@@ -839,7 +1141,117 @@ export function IslandWindow() {
             </div>
           </div>
           <div className="island-page" key={activeTab}>
-            {activeTab === "ai" ? (
+            {activeTab === "water" ? (
+              <div className="water-view">
+                <div className="water-hero">
+                  <WaterGlass
+                    percent={waterPercentToday}
+                    tone={waterToneValue}
+                    size="island"
+                    splashKey={waterAdded}
+                  />
+                  <div className="water-copy">
+                    <strong>
+                      {todayWater}
+                      <span> / {water.goalMl} ml</span>
+                    </strong>
+                    <span className="water-meta">
+                      <i
+                        className="water-tone-dot"
+                        style={{ background: waterToneColor }}
+                        aria-hidden="true"
+                      />
+                      <span style={{ color: waterToneColor }}>
+                        {waterPercentToday}%
+                      </span>
+                      <span>
+                        · {waterCupsToday} {t("杯")} ·{" "}
+                        {todayWater >= water.goalMl
+                          ? t("今日目标已完成")
+                          : `${t("还差")} ${water.goalMl - todayWater} ml`}
+                      </span>
+                    </span>
+                    <div className="water-actions">
+                      <button
+                        className="water-add"
+                        onClick={() => void drinkWater(water.cupMl)}
+                      >
+                        <img
+                          className="water-drop-sm"
+                          src={waterDrop}
+                          alt=""
+                          draggable={false}
+                        />
+                        {t("喝一杯")} {water.cupMl}ml
+                      </button>
+                      <button
+                        className="water-more"
+                        onClick={() => setCustomWaterOpen((open) => !open)}
+                      >
+                        {t("自定义")}
+                      </button>
+                    </div>
+                    {customWaterOpen && (
+                      <form
+                        className="water-custom-inline"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const amount = Number(customWaterMl);
+                          if (
+                            !Number.isInteger(amount) ||
+                            amount < 1 ||
+                            amount > 5000
+                          ) {
+                            setWaterError(t("请输入 1–5000 毫升"));
+                            return;
+                          }
+                          void drinkWater(amount);
+                          setCustomWaterOpen(false);
+                        }}
+                      >
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={4}
+                          placeholder="300"
+                          aria-label={t("自定义毫升")}
+                          value={customWaterMl}
+                          onChange={(event) => {
+                            setCustomWaterMl(
+                              event.target.value.replace(/\D/g, ""),
+                            );
+                            setWaterError("");
+                          }}
+                        />
+                        <span>ml</span>
+                        <button type="submit">{t("添加")}</button>
+                      </form>
+                    )}
+                    {waterError && (
+                      <span className="duration-error" role="alert">
+                        {waterError}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {waterAdded > 0 && (
+                  <span
+                    key={`water-flash-${waterAdded}`}
+                    className="water-flash"
+                    aria-hidden="true"
+                  >
+                    <img
+                      className="water-flash-drop"
+                      src={waterDrop}
+                      alt=""
+                      draggable={false}
+                    />
+                    +{waterAddedMl} ml
+                  </span>
+                )}
+              </div>
+            ) : activeTab === "ai" ? (
               <div className="quota-view">
                 {ai.accounts.length === 0 ? (
                   <div className="media-empty">
@@ -1205,9 +1617,11 @@ export function IslandWindow() {
                     {t(
                       timerMode === "focus"
                         ? "专注"
-                        : timerMode === "break"
-                          ? "休息"
-                          : "计时器",
+                        : timerMode === "longBreak"
+                          ? "长休"
+                          : timerMode === "break"
+                            ? "短休"
+                            : "计时器",
                     )}
                   </span>
                   <i aria-hidden="true" />
@@ -1223,13 +1637,67 @@ export function IslandWindow() {
                     )}
                   </span>
                 </div>
-                <div className={`timer-clock is-${timer.status}`}>
-                  {timer.status === "finished"
-                    ? t("时间到")
-                    : timer.status === "idle"
-                      ? formatRemaining(parseDuration(minutes, seconds) ?? 0)
-                      : remaining}
+                <div className="timer-main">
+                  {timerMode !== "timer" && (
+                    <img
+                      className="pomodoro-face"
+                      src={pomodoroClock}
+                      alt=""
+                      draggable={false}
+                    />
+                  )}
+                  <div
+                    className={`timer-clock is-${timer.status} mode-${timerMode}`}
+                  >
+                    {timer.status === "finished"
+                      ? t("时间到")
+                      : timer.status === "idle"
+                        ? formatRemaining(
+                            customTimerOpen
+                              ? (parseDuration(minutes, seconds) ?? 0)
+                              : presetMilliseconds() ||
+                                  (parseDuration(minutes, seconds) ?? 0),
+                          )
+                        : remaining}
+                  </div>
                 </div>
+                {timerMode !== "timer" && (
+                  <div className="timer-pomodoro">
+                    <span
+                      className="pomodoro-tomatoes"
+                      role="img"
+                      aria-label={`${t("本轮")} ${Math.min(
+                        pomodoroProgress.cycle,
+                        pomodoro.longBreakEvery,
+                      )}/${pomodoro.longBreakEvery}`}
+                    >
+                      {Array.from(
+                        { length: pomodoro.longBreakEvery },
+                        (_, index) =>
+                          index <
+                          Math.min(
+                            pomodoroProgress.cycle,
+                            pomodoro.longBreakEvery,
+                          ) ? (
+                            <img
+                              key={index}
+                              className="pomodoro-tomato"
+                              src={pomodoroClock}
+                              alt=""
+                              draggable={false}
+                            />
+                          ) : (
+                            <TomatoIcon key={index} filled={false} size={12} />
+                          ),
+                      )}
+                    </span>
+                    <i aria-hidden="true" />
+                    <span>
+                      {t("今日")} {pomodoroProgress.completedToday}{" "}
+                      {t("个番茄")}
+                    </span>
+                  </div>
+                )}
                 {timer.status === "idle" ? (
                   <>
                     {customTimerOpen ? (
@@ -1290,28 +1758,30 @@ export function IslandWindow() {
                       </form>
                     ) : (
                       <div className="timer-controls">
-                        {(
-                          [
-                            { minutes: 1, mode: "timer", label: "1 分钟" },
-                            { minutes: 5, mode: "break", label: "休息 5 分" },
-                            {
-                              minutes: 25,
-                              mode: "focus",
-                              label: "专注 25 分",
-                            },
-                          ] as const
-                        ).map((preset) => (
-                          <button
-                            key={preset.mode}
-                            onClick={() => {
-                              setTimerMode(preset.mode);
-                              startTimer(preset.minutes * 60_000, Date.now());
-                              setCustomTimerOpen(false);
-                            }}
-                          >
-                            {t(preset.label)}
-                          </button>
-                        ))}
+                        <button
+                          onClick={() => {
+                            beginFocus(pomodoro.focusMinutes * 60_000);
+                            setCustomTimerOpen(false);
+                          }}
+                        >
+                          {`${t("专注")} ${pomodoro.focusMinutes} ${t("分")}`}
+                        </button>
+                        <button
+                          onClick={() => {
+                            beginBreak("break");
+                            setCustomTimerOpen(false);
+                          }}
+                        >
+                          {`${t("短休")} ${pomodoro.shortBreakMinutes} ${t("分")}`}
+                        </button>
+                        <button
+                          onClick={() => {
+                            beginBreak("longBreak");
+                            setCustomTimerOpen(false);
+                          }}
+                        >
+                          {`${t("长休")} ${pomodoro.longBreakMinutes} ${t("分")}`}
+                        </button>
                         <button
                           className="is-ghost"
                           onClick={() => setCustomTimerOpen(true)}
@@ -1332,25 +1802,37 @@ export function IslandWindow() {
                       {t("知道了")}
                     </button>
                     <button
-                      onClick={() => startTimer(lastDuration, Date.now())}
+                      onClick={() =>
+                        timerMode === "focus"
+                          ? beginFocus(lastDuration)
+                          : startTimer(lastDuration, Date.now())
+                      }
                     >
                       {t("再计一次")}
                     </button>
-                    {timerMode !== "timer" && (
+                    {timerMode === "focus" ? (
                       <button
-                        onClick={() => {
-                          const next =
-                            timerMode === "focus" ? "break" : "focus";
-                          setTimerMode(next);
-                          startTimer(
-                            (next === "focus" ? 25 : 5) * 60_000,
-                            Date.now(),
-                          );
-                        }}
+                        onClick={() =>
+                          beginBreak(
+                            isLongBreakDue(pomodoroProgress.cycle, pomodoro)
+                              ? "longBreak"
+                              : "break",
+                          )
+                        }
                       >
-                        {timerMode === "focus" ? t("开始休息") : t("开始专注")}
+                        {isLongBreakDue(pomodoroProgress.cycle, pomodoro)
+                          ? t("开始长休")
+                          : t("开始短休")}
                       </button>
-                    )}
+                    ) : timerMode !== "timer" ? (
+                      <button
+                        onClick={() =>
+                          beginFocus(pomodoro.focusMinutes * 60_000)
+                        }
+                      >
+                        {t("开始专注")}
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="timer-controls">

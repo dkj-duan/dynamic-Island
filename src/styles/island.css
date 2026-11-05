@@ -93,12 +93,20 @@ html.island-window #root {
   --panel-h: 160px;
 }
 
+.is-expanded[data-page="timer"] .island-panel {
+  --panel-h: 160px;
+}
+
 .is-expanded[data-page="mail"] .island-panel {
   --panel-h: 162px;
 }
 
 .is-expanded[data-page="ai"] .island-panel {
   --panel-h: 150px;
+}
+
+.is-expanded[data-page="water"] .island-panel {
+  --panel-h: 168px;
 }
 
 /* The banner floats in its own lane, so the page grows instead of shrinking. */
@@ -142,6 +150,18 @@ html.island-window #root {
 .island-timer-value {
   font-weight: 600;
   letter-spacing: 0.03em;
+}
+
+.island-timer-value.mode-focus {
+  color: #ff7d6e;
+}
+
+.island-timer-value.mode-break {
+  color: #79d6a3;
+}
+
+.island-timer-value.mode-longBreak {
+  color: #7fb8f2;
 }
 
 .system-notice {
@@ -285,6 +305,16 @@ html.island-window #root {
   color: #fff;
   background: #303038;
   border-color: #4a4a53;
+}
+
+.island-water-current .water-indicator {
+  flex: none;
+}
+
+.island-water-add {
+  color: #a7d4ff;
+  border-color: #35506a;
+  background: #17222d;
 }
 
 .island-copy:active {
@@ -646,6 +676,10 @@ html.island-window #root {
 
 .island-page-title.is-ai {
   color: #8fc0f2;
+}
+
+.island-page-title.is-water {
+  color: #7fb8f2;
 }
 
 .island-head-clock {
@@ -1016,6 +1050,19 @@ html.island-window #root {
   font-variant-numeric: tabular-nums;
 }
 
+/* Phase colour: focus warms up, breaks cool down. */
+.timer-clock.mode-focus {
+  color: #ff7d6e;
+}
+
+.timer-clock.mode-break {
+  color: #79d6a3;
+}
+
+.timer-clock.mode-longBreak {
+  color: #7fb8f2;
+}
+
 .timer-clock.is-paused {
   color: #cfcfd6;
 }
@@ -1024,6 +1071,84 @@ html.island-window #root {
   color: var(--island-alert);
   font-size: 24px;
   font-weight: 600;
+}
+
+.timer-pomodoro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8d8d96;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-pomodoro i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #55555e;
+}
+
+.timer-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
+.pomodoro-face {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.35));
+}
+
+.pomodoro-tomatoes {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #56565f;
+}
+
+.pomodoro-tomato {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+}
+
+.tomato-photo {
+  width: 16px;
+  height: 16px;
+}
+
+.tomato-body,
+.tomato-leaf {
+  fill: currentColor;
+}
+
+.tomato:not(.is-filled) .tomato-body,
+.tomato:not(.is-filled) .tomato-leaf {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+}
+
+.tomato.is-filled {
+  color: #e2594c;
+}
+
+.tomato.is-filled .tomato-leaf {
+  fill: #7fbf75;
+}
+
+.tomato-shine {
+  fill: rgb(255 255 255 / 0.35);
+}
+
+.tomato:not(.is-filled) .tomato-shine {
+  display: none;
 }
 
 .timer-controls {
@@ -1209,7 +1334,6 @@ html.island-window #root {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 8px;
 }
 
@@ -1258,9 +1382,14 @@ html.island-window #root {
   text-overflow: ellipsis;
 }
 
+/* Takes the slack between the fixed subject row and the fixed pager, so the
+   pager does not move when a mail has no code card. */
 .island-mail-body {
-  flex: none;
+  flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .island-mail-code {
@@ -1325,6 +1454,14 @@ html.island-window #root {
   margin-top: 0;
   color: #92929b;
   font-size: 9px;
+}
+
+.island-mail-navigation span {
+  /* Reserve room for the widest label ("10 / 10") so the arrows keep their
+     click positions when the page number gains a digit. */
+  min-width: 30px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .island-mail-navigation button {
@@ -1601,8 +1738,7 @@ html.island-window #root {
 .quota-ring-center .quota-ring-logo .provider-icon {
   width: 20px;
   height: 20px;
-  border-radius: 50%;
-  background: transparent;
+  border-radius: 6px;
 }
 
 .quota-ring-center strong {
@@ -1695,10 +1831,6 @@ html.island-window #root {
   position: absolute;
   display: grid;
   place-items: center;
-}
-
-.quota-ring-logo .provider-icon {
-  background: #101015;
 }
 
 /* Currency balances have no bar, so keep label and value together. */
@@ -1824,4 +1956,197 @@ html.island-window #root {
   width: 26px;
   height: 26px;
   border-radius: 8px;
+}
+
+/* —— Water page: tank gauge, quick add, reminder capsule —— */
+.water-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.water-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.water-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.water-copy strong {
+  color: #eaf6ff;
+  font-size: 20px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.water-copy strong span {
+  color: #8b97a5;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.water-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #8b97a5;
+  font-size: 9px;
+}
+
+.water-tone-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.island-water-current.is-low .compact-primary {
+  color: #f0b26b;
+}
+
+.island-water-current.is-low .water-indicator {
+  filter: drop-shadow(0 0 5px rgb(240 167 94 / 0.6));
+}
+
+.island-water-add.is-low {
+  color: #f0b26b;
+  border-color: #6a4a2a;
+  background: #2a2015;
+}
+
+.water-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.water-actions button {
+  height: 24px;
+  border-radius: 999px;
+  font-size: 9px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.water-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border: 1px solid #37618a;
+  background: #1b3448;
+  color: #bfe2ff;
+}
+
+.water-add:hover {
+  background: #224058;
+}
+
+.water-more {
+  padding: 0 10px;
+  border: 1px solid #32323a;
+  background: transparent;
+  color: #9aa3ad;
+}
+
+.water-more:hover {
+  color: #d8d8de;
+}
+
+.water-custom-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.water-custom-inline input {
+  width: 58px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #35506a;
+  border-radius: 999px;
+  background: #131c26;
+  color: #dceeff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.water-custom-inline input::placeholder {
+  color: #6f7d8a;
+}
+
+.water-custom-inline input:focus {
+  border-color: #4f83b3;
+  box-shadow: 0 0 0 2px rgb(79 131 179 / 0.22);
+}
+
+.water-custom-inline span {
+  color: #8b97a5;
+  font-size: 9px;
+}
+
+.water-custom-inline button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #37618a;
+  border-radius: 999px;
+  background: #1b3448;
+  color: #bfe2ff;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.water-flash {
+  position: absolute;
+  top: 2px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #9fd4ff;
+  font-size: 11px;
+  font-weight: 650;
+  pointer-events: none;
+  animation: water-flash 1100ms var(--ease-out) forwards;
+}
+
+.water-flash-drop {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+}
+
+@keyframes water-flash {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .water-flash {
+    animation: none;
+  }
 }

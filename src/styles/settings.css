@@ -1211,3 +1211,427 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.settings-columns.is-stretch {
+  align-items: stretch;
+}
+
+.settings-columns.is-stretch > .settings-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-columns.is-stretch > .settings-card .daily-chart {
+  flex: 1;
+}
+
+.settings-columns.is-stretch > .settings-card .daily-chart-plot {
+  flex: 1;
+  height: auto;
+  min-height: 132px;
+}
+
+/* —— Water dashboard —— */
+.settings-water-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 26px;
+  padding: 22px 24px;
+}
+
+/* —— Pomodoro hero —— */
+.settings-pomodoro-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 26px;
+  padding: 20px 24px;
+}
+
+.settings-pomodoro-art {
+  width: 88px;
+  height: 88px;
+}
+
+.settings-pomodoro-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgb(226 89 76 / 0.28));
+}
+
+.settings-pomodoro-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-pomodoro-value {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.settings-pomodoro-value strong {
+  color: var(--settings-text-strong);
+  font-size: 40px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-pomodoro-value span {
+  color: var(--settings-muted);
+  font-size: 13px;
+}
+
+.settings-pomodoro-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+.settings-pomodoro-meta i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--settings-faint);
+}
+
+.settings-pomodoro-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.settings-pomodoro-chips span {
+  padding: 5px 11px;
+  border: 1px solid var(--settings-border-soft);
+  border-radius: 999px;
+  background: var(--settings-input-bg);
+  color: var(--settings-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.settings-water-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.settings-eyebrow {
+  color: var(--settings-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.settings-water-value {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.settings-water-value strong {
+  color: var(--settings-text-strong);
+  font-size: 40px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-water-value span {
+  color: var(--settings-muted);
+  font-size: 13px;
+}
+
+.settings-water-progress {
+  width: min(100%, 340px);
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--settings-input-bg);
+}
+
+.settings-water-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5aa7f0, #8cc8ff);
+  transition: width 500ms ease;
+}
+
+.settings-water-progress.tone-low span {
+  background: linear-gradient(90deg, #e59a4a, #ffc37a);
+}
+
+.settings-water-progress.tone-done span {
+  background: linear-gradient(90deg, #4fbf8b, #8fe3ba);
+}
+
+.settings-water-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+.settings-water-meta i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--settings-faint);
+}
+
+.settings-water-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.settings-water-drink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-water-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-water-custom input {
+  width: 90px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--settings-input-border);
+  border-radius: 8px;
+  background: var(--settings-input-bg);
+  color: var(--settings-text);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.settings-water-custom input:focus {
+  border-color: var(--settings-focus);
+  box-shadow: 0 0 0 2px rgb(120 120 140 / 0.18);
+}
+
+.settings-water-custom span {
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+.settings-water-status {
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+.settings-danger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--settings-border-soft);
+}
+
+.settings-danger-row > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settings-danger-row strong {
+  color: var(--settings-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-danger-row span {
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+.settings-danger-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.btn-danger {
+  border: 1px solid rgb(219 142 120 / 0.45);
+  background: rgb(219 142 120 / 0.14);
+  color: var(--settings-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgb(219 142 120 / 0.24);
+}
+
+.settings-stats-strip {
+  display: flex;
+  gap: 26px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--settings-border-soft);
+}
+
+.settings-stats-strip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-stats-strip span {
+  color: var(--settings-muted);
+  font-size: 10px;
+}
+
+.settings-stats-strip strong {
+  color: var(--settings-text-strong);
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— Daily chart —— */
+.daily-chart {
+  --chart-color: #7fb8f2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.daily-chart-plot {
+  position: relative;
+  height: 132px;
+}
+
+.daily-chart-grid {
+  position: absolute;
+  right: 0;
+  bottom: 50%;
+  left: 0;
+  border-top: 1px dashed var(--settings-border-soft);
+}
+
+.daily-chart-baseline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-top: 1px solid var(--settings-border);
+}
+
+.daily-chart-goal {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px dashed rgb(127 184 242 / 0.6);
+}
+
+.daily-chart-goal-label {
+  position: absolute;
+  left: 0;
+  padding-right: 5px;
+  background: var(--settings-surface);
+  color: var(--settings-muted);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.daily-chart-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+}
+
+.daily-chart-col {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.daily-chart-bar {
+  width: min(9px, 62%);
+  height: var(--bar-height);
+  min-height: 2px;
+  border-radius: 3px 3px 1px 1px;
+  background: var(--chart-color);
+  opacity: 0.36;
+  transition: opacity 150ms ease;
+}
+
+.daily-chart-col:hover .daily-chart-bar {
+  opacity: 0.7;
+}
+
+.daily-chart-col.is-today .daily-chart-bar {
+  opacity: 1;
+}
+
+.daily-chart-col.is-empty .daily-chart-bar {
+  height: 2px;
+  opacity: 0.16;
+}
+
+.daily-chart-labels {
+  display: flex;
+}
+
+.daily-chart-labels span {
+  flex: 1;
+  text-align: center;
+  color: var(--settings-muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .settings-water-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-water-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .settings-pomodoro-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-pomodoro-chips {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+}

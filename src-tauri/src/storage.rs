@@ -6,10 +6,10 @@ use std::{
     sync::Mutex,
     time::Duration,
 };
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 const DB_NAME: &str = "dynamic-island.sqlite3";
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 #[derive(Serialize, Deserialize)]
 struct Bootstrap {
@@ -60,6 +60,51 @@ fn initialize_connection(mut conn: Connection) -> Result<Connection, String> {
     if version < 3 {
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         tx.execute_batch("CREATE TABLE ai_accounts (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, name TEXT NOT NULL, secret BLOB NOT NULL, pinned INTEGER NOT NULL DEFAULT 0); PRAGMA user_version = 3;").map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+    if version < 4 {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch("CREATE TABLE daily_stats (day TEXT PRIMARY KEY NOT NULL, water_ml INTEGER NOT NULL DEFAULT 0, pomodoros INTEGER NOT NULL DEFAULT 0, focus_seconds INTEGER NOT NULL DEFAULT 0); PRAGMA user_version = 4;").map_err(|e| e.to_string())?;
+        // Carry the pomodoro count stored for the current day into daily_stats.
+        let focus_minutes = tx
+            .query_row(
+                "SELECT value FROM settings WHERE key='pomodoro'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+            .and_then(|value| {
+                value
+                    .get("focusMinutes")
+                    .and_then(serde_json::Value::as_u64)
+            })
+            .unwrap_or(25);
+        let progress = tx
+            .query_row(
+                "SELECT value FROM settings WHERE key='pomodoro_progress'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(progress) = progress
+            && let Ok(value) = serde_json::from_str::<serde_json::Value>(&progress)
+            && let Some(day) = value.get("day").and_then(serde_json::Value::as_str)
+        {
+            let done = value
+                .get("completedToday")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            if valid_day(day) && done > 0 {
+                tx.execute(
+                    "INSERT INTO daily_stats(day, water_ml, pomodoros, focus_seconds) VALUES (?1, 0, ?2, ?3)",
+                    params![day, done, done * focus_minutes * 60],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
         tx.commit().map_err(|e| e.to_string())?;
     }
     Ok(conn)
@@ -190,6 +235,316 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
 }
 
 const POSITION_KEY: &str = "island_position";
+const POMODORO_KEY: &str = "pomodoro";
+const POMODORO_PROGRESS_KEY: &str = "pomodoro_progress";
+const WATER_KEY: &str = "water";
+
+fn load_json_setting(storage: &Storage, key: &str) -> Result<Option<serde_json::Value>, String> {
+    let db = storage.0.lock().map_err(|e| e.to_string())?;
+    let value: Option<String> = db
+        .connection
+        .query_row("SELECT value FROM settings WHERE key=?1", [key], |row| {
+            row.get(0)
+        })
+        .optional()
+        .map_err(|e| e.to_string())?;
+    value
+        .map(|stored| serde_json::from_str(&stored).map_err(|e| e.to_string()))
+        .transpose()
+}
+
+fn save_json_setting(
+    storage: &Storage,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    let db = storage.0.lock().map_err(|e| e.to_string())?;
+    db.connection
+        .execute(
+            "INSERT INTO settings(key,value) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            params![key, value.to_string()],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn setting_number(value: &serde_json::Value, key: &str, min: u64, max: u64) -> bool {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_u64)
+        .is_some_and(|number| (min..=max).contains(&number))
+}
+
+fn validate_pomodoro(value: &serde_json::Value) -> Result<(), String> {
+    if value.get("version").and_then(serde_json::Value::as_u64) != Some(1)
+        || !setting_number(value, "focusMinutes", 1, 180)
+        || !setting_number(value, "shortBreakMinutes", 1, 60)
+        || !setting_number(value, "longBreakMinutes", 1, 120)
+        || !setting_number(value, "longBreakEvery", 2, 12)
+    {
+        return Err("番茄钟设置格式无效，未保存".into());
+    }
+    Ok(())
+}
+
+fn valid_day(day: &str) -> bool {
+    day.len() == 10
+        && day.as_bytes().iter().enumerate().all(|(index, byte)| {
+            if index == 4 || index == 7 {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+}
+
+fn validate_pomodoro_progress(value: &serde_json::Value) -> Result<(), String> {
+    let day_valid = value
+        .get("day")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(valid_day);
+    if value.get("version").and_then(serde_json::Value::as_u64) != Some(1)
+        || !day_valid
+        || !setting_number(value, "completedToday", 0, 999)
+        || !setting_number(value, "cycle", 0, 99)
+    {
+        return Err("番茄钟进度格式无效，未保存".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_pomodoro(storage: State<'_, Storage>) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), POMODORO_KEY)
+}
+
+#[tauri::command]
+pub fn save_pomodoro(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能修改番茄钟设置".into());
+    }
+    validate_pomodoro(&value)?;
+    save_json_setting(storage.inner(), POMODORO_KEY, &value)
+}
+
+#[tauri::command]
+pub fn load_pomodoro_progress(
+    storage: State<'_, Storage>,
+) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), POMODORO_PROGRESS_KEY)
+}
+
+#[tauri::command]
+pub fn save_pomodoro_progress(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if window.label() != "island" {
+        return Err("当前窗口不能保存番茄钟进度".into());
+    }
+    validate_pomodoro_progress(&value)?;
+    save_json_setting(storage.inner(), POMODORO_PROGRESS_KEY, &value)
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyStat {
+    day: String,
+    water_ml: i64,
+    pomodoros: i64,
+    focus_seconds: i64,
+}
+
+fn validate_water(value: &serde_json::Value) -> Result<(), String> {
+    let start = value.get("activeStart").and_then(serde_json::Value::as_u64);
+    let end = value.get("activeEnd").and_then(serde_json::Value::as_u64);
+    let (Some(start), Some(end)) = (start, end) else {
+        return Err("喝水设置格式无效，未保存".into());
+    };
+    if value.get("version").and_then(serde_json::Value::as_u64) != Some(1)
+        || value
+            .get("enabled")
+            .and_then(serde_json::Value::as_bool)
+            .is_none()
+        || !setting_number(value, "goalMl", 500, 10000)
+        || !setting_number(value, "cupMl", 50, 2000)
+        || !setting_number(value, "reminderMinutes", 15, 240)
+        || start > 23
+        || !(1..=24).contains(&end)
+        || start >= end
+    {
+        return Err("喝水设置格式无效，未保存".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_water(storage: State<'_, Storage>) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), WATER_KEY)
+}
+
+#[tauri::command]
+pub fn save_water(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能修改喝水设置".into());
+    }
+    validate_water(&value)?;
+    save_json_setting(storage.inner(), WATER_KEY, &value)
+}
+
+fn read_daily_stat(connection: &Connection, day: &str) -> Result<DailyStat, String> {
+    connection
+        .query_row(
+            "SELECT day, water_ml, pomodoros, focus_seconds FROM daily_stats WHERE day=?1",
+            [day],
+            |row| {
+                Ok(DailyStat {
+                    day: row.get(0)?,
+                    water_ml: row.get(1)?,
+                    pomodoros: row.get(2)?,
+                    focus_seconds: row.get(3)?,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_daily_stats(storage: State<'_, Storage>, limit: u32) -> Result<Vec<DailyStat>, String> {
+    let limit = limit.clamp(1, 366);
+    let db = storage.0.lock().map_err(|e| e.to_string())?;
+    let mut statement = db
+        .connection
+        .prepare("SELECT day, water_ml, pomodoros, focus_seconds FROM daily_stats ORDER BY day DESC LIMIT ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([limit], |row| {
+            Ok(DailyStat {
+                day: row.get(0)?,
+                water_ml: row.get(1)?,
+                pomodoros: row.get(2)?,
+                focus_seconds: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_water(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    day: String,
+    amount_ml: u32,
+) -> Result<DailyStat, String> {
+    if !matches!(window.label(), "main" | "island") {
+        return Err("当前窗口不能记录饮水".into());
+    }
+    if !valid_day(&day) || amount_ml == 0 || amount_ml > 5000 {
+        return Err("饮水记录无效".into());
+    }
+    let stat = {
+        let db = storage.0.lock().map_err(|e| e.to_string())?;
+        db.connection
+            .execute(
+                "INSERT INTO daily_stats(day, water_ml) VALUES (?1, ?2) ON CONFLICT(day) DO UPDATE SET water_ml = water_ml + excluded.water_ml",
+                params![day, amount_ml],
+            )
+            .map_err(|e| e.to_string())?;
+        read_daily_stat(&db.connection, &day)?
+    };
+    let _ = app.emit("daily-stats-changed", &stat);
+    Ok(stat)
+}
+
+fn reset_water_for_day(connection: &Connection, day: &str) -> Result<DailyStat, String> {
+    connection
+        .execute("UPDATE daily_stats SET water_ml = 0 WHERE day=?1", [day])
+        .map_err(|e| e.to_string())?;
+    connection
+        .query_row(
+            "SELECT day, water_ml, pomodoros, focus_seconds FROM daily_stats WHERE day=?1",
+            [day],
+            |row| {
+                Ok(DailyStat {
+                    day: row.get(0)?,
+                    water_ml: row.get(1)?,
+                    pomodoros: row.get(2)?,
+                    focus_seconds: row.get(3)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| e.to_string())
+        .map(|stat| {
+            stat.unwrap_or(DailyStat {
+                day: day.to_string(),
+                water_ml: 0,
+                pomodoros: 0,
+                focus_seconds: 0,
+            })
+        })
+}
+
+#[tauri::command]
+pub fn reset_water(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    day: String,
+) -> Result<DailyStat, String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能重置饮水数据".into());
+    }
+    if !valid_day(&day) {
+        return Err("日期无效".into());
+    }
+    let stat = {
+        let db = storage.0.lock().map_err(|e| e.to_string())?;
+        reset_water_for_day(&db.connection, &day)?
+    };
+    let _ = app.emit("daily-stats-changed", &stat);
+    Ok(stat)
+}
+
+#[tauri::command]
+pub fn record_pomodoro(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    day: String,
+    focus_minutes: u32,
+) -> Result<DailyStat, String> {
+    if window.label() != "island" {
+        return Err("当前窗口不能记录专注".into());
+    }
+    if !valid_day(&day) || focus_minutes == 0 || focus_minutes > 180 {
+        return Err("专注记录无效".into());
+    }
+    let stat = {
+        let db = storage.0.lock().map_err(|e| e.to_string())?;
+        db.connection
+            .execute(
+                "INSERT INTO daily_stats(day, pomodoros, focus_seconds) VALUES (?1, 1, ?2) ON CONFLICT(day) DO UPDATE SET pomodoros = pomodoros + 1, focus_seconds = focus_seconds + excluded.focus_seconds",
+                params![day, focus_minutes * 60],
+            )
+            .map_err(|e| e.to_string())?;
+        read_daily_stat(&db.connection, &day)?
+    };
+    let _ = app.emit("daily-stats-changed", &stat);
+    Ok(stat)
+}
 
 /// Where the island window was last dragged to, in physical screen pixels.
 pub fn load_island_position(storage: &Storage) -> Option<(i32, i32)> {
@@ -393,6 +748,48 @@ fn open_existing_directory(storage: &Storage, directory: String) -> Result<Strin
 mod tests {
     use super::*;
     #[test]
+    fn validates_pomodoro_settings_and_progress() {
+        assert!(
+            validate_pomodoro(&serde_json::json!({
+                "version": 1,
+                "focusMinutes": 25,
+                "shortBreakMinutes": 5,
+                "longBreakMinutes": 15,
+                "longBreakEvery": 4
+            }))
+            .is_ok()
+        );
+        assert!(
+            validate_pomodoro(&serde_json::json!({
+                "version": 1,
+                "focusMinutes": 0,
+                "shortBreakMinutes": 5,
+                "longBreakMinutes": 15,
+                "longBreakEvery": 4
+            }))
+            .is_err()
+        );
+        assert!(
+            validate_pomodoro_progress(&serde_json::json!({
+                "version": 1,
+                "day": "2026-11-05",
+                "completedToday": 2,
+                "cycle": 1
+            }))
+            .is_ok()
+        );
+        assert!(
+            validate_pomodoro_progress(&serde_json::json!({
+                "version": 1,
+                "day": "2026/11/05",
+                "completedToday": 2,
+                "cycle": 1
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn migrates_legacy_settings_and_preserves_database_when_switching() {
         let root = tempfile::tempdir().unwrap();
         let config = root.path().join("config");
@@ -490,7 +887,7 @@ mod tests {
                 .connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            3
+            4
         );
         let conn = Connection::open(broken.join(DB_NAME)).unwrap();
         conn.execute_batch("CREATE TABLE settings (bad TEXT); CREATE TABLE mail_accounts (bad TEXT); PRAGMA user_version = 2;").unwrap();
@@ -514,11 +911,82 @@ mod tests {
         assert_eq!(
             conn.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            3
+            4
         );
         assert!(
             conn.prepare("SELECT id,provider,name,secret,pinned FROM ai_accounts")
                 .is_ok()
         );
+        assert!(
+            conn.prepare("SELECT day,water_ml,pomodoros,focus_seconds FROM daily_stats")
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn migrates_pomodoro_progress_into_daily_stats() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL); \
+             CREATE TABLE mail_accounts (id TEXT PRIMARY KEY NOT NULL, email TEXT NOT NULL, host TEXT NOT NULL, port INTEGER NOT NULL, uid_validity INTEGER NOT NULL, last_uid INTEGER NOT NULL); \
+             CREATE TABLE ai_accounts (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, name TEXT NOT NULL, secret BLOB NOT NULL, pinned INTEGER NOT NULL DEFAULT 0); \
+             INSERT INTO settings VALUES ('pomodoro', '{\"version\":1,\"focusMinutes\":30,\"shortBreakMinutes\":5,\"longBreakMinutes\":15,\"longBreakEvery\":4}'); \
+             INSERT INTO settings VALUES ('pomodoro_progress', '{\"version\":1,\"day\":\"2026-11-05\",\"completedToday\":2,\"cycle\":2}'); \
+             PRAGMA user_version = 3;",
+        )
+        .unwrap();
+        let conn = initialize_connection(conn).unwrap();
+        let (pomodoros, focus_seconds): (i64, i64) = conn
+            .query_row(
+                "SELECT pomodoros, focus_seconds FROM daily_stats WHERE day='2026-11-05'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(pomodoros, 2);
+        assert_eq!(focus_seconds, 2 * 30 * 60);
+    }
+
+    #[test]
+    fn validates_water_settings() {
+        let valid = serde_json::json!({
+            "version": 1,
+            "goalMl": 2000,
+            "cupMl": 250,
+            "reminderMinutes": 60,
+            "activeStart": 9,
+            "activeEnd": 21,
+            "enabled": true
+        });
+        assert!(validate_water(&valid).is_ok());
+        let mut reversed = valid.clone();
+        reversed["activeStart"] = serde_json::json!(21);
+        reversed["activeEnd"] = serde_json::json!(9);
+        assert!(validate_water(&reversed).is_err());
+        let mut small_cup = valid.clone();
+        small_cup["cupMl"] = serde_json::json!(10);
+        assert!(validate_water(&small_cup).is_err());
+        let mut large_goal = valid;
+        large_goal["goalMl"] = serde_json::json!(20000);
+        assert!(validate_water(&large_goal).is_err());
+    }
+
+    #[test]
+    fn resets_only_the_water_for_a_day() {
+        let storage = memory_storage();
+        let db = storage.0.lock().unwrap();
+        db.connection
+            .execute(
+                "INSERT INTO daily_stats(day, water_ml, pomodoros, focus_seconds) VALUES ('2026-11-05', 1200, 3, 4500)",
+                [],
+            )
+            .unwrap();
+        let stat = reset_water_for_day(&db.connection, "2026-11-05").unwrap();
+        assert_eq!(stat.water_ml, 0);
+        assert_eq!(stat.pomodoros, 3);
+        assert_eq!(stat.focus_seconds, 4500);
+        let empty = reset_water_for_day(&db.connection, "2026-11-06").unwrap();
+        assert_eq!(empty.water_ml, 0);
+        assert_eq!(empty.pomodoros, 0);
     }
 }

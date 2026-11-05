@@ -24,6 +24,7 @@ const en: Record<string, string> = {
   存储: "Storage",
   关于: "About",
   通用: "General",
+  功能: "Tools",
   提醒源: "Reminders",
   系统: "System",
   已自动保存并同步: "Saved and synced",
@@ -174,6 +175,7 @@ const en: Record<string, string> = {
   // —— AI quota ——
   账户与额度: "Accounts & quotas",
   刷新: "Refresh",
+  刷新额度: "Refresh quota",
   "每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。":
     "Refreshes every two minutes; the pinned account shows on the island.",
   "请在桌面应用中配置账户。": "Configure accounts in the desktop app.",
@@ -192,8 +194,7 @@ const en: Record<string, string> = {
   "密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。":
     "Keys are encrypted for the current Windows user and stored in the database; re-add them after switching users or machines.",
   账户已保存并开始查询: "Account saved; querying now",
-  "已保存；灵动岛将在下次刷新时更新":
-    "Saved; the island picks it up on the next refresh",
+  "已保存；灵动岛会同步刷新": "Saved; the island refreshes with it",
   "正在查询…": "Checking…",
   "Codex（本机登录）": "Codex (local login)",
   "使用已登录的本机 Codex CLI 查询 ChatGPT 额度，不需要复制密钥。":
@@ -253,6 +254,76 @@ const en: Record<string, string> = {
   数据: "Data",
   "本机 SQLite，凭据使用 Windows 用户加密":
     "Local SQLite; credentials encrypted per Windows user",
+  // —— Pomodoro ——
+  番茄钟: "Pomodoro",
+  "配置专注与休息时长，进度会跨应用重启保留。":
+    "Set focus and break lengths; progress survives restarts.",
+  "专注时长（分钟）": "Focus (minutes)",
+  "短休息（分钟）": "Short break (minutes)",
+  "长休息（分钟）": "Long break (minutes)",
+  每几轮长休一次: "Long break every N rounds",
+  "专注自然结束后记为一个番茄；休息时长由已完成轮数决定，进度会在重启后保留。":
+    "Each finished focus counts as a pomodoro; break length follows the completed rounds, and progress is kept across restarts.",
+  "只有自然结束的专注会累计番茄；手动取消不计入。达到长休间隔后，下一次休息自动使用长休时长。":
+    "Only a focus that runs to the end counts; cancelling does not. After the set number of rounds, the next break uses the long-break length.",
+  "时长超出允许范围，未保存": "Duration outside the allowed range — not saved",
+  保存: "Save",
+  "保存中…": "Saving…",
+  已保存: "Saved",
+
+  // —— Water ——
+  喝水: "Water",
+  该喝水了: "Time to drink",
+  喝一杯: "Drink a cup",
+  杯: "cups",
+  还差: "Still",
+  添加: "Add",
+  自定义毫升: "Custom amount",
+  今日目标已完成: "Daily goal reached",
+  "请输入 1–5000 毫升": "Enter 1–5000 ml",
+  今日饮水: "Today's water",
+  "每次记录都会同步到灵动岛。": "Every entry syncs to the island.",
+  "每日目标（毫升）": "Daily goal (ml)",
+  "每杯水量（毫升）": "Cup size (ml)",
+  "提醒间隔（分钟）": "Reminder interval (minutes)",
+  提醒时段: "Reminder hours",
+  结束时间: "End time",
+  提醒开始时间: "Reminder start time",
+  提醒结束时间: "Reminder end time",
+  开启喝水提醒: "Enable water reminders",
+  到达间隔且今日未达标时在灵动岛提示:
+    "Remind on the island when the interval passes and the goal is unmet",
+  目标与提醒: "Goal & reminders",
+  "提醒只在灵动岛显示，不会弹系统通知。":
+    "Reminders stay on the island; no system notifications.",
+  "近 30 天饮水": "Water in the last 30 days",
+  "30 天总量": "30-day total",
+  日均: "Daily average",
+  达标天数: "Days reached",
+  天: "days",
+  "虚线为每日目标，今天高亮显示。":
+    "The dashed line marks the daily goal; today is highlighted.",
+  "喝水设置超出允许范围，未保存": "Water settings out of range — not saved",
+  喝水提醒: "Water reminders",
+  "设置每日目标与提醒时段，记录饮水并查看近 30 天数据。":
+    "Set a daily goal and reminder hours, log water, and review 30 days of data.",
+  重置今日饮水: "Reset today's water",
+  "清零今天的饮水量和杯数，统计历史不受影响。":
+    "Clears today's water and cup count; history stays intact.",
+  确认重置: "Confirm reset",
+  已重置今日饮水: "Today's water reset",
+
+  // —— Focus stats ——
+  专注统计: "Focus stats",
+  "近 30 天的完成情况，今天高亮显示。":
+    "Completions over the last 30 days; today is highlighted.",
+  今日番茄: "Pomodoros today",
+  今日专注: "Focus today",
+  "近 30 天": "Last 30 days",
+  "近 30 天番茄": "Pomodoros in 30 days",
+  分钟: "minutes",
+  小时: "hours",
+
   运行环境: "Runtime",
   项目地址: "Project",
   查看数据目录: "Data folder",
@@ -261,17 +332,15 @@ const en: Record<string, string> = {
   计时器: "Timer",
   音乐: "Music",
   专注: "Focus",
-  休息: "Break",
+  短休: "Short break",
+  长休: "Long break",
   已结束: "Finished",
   已暂停: "Paused",
   进行中: "Running",
   选择时长: "Pick a duration",
   时间到: "Time's up",
-  "1 分钟": "1 min",
-  "休息 5 分": "Break 5 min",
-  "专注 25 分": "Focus 25 min",
   自定义: "Custom",
-  分: "min",
+  分: "m",
   秒: "sec",
   开始: "Start",
   返回: "Back",
@@ -281,8 +350,12 @@ const en: Record<string, string> = {
   "+1 分钟": "+1 min",
   知道了: "Dismiss",
   再计一次: "Restart",
-  开始休息: "Start break",
   开始专注: "Start focus",
+  开始短休: "Start short break",
+  开始长休: "Start long break",
+  本轮: "Cycle",
+  今日: "Today",
+  个番茄: "pomodoros",
   "请输入有效时间（秒数为 0–59）": "Enter a valid time (seconds 0–59)",
   未知艺术家: "Unknown artist",
   "暂无播放进度，无法同步歌词": "No playback position — lyrics unavailable",

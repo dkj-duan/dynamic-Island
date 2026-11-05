@@ -14,6 +14,7 @@ export type AiQuota = {
   items: { label: string; value: string }[];
 };
 export type AiResult = { quota?: AiQuota; error?: string; updatedAt: number };
+type AiQuotaUpdate = { id: string; quota: AiQuota; updatedAt: number };
 export function useAiQuota() {
   const [accounts, setAccounts] = useState<AiAccount[]>([]);
   const [results, setResults] = useState<Record<string, AiResult>>({});
@@ -74,18 +75,31 @@ export function useAiQuota() {
     active.current = true;
     void reload();
     const timer = window.setInterval(() => void reload(), 120_000);
-    let unlisten: (() => void) | undefined;
-    if (isTauri())
-      void listen("ai-accounts-changed", () => void reload())
+    const unlisteners: (() => void)[] = [];
+    const track = (pending: Promise<() => void>) => {
+      void pending
         .then((fn) => {
-          if (active.current) unlisten = fn;
+          if (active.current) unlisteners.push(fn);
           else fn();
         })
         .catch(() => {});
+    };
+    if (isTauri()) {
+      track(listen("ai-accounts-changed", () => void reload()));
+      // Any window that refreshed a quota shares the result, so a successful
+      // refresh in settings shows up on the island immediately.
+      track(
+        listen<AiQuotaUpdate>("ai-quota-updated", (event) => {
+          if (!active.current) return;
+          const { id, quota, updatedAt } = event.payload;
+          setResults((old) => ({ ...old, [id]: { quota, updatedAt } }));
+        }),
+      );
+    }
     return () => {
       active.current = false;
       window.clearInterval(timer);
-      unlisten?.();
+      unlisteners.forEach((fn) => fn());
     };
   }, [reload]);
   return { accounts, results, error, reload };

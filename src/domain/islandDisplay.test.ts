@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 import { selectIslandDisplay } from "./islandDisplay";
 
 describe("island display priority", () => {
+  const idle = {
+    timer: "idle" as const,
+    mail: false,
+    notice: false,
+    water: false,
+    media: false,
+  };
   it("keeps a completed timer above transient notices", () => {
     expect(
       selectIslandDisplay({
         timer: "finished",
         mail: true,
         notice: true,
+        water: true,
         media: true,
       }),
     ).toBe("finished");
@@ -18,15 +26,15 @@ describe("island display priority", () => {
         timer: "running",
         mail: true,
         notice: true,
+        water: true,
         media: true,
       }),
     ).toBe("notice");
     expect(
       selectIslandDisplay({
-        timer: "idle",
+        ...idle,
         mail: true,
         notice: true,
-        media: false,
       }),
     ).toBe("notice");
   });
@@ -36,24 +44,27 @@ describe("island display priority", () => {
         timer: "running",
         mail: true,
         notice: false,
+        water: false,
         media: true,
       }),
     ).toBe("mail");
   });
-  it("falls back through notice, timer, media and idle", () => {
-    const state = {
-      timer: "idle" as const,
-      mail: false,
-      notice: false,
-      media: false,
-    };
-    expect(selectIslandDisplay({ ...state, notice: true, media: true })).toBe(
-      "notice",
+  it("shows a water reminder when idle without interrupting a focus session", () => {
+    expect(selectIslandDisplay({ ...idle, water: true, media: true })).toBe(
+      "water",
     );
     expect(
-      selectIslandDisplay({ ...state, timer: "paused", media: true }),
+      selectIslandDisplay({ ...idle, timer: "running", water: true }),
     ).toBe("timer");
-    expect(selectIslandDisplay({ ...state, media: true })).toBe("media");
-    expect(selectIslandDisplay(state)).toBe("idle");
+  });
+  it("falls back through notice, timer, media and idle", () => {
+    expect(selectIslandDisplay({ ...idle, notice: true, media: true })).toBe(
+      "notice",
+    );
+    expect(selectIslandDisplay({ ...idle, timer: "paused", media: true })).toBe(
+      "timer",
+    );
+    expect(selectIslandDisplay({ ...idle, media: true })).toBe("media");
+    expect(selectIslandDisplay(idle)).toBe("idle");
   });
 });

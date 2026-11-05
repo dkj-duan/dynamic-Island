@@ -2,7 +2,7 @@ use crate::storage::Storage;
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 use std::{io::Read, time::Duration};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use zeroize::Zeroizing;
 
 #[derive(Clone, Serialize)]
@@ -13,7 +13,7 @@ pub struct AiAccount {
     name: String,
     pinned: bool,
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiQuota {
     id: String,
@@ -21,7 +21,15 @@ pub struct AiQuota {
     provider: String,
     items: Vec<QuotaItem>,
 }
-#[derive(Serialize)]
+/// Broadcast so every window (settings and island) shows the same quota.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AiQuotaUpdate {
+    id: String,
+    quota: AiQuota,
+    updated_at: u64,
+}
+#[derive(Clone, Serialize)]
 pub struct QuotaItem {
     label: String,
     value: String,
@@ -524,9 +532,27 @@ pub async fn query_ai_quota(
     if window.label() != "main" && window.label() != "island" {
         return Err("当前窗口不能查询 AI 额度".into());
     }
-    tauri::async_runtime::spawn_blocking(move || query_account(app.state::<Storage>().inner(), &id))
-        .await
-        .map_err(|_| "额度查询失败".to_string())?
+    let handle = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        query_account(app.state::<Storage>().inner(), &id)
+    })
+    .await
+    .map_err(|_| "额度查询失败".to_string())?;
+    if let Ok(quota) = &result {
+        let updated_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_millis() as u64)
+            .unwrap_or(0);
+        let _ = handle.emit(
+            "ai-quota-updated",
+            AiQuotaUpdate {
+                id: quota.id.clone(),
+                quota: quota.clone(),
+                updated_at,
+            },
+        );
+    }
+    result
 }
 #[cfg(test)]
 mod tests {

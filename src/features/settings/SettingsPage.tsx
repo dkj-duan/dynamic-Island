@@ -9,17 +9,29 @@ import {
   Mail,
   Bot,
   Check,
+  Timer,
+  Droplets,
 } from "lucide-react";
 import type { AppearanceSettings } from "../../domain/settings";
 import { StatusSettings } from "./StatusSettings";
 import { StorageSettings } from "./StorageSettings";
 import { MailSettings } from "./MailSettings";
 import { AiSettings } from "./AiSettings";
+import { PomodoroSettings } from "./PomodoroSettings";
+import { WaterSettings } from "./WaterSettings";
 import { languageOptions, setLanguage, t } from "../../services/i18n";
 import appIcon from "../../assets/app-icon.png";
 
 type Page =
-  "appearance" | "behavior" | "status" | "mail" | "ai" | "storage" | "about";
+  | "appearance"
+  | "behavior"
+  | "pomodoro"
+  | "status"
+  | "water"
+  | "mail"
+  | "ai"
+  | "storage"
+  | "about";
 
 const pageMeta: Record<Page, { title: string; description: string }> = {
   appearance: {
@@ -30,9 +42,17 @@ const pageMeta: Record<Page, { title: string; description: string }> = {
     title: "交互",
     description: "选择展开方式、自动收起时长，以及灵动岛停靠的位置。",
   },
+  pomodoro: {
+    title: "番茄钟",
+    description: "配置专注与休息时长，进度会跨应用重启保留。",
+  },
   status: {
     title: "状态提醒",
     description: "读取音量、亮度、电源与蓝牙的变化，在灵动岛上短暂提示。",
+  },
+  water: {
+    title: "喝水提醒",
+    description: "设置每日目标与提醒时段，记录饮水并查看近 30 天数据。",
   },
   mail: {
     title: "邮箱提醒",
@@ -67,16 +87,19 @@ type NavItem = { id: Page; label: string; icon: typeof Palette };
 const navItems: NavItem[] = [
   { id: "appearance", label: "外观", icon: Palette },
   { id: "behavior", label: "交互", icon: MousePointer2 },
+  { id: "pomodoro", label: "番茄钟", icon: Timer },
   { id: "status", label: "状态", icon: Bell },
+  { id: "water", label: "喝水", icon: Droplets },
   { id: "mail", label: "邮箱", icon: Mail },
   { id: "ai", label: "AI 额度", icon: Bot },
   { id: "storage", label: "存储", icon: Database },
   { id: "about", label: "关于", icon: CircleHelp },
 ];
 
-/* Grouped so the sidebar reads: island itself, its sources, then system. */
+/* Grouped so the sidebar reads: island itself, its tools, its sources, then system. */
 const navGroups: { label: string; ids: Page[] }[] = [
   { label: "通用", ids: ["appearance", "behavior"] },
+  { label: "功能", ids: ["pomodoro", "water"] },
   { label: "提醒源", ids: ["status", "mail", "ai"] },
   { label: "系统", ids: ["storage", "about"] },
 ];
@@ -457,7 +480,9 @@ export function SettingsPage({
               </section>
             )}
 
+            {page === "pomodoro" && <PomodoroSettings />}
             {page === "status" && <StatusSettings />}
+            {page === "water" && <WaterSettings />}
             {page === "storage" && (
               <StorageSettings
                 canSwitch={canSwitchStorage}

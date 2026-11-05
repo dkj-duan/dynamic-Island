@@ -1,0 +1,245 @@
+/* —— Water glass: still image + CSS water level —— */
+.water-glass {
+  position: relative;
+  flex: none;
+}
+
+.water-glass-settings {
+  width: 104px;
+  height: 123px;
+}
+
+.water-glass-island {
+  width: 54px;
+  height: 64px;
+}
+
+.water-glass::after {
+  content: "";
+  position: absolute;
+  right: 16%;
+  bottom: -3%;
+  left: 16%;
+  z-index: 0;
+  height: 7%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgb(12 34 60 / 0.32),
+    transparent 70%
+  );
+}
+
+.water-glass-body {
+  position: absolute;
+  top: 10%;
+  right: 3.6%;
+  bottom: 5.5%;
+  left: 3.6%;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 3px 3px 16% 16% / 3px 3px 8% 8%;
+}
+
+.water-glass-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(180deg, #8ccbff 0%, #4fa3f0 45%, #2f7fd6 100%);
+  transition: height 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.water-glass.tone-low .water-glass-fill {
+  background: linear-gradient(180deg, #ffd39a 0%, #f0a75e 45%, #d9863c 100%);
+}
+
+.water-glass.tone-done .water-glass-fill {
+  background: linear-gradient(180deg, #a5ecc7 0%, #6fd39a 45%, #3f9f74 100%);
+}
+
+.water-glass-surface {
+  position: absolute;
+  top: -4px;
+  right: -25%;
+  left: -25%;
+  height: 9px;
+  border-radius: 50%;
+  background: rgb(210 240 255 / 0.8);
+  animation: glass-surface 3.6s ease-in-out infinite alternate;
+}
+
+.water-glass-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -30%;
+  left: -30%;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.3);
+  animation: glass-surface 2.8s ease-in-out infinite alternate-reverse;
+}
+
+.water-glass-island .water-glass-surface {
+  top: -3px;
+  height: 6px;
+}
+
+.water-glass-island .water-glass-fill::after {
+  height: 4px;
+}
+
+.water-glass-img {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.water-glass-splash {
+  position: absolute;
+  right: 22%;
+  bottom: 14%;
+  left: 22%;
+  z-index: 3;
+  height: 14%;
+  border: 1px solid rgb(190 235 255 / 0.9);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: glass-splash 720ms ease-out forwards;
+}
+
+.water-glass-drop {
+  position: absolute;
+  top: -14%;
+  left: 44%;
+  z-index: 4;
+  width: 20%;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgb(20 60 100 / 0.35));
+  animation: glass-drop-fall 720ms cubic-bezier(0.35, 0, 0.6, 1) forwards;
+}
+
+@keyframes glass-drop-fall {
+  0% {
+    top: -14%;
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  18% {
+    opacity: 1;
+  }
+  72% {
+    top: 38%;
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    top: 50%;
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes glass-surface {
+  from {
+    transform: translateX(-5%) scaleY(1);
+  }
+  to {
+    transform: translateX(5%) scaleY(0.75);
+  }
+}
+
+.water-glass.tone-low .water-glass-splash {
+  border-color: rgb(255 210 150 / 0.9);
+}
+
+.water-glass.tone-done .water-glass-splash {
+  border-color: rgb(180 240 210 / 0.9);
+}
+
+@keyframes glass-splash {
+  from {
+    opacity: 1;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+/* —— Water droplet accents —— */
+.settings-water-glass-wrap {
+  position: relative;
+}
+
+.settings-water-drop {
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px rgb(58 134 214 / 0.45));
+  animation: water-drop-float 3.4s ease-in-out infinite;
+}
+
+.water-drop-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  animation: water-drop-bob 1.8s ease-in-out infinite;
+}
+
+.water-drop-sm {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+}
+
+.water-drop-btn {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+@keyframes water-drop-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(5deg);
+  }
+}
+
+@keyframes water-drop-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .water-glass-surface,
+  .water-glass-fill::after,
+  .settings-water-drop,
+  .water-drop-icon {
+    animation: none;
+  }
+
+  .water-glass-splash {
+    animation-duration: 1ms;
+  }
+
+  .water-glass-drop {
+    animation-duration: 1ms;
+  }
+}

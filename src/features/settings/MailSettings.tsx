@@ -230,12 +230,15 @@ export function MailSettings() {
               <span>{t("SSL 端口")}</span>
               <input
                 required
-                type="number"
-                min="1"
-                max="65535"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={5}
                 value={port}
                 disabled={busy || !desktop}
-                onChange={(event) => setPort(event.target.value)}
+                onChange={(event) =>
+                  setPort(event.target.value.replace(/\D/g, ""))
+                }
               />
             </label>
           </div>
