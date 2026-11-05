@@ -19,12 +19,12 @@ export function settingsZoomForWidth(width: number): number {
   return 1.06;
 }
 
-/** Extra capsule scale on wide monitors, on top of the user's size setting. */
-export function islandScaleForWidth(width: number): number {
-  if (width >= 2900) return 1.12;
-  if (width >= 2200) return 1.06;
-  return 1;
-}
+/**
+ * Extra capsule scale on wide monitors now lives on the Rust side
+ * (`island_visual_scale` in src-tauri/src/lib.rs): the island is scaled with
+ * a native webview zoom plus a proportionally larger window, which the
+ * frontend cannot do itself.
+ */
 
 export function isLargeDisplay(): boolean {
   return largeDisplayForWidth(displayWidth());

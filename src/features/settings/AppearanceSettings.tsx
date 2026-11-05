@@ -49,6 +49,15 @@ const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [
   { value: "cycle", label: "本轮轮次" },
 ];
 
+/** Multiplier on top of the resolution-based island scale; validated 0.8–1.2. */
+const islandSizeOptions: { value: number; label: string }[] = [
+  { value: 0.8, label: "特小" },
+  { value: 0.9, label: "小" },
+  { value: 1, label: "适中" },
+  { value: 1.1, label: "大" },
+  { value: 1.2, label: "特大" },
+];
+
 const themeOptions = [
   {
     value: "system" as const,
@@ -103,13 +112,8 @@ export function AppearancePage({
       <SettingsCard className="preview-card">
         <div className="card-head">
           <h2>{t("桌面预览")}</h2>
-          <span className="card-note">{t("实时同步")}</span>
         </div>
         <div className="preview-stage">{preview}</div>
-        <div className="preview-caption">
-          <span>{t("屏幕顶部 · 居中")}</span>
-          <span>{t("拖动组件可调整顺序")}</span>
-        </div>
       </SettingsCard>
 
       <SettingsCard>
@@ -154,11 +158,9 @@ export function AppearancePage({
             );
           })}
         </div>
-
         <div className="setting-row">
           <span className="setting-row-copy">
             <strong>{t("界面语言")}</strong>
-            <small>{t("界面语言选择后立即生效，两个窗口一起切换。")}</small>
           </span>
           <div className="segmented" role="group" aria-label={t("界面语言")}>
             {languageOptions.map((option) => (
@@ -186,10 +188,33 @@ export function AppearancePage({
         <div className="card-head">
           <h2>{t("胶囊")}</h2>
         </div>
+        <div className="setting-row">
+          <span className="setting-row-copy">
+            <strong>{t("灵动岛大小")}</strong>
+          </span>
+          <div className="segmented" role="group" aria-label={t("灵动岛大小")}>
+            {islandSizeOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                disabled={!canEdit}
+                aria-pressed={appearance.scale === option.value}
+                className={appearance.scale === option.value ? "active" : ""}
+                onClick={() =>
+                  onAppearanceChange({
+                    ...appearance,
+                    scale: option.value,
+                  })
+                }
+              >
+                {t(option.label)}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="idle-widget-block">
           <div className="setting-row-copy">
             <strong>{t("闲时内容")}</strong>
-            <small>{t("在预览中拖动组件，或使用箭头调整顺序。")}</small>
           </div>
           <ul className="idle-widget-list">
             {idleWidgetOrder.map((id) => {
@@ -241,14 +266,11 @@ export function AppearancePage({
             })}
           </ul>
           <p className="form-note">
-            {t(
-              "常驻额度仅在有常驻 AI 账户时显示；最多同时显示 6 个，没有数据的组件自动隐藏。",
-            )}
+            {t("最多同时显示 6 个，没有数据的组件自动隐藏。")}
           </p>
           <div className="setting-row">
             <span className="setting-row-copy">
               <strong>{t("番茄组件显示")}</strong>
-              <small>{t("选择番茄组件在胶囊上展示的信息。")}</small>
             </span>
             <div
               className="segmented"

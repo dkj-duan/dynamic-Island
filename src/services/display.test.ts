@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   LARGE_DISPLAY_MIN_WIDTH,
-  islandScaleForWidth,
   largeDisplayForWidth,
   settingsZoomForWidth,
 } from "./display";
@@ -27,10 +26,5 @@ describe("display tier", () => {
     expect(settingsZoomForWidth(1920)).toBe(1.12);
     expect(settingsZoomForWidth(2560)).toBe(1.16);
     expect(settingsZoomForWidth(3840)).toBe(1.2);
-  });
-  it("grows the island capsule on wide monitors", () => {
-    expect(islandScaleForWidth(1920)).toBe(1);
-    expect(islandScaleForWidth(2560)).toBe(1.06);
-    expect(islandScaleForWidth(3200)).toBe(1.12);
   });
 });

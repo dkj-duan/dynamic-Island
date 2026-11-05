@@ -190,6 +190,34 @@ pub fn load_appearance(storage: State<'_, Storage>) -> Result<Option<serde_json:
         .transpose()
 }
 
+/// Extracts the island size multiplier (0.8–1.2) from a stored appearance
+/// payload; anything missing or malformed falls back to the default.
+fn parse_island_user_scale(value: Option<serde_json::Value>) -> f64 {
+    value
+        .and_then(|v| v.get("scale").and_then(|s| s.as_f64()))
+        .filter(|s| (0.8..=1.2).contains(s))
+        .unwrap_or(1.0)
+}
+
+/// The saved island size multiplier, applied to the island at startup before
+/// its position is restored. Defaults when the setting or database is
+/// unavailable so a broken settings row cannot break the island.
+pub fn load_island_user_scale(storage: &Storage) -> f64 {
+    let Ok(db) = storage.0.lock() else {
+        return 1.0;
+    };
+    let value: Option<String> = db
+        .connection
+        .query_row(
+            "SELECT value FROM settings WHERE key='appearance'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .unwrap_or(None);
+    parse_island_user_scale(value.and_then(|s| serde_json::from_str(&s).ok()))
+}
+
 #[tauri::command]
 pub fn save_appearance(
     window: tauri::WebviewWindow,
@@ -1025,6 +1053,25 @@ fn open_existing_directory(storage: &Storage, directory: String) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn parses_island_user_scale_with_fallback() {
+        assert_eq!(
+            parse_island_user_scale(Some(serde_json::json!({"scale": 1.2}))),
+            1.2
+        );
+        assert_eq!(
+            parse_island_user_scale(Some(serde_json::json!({"scale": 0.8}))),
+            0.8
+        );
+        assert_eq!(
+            parse_island_user_scale(Some(serde_json::json!({"scale": 1.5}))),
+            1.0
+        );
+        assert_eq!(parse_island_user_scale(Some(serde_json::json!({}))), 1.0);
+        assert_eq!(parse_island_user_scale(None), 1.0);
+        assert_eq!(parse_island_user_scale(Some(serde_json::json!("bad"))), 1.0);
+    }
+
     #[test]
     fn validates_pomodoro_settings_and_progress() {
         assert!(

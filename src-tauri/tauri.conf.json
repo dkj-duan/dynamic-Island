@@ -18,7 +18,8 @@
         "width": 1100,
         "height": 760,
         "minWidth": 720,
-        "minHeight": 520
+        "minHeight": 520,
+        "visible": false
       },
       {
         "label": "island",

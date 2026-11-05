@@ -5,19 +5,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  BatteryCharging,
-  BatteryMedium,
-  CalendarCheck,
-  Check,
-  Clock3,
-  Flame,
-  Headphones,
-  Hourglass,
-  Music2,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Check } from "lucide-react";
 import { quotaRings } from "../../domain/aiQuota";
 import type { AppearanceSettings, IdleWidgetId } from "../../domain/settings";
 import { QuotaRings } from "../ai/QuotaRings";
@@ -25,6 +13,15 @@ import { ProviderIcon } from "../ai/ProviderIcon";
 import { formatCountdown } from "../../domain/countdown";
 import { t } from "../../services/i18n";
 import { availableIdleWidgets, type IdleData } from "./idleWidgetData";
+import batteryIcon from "../../assets/island/battery.png";
+import bluetoothIcon from "../../assets/island/bluetooth.png";
+import clockIcon from "../../assets/island/clock.png";
+import countdownIcon from "../../assets/island/countdown.png";
+import focusIcon from "../../assets/island/focus.png";
+import musicIcon from "../../assets/island/music.png";
+import streakIcon from "../../assets/island/streak.png";
+import volumeIcon from "../../assets/island/volume.png";
+import waterTimerIcon from "../../assets/island/water-timer.png";
 import waterDrop from "../../assets/water-drop.webp";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
 
@@ -255,7 +252,7 @@ export function IdleWidgets({
           >
             {id === "clock" && (
               <>
-                <Clock3 size={14} aria-hidden="true" />
+                <img className="idle-widget-img" src={clockIcon} alt="" />
                 <CompactClock />
               </>
             )}
@@ -297,33 +294,25 @@ export function IdleWidgets({
             )}
             {id === "battery" && data.battery && (
               <>
-                {data.battery.charging ? (
-                  <BatteryCharging size={14} aria-hidden="true" />
-                ) : (
-                  <BatteryMedium size={14} aria-hidden="true" />
-                )}
+                <img className="idle-widget-img" src={batteryIcon} alt="" />
                 <span>{data.battery.percent}%</span>
               </>
             )}
             {id === "focus" && data.focusMinutes != null && (
               <>
-                <Flame size={14} aria-hidden="true" />
+                <img className="idle-widget-img" src={focusIcon} alt="" />
                 <span>{`${data.focusMinutes}${t("分")}`}</span>
               </>
             )}
             {id === "streak" && data.streak != null && (
               <>
-                <CalendarCheck size={14} aria-hidden="true" />
+                <img className="idle-widget-img" src={streakIcon} alt="" />
                 <span>{`${data.streak}${t("天")}`}</span>
               </>
             )}
             {id === "volume" && data.volume && (
               <>
-                {data.volume.muted ? (
-                  <VolumeX size={14} aria-hidden="true" />
-                ) : (
-                  <Volume2 size={14} aria-hidden="true" />
-                )}
+                <img className="idle-widget-img" src={volumeIcon} alt="" />
                 <span>
                   {data.volume.muted ? t("静音") : `${data.volume.percent}%`}
                 </span>
@@ -331,7 +320,7 @@ export function IdleWidgets({
             )}
             {id === "bluetooth" && data.bluetooth && (
               <>
-                <Headphones size={14} aria-hidden="true" />
+                <img className="idle-widget-img" src={bluetoothIcon} alt="" />
                 <span>{data.bluetooth.battery}%</span>
               </>
             )}
@@ -340,7 +329,7 @@ export function IdleWidgets({
                 {data.countdown.reached ? (
                   <Check size={14} aria-hidden="true" />
                 ) : (
-                  <Hourglass size={14} aria-hidden="true" />
+                  <img className="idle-widget-img" src={countdownIcon} alt="" />
                 )}
                 <span>
                   {data.countdown.reached
@@ -354,7 +343,11 @@ export function IdleWidgets({
                 {"done" in data.waterTimer ? (
                   <Check size={14} aria-hidden="true" />
                 ) : (
-                  <Hourglass size={14} aria-hidden="true" />
+                  <img
+                    className="idle-widget-img"
+                    src={waterTimerIcon}
+                    alt=""
+                  />
                 )}
                 <span>
                   {"done" in data.waterTimer
@@ -377,7 +370,7 @@ export function IdleWidgets({
                   />
                 ) : (
                   <span className="idle-widget-cover is-empty">
-                    <Music2 size={13} aria-hidden="true" />
+                    <img className="idle-widget-img" src={musicIcon} alt="" />
                   </span>
                 )}
                 <span className="idle-widget-wave" aria-hidden="true">

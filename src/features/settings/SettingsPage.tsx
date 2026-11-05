@@ -37,47 +37,17 @@ type Page =
   | "storage"
   | "about";
 
-const pageMeta: Record<Page, { title: string; description: string }> = {
-  appearance: {
-    title: "外观",
-    description: "主题、胶囊尺寸与桌面预览，改动会立即同步到灵动岛。",
-  },
-  behavior: {
-    title: "交互",
-    description: "选择展开方式、自动收起时长，以及灵动岛停靠的位置。",
-  },
-  pomodoro: {
-    title: "番茄钟",
-    description: "配置专注与休息时长，进度会跨应用重启保留。",
-  },
-  status: {
-    title: "状态提醒",
-    description: "读取音量、亮度、电源与蓝牙的变化，在灵动岛上短暂提示。",
-  },
-  water: {
-    title: "喝水提醒",
-    description: "设置每日目标与提醒时段，记录饮水并查看近 30 天数据。",
-  },
-  countdown: {
-    title: "倒计时",
-    description: "配置下班、午休等倒计时，并选择一条显示在空闲胶囊。",
-  },
-  mail: {
-    title: "邮箱提醒",
-    description: "通过 IMAP 检查新邮件，识别到验证码后可在灵动岛复制。",
-  },
-  ai: {
-    title: "AI 额度",
-    description: "查询账户余额与订阅周期额度，可选择一个常驻灵动岛。",
-  },
-  storage: {
-    title: "数据与存储",
-    description: "设置、邮箱账户与 AI 密钥的存放位置和迁移方式。",
-  },
-  about: {
-    title: "关于",
-    description: "版本与项目信息。",
-  },
+const pageMeta: Record<Page, { title: string }> = {
+  appearance: { title: "外观" },
+  behavior: { title: "交互" },
+  pomodoro: { title: "番茄钟" },
+  status: { title: "状态提醒" },
+  water: { title: "喝水提醒" },
+  countdown: { title: "倒计时" },
+  mail: { title: "邮箱提醒" },
+  ai: { title: "AI 额度" },
+  storage: { title: "数据与存储" },
+  about: { title: "关于" },
 };
 
 interface Props {
@@ -196,7 +166,6 @@ export function SettingsPage({
         <div className="settings-content">
           <header className="settings-header">
             <h1>{t(meta.title)}</h1>
-            <p>{t(meta.description)}</p>
           </header>
 
           <div

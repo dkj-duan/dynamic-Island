@@ -11,6 +11,30 @@
   color: var(--settings-text);
 }
 
+/* Startup: the window is revealed (show_settings_window) only after the page
+   has rendered, and html.settings-booted is set in the same tick, so the
+   entrance animation plays over the already-correct final layout. */
+html.settings-booted .settings-shell {
+  animation: settings-enter 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes settings-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.settings-booted .settings-shell {
+    animation: none;
+  }
+}
+
 /* —— Sidebar —— */
 .settings-sidebar {
   display: flex;
@@ -533,15 +557,6 @@
   transform-origin: center center;
   flex: none;
   max-width: calc(100% - 40px);
-}
-
-.preview-caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 8px;
-  color: var(--settings-faint);
-  font-size: var(--text-2xs);
 }
 
 /* —— Theme options —— */

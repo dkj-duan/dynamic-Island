@@ -24,6 +24,18 @@ import {
 } from "./services/display";
 import "./styles/index.css";
 
+// The settings window is created hidden so startup resizes happen off
+// screen. Once the page has real content (or a readable error) to show, we
+// reveal it at its final size and start the entrance animation. This runs
+// once per app start; later show/hide cycles from the tray reuse the page.
+let settingsWindowRevealed = false;
+function revealSettingsWindow() {
+  if (settingsWindowRevealed) return;
+  settingsWindowRevealed = true;
+  document.documentElement.classList.add("settings-booted");
+  void invoke("show_settings_window").catch(() => undefined);
+}
+
 export default function App() {
   const [appearance, setAppearance] = useState(defaultAppearance);
   const [status, setStatus] = useState(() => t("正在读取设置…"));
@@ -110,12 +122,15 @@ export default function App() {
         setStatus(
           hasDesktopStorage ? t("设置已读取") : t("浏览器预览：设置不会保存"),
         );
+        revealSettingsWindow();
       })
       .catch(() => {
-        if (active)
+        if (active) {
           setStatus(
             t("设置读取失败，已暂停保存以保护原有数据。请检查配置文件。"),
           );
+          revealSettingsWindow();
+        }
       });
     return () => {
       active = false;

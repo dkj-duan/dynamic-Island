@@ -3,7 +3,7 @@ use serde::Serialize;
 use tauri::LogicalSize;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
 use tauri::tray::TrayIconEvent;
-use tauri::{Manager, PhysicalPosition, WindowEvent};
+use tauri::{Manager, PhysicalPosition, PhysicalSize, WindowEvent};
 
 mod ai_quota;
 mod audio;
@@ -460,6 +460,19 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Called by the settings page once it has rendered its first real content.
+/// The window is created hidden so startup resizes happen off screen; this
+/// reveals it at its final size, so the user never sees it jump.
+#[tauri::command]
+fn show_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or("settings window unavailable")?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Moves the island to the top of the topmost band. Windows lets other
 /// topmost windows (taskbar, another app's "always on top") sit above it, and
 /// a window that lost the flag is not recovered by tauri's flag setter.
@@ -561,6 +574,69 @@ async fn set_audio_device(window: tauri::WebviewWindow, device_id: String) -> Re
     tauri::async_runtime::spawn_blocking(move || audio::set_default(&device_id))
         .await
         .map_err(|error| error.to_string())?
+}
+
+/// Island zoom tier for a monitor's CSS-pixel width. The island window is
+/// laid out for a fixed 360×320 CSS viewport, which renders too small on
+/// high-resolution monitors; the same viewport is rendered through a native
+/// webview zoom while the window grows proportionally. Kept in sync with the
+/// tier tables in src/services/display.ts.
+fn island_visual_scale(monitor_css_width: f64) -> f64 {
+    if monitor_css_width >= 3000.0 {
+        1.4
+    } else if monitor_css_width >= 2400.0 {
+        1.3
+    } else if monitor_css_width >= 2000.0 {
+        1.2
+    } else if monitor_css_width >= 1500.0 {
+        1.1
+    } else {
+        1.0
+    }
+}
+
+/// Webview zoom currently applied to the island. The native collapsed
+/// hit-region must cover the rendered capsule, which is scaled by this factor.
+static ISLAND_SCALE: std::sync::Mutex<f64> = std::sync::Mutex::new(1.0);
+
+/// Resolution tier of the monitor the island started on; the user's island
+/// size setting applies on top of it.
+static ISLAND_AUTO_SCALE: std::sync::Mutex<f64> = std::sync::Mutex::new(1.0);
+
+/// Whether the island panel is currently expanded; the collapsed native
+/// hit-region is only refreshed while it is not.
+static ISLAND_EXPANDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn locked_scale(mutex: &std::sync::Mutex<f64>) -> f64 {
+    *mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn island_scale() -> f64 {
+    locked_scale(&ISLAND_SCALE)
+}
+
+fn island_auto_scale() -> f64 {
+    locked_scale(&ISLAND_AUTO_SCALE)
+}
+
+/// Sizes the island window and its webview zoom for a combined scale factor
+/// and records it for the native hit-region maths. The layout viewport stays
+/// 360×320 CSS px regardless of the scale.
+fn apply_island_window_scale(window: &tauri::WebviewWindow, scale: f64) -> Result<(), String> {
+    let dpr = window.scale_factor().map_err(|e| e.to_string())?;
+    window
+        .set_size(PhysicalSize::new(
+            (360.0 * dpr * scale).round() as u32,
+            (320.0 * dpr * scale).round() as u32,
+        ))
+        .map_err(|e| e.to_string())?;
+    window.set_zoom(scale).map_err(|e| e.to_string())?;
+    *ISLAND_SCALE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = scale;
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -742,11 +818,14 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
     if window.label() != "island" {
         return Err("invalid window".into());
     }
+    ISLAND_EXPANDED.store(expanded, std::sync::atomic::Ordering::SeqCst);
     #[cfg(target_os = "windows")]
     {
         use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
-        let scale = window.scale_factor().map_err(|e| e.to_string())?;
+        // The rendered capsule is scaled by the monitor DPI and the island
+        // webview zoom, so the hit-region must use the same combined factor.
+        let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
         let size = window.outer_size().map_err(|e| e.to_string())?;
         let inset = (10.0 * scale).round() as i32;
         let height = (64.0 * scale).round() as i32;
@@ -778,20 +857,49 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
     {
         let old_position = window.outer_position().map_err(|e| e.to_string())?;
         let old_size = window.outer_size().map_err(|e| e.to_string())?;
+        let zoom = island_scale();
         let (width, height) = if expanded {
             (360.0, 320.0)
         } else {
             (300.0, 64.0)
         };
         let scale = window.scale_factor().map_err(|e| e.to_string())?;
-        let x = old_position.x + (old_size.width as i32 - (width * scale).round() as i32) / 2;
+        let x =
+            old_position.x + (old_size.width as i32 - (width * zoom * scale).round() as i32) / 2;
         window
-            .set_size(LogicalSize::new(width, height))
+            .set_size(LogicalSize::new(width * zoom, height * zoom))
             .map_err(|e| e.to_string())?;
+        window.set_zoom(zoom).map_err(|e| e.to_string())?;
         window
             .set_position(PhysicalPosition::new(x, old_position.y))
             .map_err(|e| e.to_string())
     }
+}
+
+/// Applies the island size multiplier chosen in the appearance settings on
+/// top of the startup monitor's resolution tier. The window keeps its
+/// top-centre anchor so the capsule stays visually in place, and the
+/// collapsed hit-region is recomputed for the new size.
+#[tauri::command]
+fn apply_island_scale(window: tauri::WebviewWindow, scale: f64) -> Result<(), String> {
+    if window.label() != "island" {
+        return Err("当前窗口不支持该操作".into());
+    }
+    // Mirrors the 0.8–1.2 range validated by both appearance parsers.
+    let user = scale.clamp(0.8, 1.2);
+    let combined = island_auto_scale() * user;
+    let old_position = window.outer_position().map_err(|e| e.to_string())?;
+    let old_size = window.outer_size().map_err(|e| e.to_string())?;
+    apply_island_window_scale(&window, combined)?;
+    let new_size = window.outer_size().map_err(|e| e.to_string())?;
+    let x = old_position.x + (old_size.width as i32 - new_size.width as i32) / 2;
+    window
+        .set_position(PhysicalPosition::new(x, old_position.y))
+        .map_err(|e| e.to_string())?;
+    if !ISLAND_EXPANDED.load(std::sync::atomic::Ordering::SeqCst) {
+        set_island_expanded(window, false)?;
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -808,8 +916,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             open_settings,
+            show_settings_window,
             quit_app,
             set_island_expanded,
+            apply_island_scale,
             start_island_drag,
             reset_island_position,
             set_window_theme,
@@ -870,8 +980,33 @@ pub fn run() {
                 window.set_size(tauri::LogicalSize::new(width, height))?;
                 window.center()?;
             }
+            // The settings window is created hidden and revealed by the page
+            // once it has rendered. If the frontend never comes up (broken
+            // dev server, failed bundle), fall back to showing it anyway so
+            // the app cannot start up invisible.
+            if let Some(window) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    if !window.is_visible().unwrap_or(true) {
+                        let _ = window.show();
+                    }
+                });
+            }
             if let Some(window) = app.get_webview_window("island") {
                 let storage = app.state::<storage::Storage>();
+                // Scale the island for the monitor it will sit on before the
+                // position is restored, so saved coordinates match the final
+                // window size. The layout viewport stays 360×320 CSS px.
+                let monitor = window.current_monitor()?.or(window.primary_monitor()?);
+                let auto = monitor
+                    .as_ref()
+                    .map(|m| island_visual_scale(m.size().width as f64 / m.scale_factor()))
+                    .unwrap_or(1.0);
+                *ISLAND_AUTO_SCALE
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = auto;
+                let user = storage::load_island_user_scale(storage.inner());
+                apply_island_window_scale(&window, auto * user)?;
                 let saved = storage::load_island_position(storage.inner());
                 let restored = match saved {
                     Some((x, y)) if is_visible_on_any_monitor(app.handle(), x, y) => {
@@ -893,8 +1028,8 @@ pub fn run() {
                 remove_native_caption(&window).map_err(std::io::Error::other)?;
                 set_island_expanded(window.clone(), false).map_err(std::io::Error::other)?;
             }
-            // A tray icon is the safety rope: both windows can be hidden
-            // (close / minimize) and this is the only way back.
+            // A tray icon is the safety rope: the settings window can be
+            // hidden (close) and this is the only way back.
             let tray_menu = build_tray_menu(app.handle())?;
             let tray_handle = app.handle().clone();
             tauri::tray::TrayIconBuilder::with_id("app-tray")
@@ -956,17 +1091,11 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == "main" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-                // Minimising parks the settings window in the tray.
-                if matches!(event, WindowEvent::Resized(_))
-                    && window.is_minimized().unwrap_or(false)
-                {
-                    let _ = window.hide();
-                }
+            if window.label() == "main"
+                && let WindowEvent::CloseRequested { api, .. } = event
+            {
+                api.prevent_close();
+                let _ = window.hide();
             }
             if window.label() == "island" && matches!(event, WindowEvent::Focused(true)) {
                 #[cfg(target_os = "windows")]
@@ -980,4 +1109,34 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("failed to run Dynamic Island");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::island_visual_scale;
+
+    #[test]
+    fn island_scale_tiers_match_monitor_widths() {
+        // Widths are CSS pixels: physical width divided by Windows scaling.
+        assert_eq!(island_visual_scale(1366.0), 1.0);
+        assert_eq!(island_visual_scale(1920.0), 1.1);
+        // 2560×1440 at 125% scaling reports 2048 CSS pixels.
+        assert_eq!(island_visual_scale(2048.0), 1.2);
+        // 2560×1440 at 100% scaling.
+        assert_eq!(island_visual_scale(2560.0), 1.3);
+        // 3840×2160 at 125% scaling.
+        assert_eq!(island_visual_scale(3072.0), 1.4);
+    }
+
+    #[test]
+    fn island_scale_tiers_switch_exactly_at_thresholds() {
+        assert_eq!(island_visual_scale(1499.0), 1.0);
+        assert_eq!(island_visual_scale(1500.0), 1.1);
+        assert_eq!(island_visual_scale(1999.0), 1.1);
+        assert_eq!(island_visual_scale(2000.0), 1.2);
+        assert_eq!(island_visual_scale(2399.0), 1.2);
+        assert_eq!(island_visual_scale(2400.0), 1.3);
+        assert_eq!(island_visual_scale(2999.0), 1.3);
+        assert_eq!(island_visual_scale(3000.0), 1.4);
+    }
 }

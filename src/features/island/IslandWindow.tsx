@@ -34,12 +34,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, emitTo } from "@tauri-apps/api/event";
 import { defaultAppearance, parseAppearance } from "../../domain/settings";
 import { loadAppearance } from "../../services/settingsRepository";
-import {
-  displayWidth,
-  islandScaleForWidth,
-  isLargeDisplay,
-  watchDisplayTier,
-} from "../../services/display";
+import { isLargeDisplay, watchDisplayTier } from "../../services/display";
 import { IdleWidgets } from "./IdleWidgets";
 import type { IdleData, IdleWaterTimer } from "./idleWidgetData";
 import {
@@ -301,18 +296,8 @@ export function IslandWindow() {
   const scheduleCollapseRef = useRef<() => void>(() => {});
   const [expanded, setExpanded] = useState(false);
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
-  const [islandScale, setIslandScale] = useState(() =>
-    islandScaleForWidth(displayWidth()),
-  );
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
-  useEffect(
-    () =>
-      watchDisplayTier((large) => {
-        setLargeDisplay(large);
-        setIslandScale(islandScaleForWidth(displayWidth()));
-      }),
-    [],
-  );
+  useEffect(() => watchDisplayTier(setLargeDisplay), []);
   const [transitioning, setTransitioning] = useState(false);
   const [timer, setTimer] = useState<TimerState>({ status: "idle" });
   const [minutes, setMinutes] = useState("");
@@ -718,7 +703,14 @@ export function IslandWindow() {
             try {
               const next = parseAppearance(payload);
               receivedUpdate = true;
-              if (active) setAppearance(next);
+              if (active) {
+                setAppearance(next);
+                // Size changes go through the native window scale; the value
+                // saved at startup was already applied by the Rust setup.
+                void invoke("apply_island_scale", { scale: next.scale }).catch(
+                  () => {},
+                );
+              }
             } catch (error) {
               console.error("Invalid appearance update", error);
             }
@@ -1138,14 +1130,17 @@ export function IslandWindow() {
     return () => window.clearInterval(timer);
   }, [display, mediaBadgeKey]);
   // Idle capsules shrink to their measured content; a numeric width lets the
-  // panel animate smoothly into the expanded layout.
+  // panel animate smoothly into the expanded layout. Resolution scaling is
+  // applied natively (webview zoom), so these widths stay in base CSS pixels.
   const panelWidth = expanded
-    ? Math.min(352, 340 * islandScale)
+    ? 340
     : display === "idle"
       ? idleWidth === null
         ? "fit-content"
         : idleWidth + 2
-      : Math.min(300, (largeDisplay ? 240 : 232) * islandScale);
+      : largeDisplay
+        ? 240
+        : 232;
   // A transient banner floats over the panel bottom; make room for it.
   const panelHasBanner =
     expanded && ((display === "notice" && !!notice) || display === "mail");

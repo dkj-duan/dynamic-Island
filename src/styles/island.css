@@ -2537,7 +2537,8 @@ html.island-window #root {
   color: #79d6a3;
 }
 
-.idle-widget-drop {
+.idle-widget-drop,
+.idle-widget-img {
   flex: none;
   width: 14px;
   height: 14px;

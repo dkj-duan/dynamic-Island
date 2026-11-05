@@ -34,11 +34,14 @@ export function IslandPreview({
     pomodoroCycle: { done: 2, total: 4 },
   };
   return (
-    <IdleWidgets
-      key={appearance.idleWidgets.join(",")}
-      appearance={appearance}
-      data={data}
-      onReorder={onReorder}
-    />
+    // Zoom only the capsule, so the stage around it keeps a stable size.
+    <div style={{ zoom: appearance.scale }}>
+      <IdleWidgets
+        key={appearance.idleWidgets.join(",")}
+        appearance={appearance}
+        data={data}
+        onReorder={onReorder}
+      />
+    </div>
   );
 }
