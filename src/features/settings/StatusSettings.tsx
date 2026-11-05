@@ -4,11 +4,13 @@ import { emitTo } from "@tauri-apps/api/event";
 import {
   BatteryCharging,
   Bluetooth,
+  Headphones,
   RefreshCw,
   Sun,
   Volume2,
 } from "lucide-react";
 import type {
+  AudioDevice,
   BluetoothStatus,
   SystemNotice,
   SystemStatus,
@@ -30,6 +32,11 @@ export function StatusSettings() {
   const [devices, setDevices] = useState<Result<DeviceStatus>>({
     state: "loading",
   });
+  const [audio, setAudio] = useState<Result<AudioDevice[]>>({
+    state: "loading",
+  });
+  const [switching, setSwitching] = useState("");
+  const [audioMessage, setAudioMessage] = useState("");
   const [revision, setRevision] = useState(0);
   const [previewMessage, setPreviewMessage] = useState("");
   useEffect(() => {
@@ -49,6 +56,13 @@ export function StatusSettings() {
       .catch(() => {
         if (active) setDevices({ state: "error" });
       });
+    void invoke<AudioDevice[]>("get_audio_devices")
+      .then((value) => {
+        if (active) setAudio({ state: "ready", value });
+      })
+      .catch(() => {
+        if (active) setAudio({ state: "error" });
+      });
     return () => {
       active = false;
     };
@@ -57,7 +71,26 @@ export function StatusSettings() {
   function refresh() {
     setSystem({ state: "loading" });
     setDevices({ state: "loading" });
+    setAudio({ state: "loading" });
+    setAudioMessage("");
     setRevision((value) => value + 1);
+  }
+  async function switchDevice(device: AudioDevice) {
+    if (!desktop || switching || device.isDefault) return;
+    setSwitching(device.id);
+    setAudioMessage("");
+    try {
+      await invoke("set_audio_device", { deviceId: device.id });
+      const list = await invoke<AudioDevice[]>("get_audio_devices");
+      setAudio({ state: "ready", value: list });
+      setAudioMessage(t("已切换输出设备"));
+    } catch (error) {
+      setAudioMessage(
+        typeof error === "string" ? error : t("切换输出设备失败，请重试"),
+      );
+    } finally {
+      setSwitching("");
+    }
   }
   async function preview(notice: SystemNotice) {
     try {
@@ -150,41 +183,133 @@ export function StatusSettings() {
     },
   ];
   return (
-    <section className="settings-card">
-      <div className="card-head">
-        <h2>{t("当前状态")}</h2>
-        <button className="btn btn-quiet" onClick={refresh} disabled={!desktop}>
-          <RefreshCw size={13} />
-          {t("刷新状态")}
-        </button>
-      </div>
-      <p className="card-desc">
-        {t("状态发生变化时，灵动岛会短暂显示对应提示。")}
-      </p>
-      <div className="settings-list">
-        {rows.map(({ icon: Icon, title, description, status, notice }) => (
-          <div className="settings-list-row" key={title}>
-            <span className="settings-list-icon" aria-hidden="true">
-              <Icon size={15} />
-            </span>
-            <div className="settings-list-copy">
-              <strong>{title}</strong>
-              <small>{description}</small>
+    <>
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>{t("当前状态")}</h2>
+          <button
+            className="btn btn-quiet"
+            onClick={refresh}
+            disabled={!desktop}
+          >
+            <RefreshCw size={13} />
+            {t("刷新状态")}
+          </button>
+        </div>
+        <p className="card-desc">
+          {t("状态发生变化时，灵动岛会短暂显示对应提示。")}
+        </p>
+        <div className="settings-list">
+          {rows.map(({ icon: Icon, title, description, status, notice }) => (
+            <div className="settings-list-row" key={title}>
+              <span className="settings-list-icon" aria-hidden="true">
+                <Icon size={15} />
+              </span>
+              <div className="settings-list-copy">
+                <strong>{title}</strong>
+                <small>{description}</small>
+              </div>
+              <span className="settings-list-value">{status}</span>
+              <button
+                className="btn btn-quiet"
+                disabled={!desktop}
+                onClick={() => void preview(notice)}
+              >
+                {t("演示")}
+              </button>
             </div>
-            <span className="settings-list-value">{status}</span>
+          ))}
+        </div>
+        <p className="card-hint" role="status">
+          {previewMessage || t("演示使用示例数据，不会修改系统设置。")}
+        </p>
+      </section>
+
+      <section className="settings-card">
+        <div className="card-head">
+          <h2>{t("输出设备")}</h2>
+          <div className="settings-list-actions">
             <button
               className="btn btn-quiet"
-              disabled={!desktop}
-              onClick={() => void preview(notice)}
+              disabled={
+                !desktop || audio.state !== "ready" || audio.value.length === 0
+              }
+              onClick={() => {
+                if (audio.state !== "ready") return;
+                void preview({
+                  kind: "audio",
+                  label: t("输出设备"),
+                  value:
+                    audio.value.find((device) => device.isDefault)?.name ??
+                    t("输出设备"),
+                });
+              }}
             >
               {t("演示")}
             </button>
+            <button
+              className="btn btn-quiet"
+              onClick={refresh}
+              disabled={!desktop || switching !== ""}
+            >
+              <RefreshCw size={13} />
+              {t("刷新")}
+            </button>
           </div>
-        ))}
-      </div>
-      <p className="card-hint" role="status">
-        {previewMessage || t("演示使用示例数据，不会修改系统设置。")}
-      </p>
-    </section>
+        </div>
+        <p className="card-desc">
+          {t("点击设备即可设为默认播放设备；托盘菜单也可以切换。")}
+        </p>
+        {!desktop ? (
+          <p className="card-hint">{t("请在桌面应用中查看")}</p>
+        ) : audio.state === "loading" ? (
+          <p className="card-hint" role="status">
+            {t("正在读取输出设备…")}
+          </p>
+        ) : audio.state === "error" ? (
+          <p className="card-hint" role="status">
+            {t("读取输出设备失败")}
+          </p>
+        ) : audio.value.length === 0 ? (
+          <p className="card-hint" role="status">
+            {t("未找到输出设备")}
+          </p>
+        ) : (
+          <div className="settings-list">
+            {audio.value.map((device) => (
+              <button
+                key={device.id}
+                type="button"
+                className={`settings-list-row audio-device-row ${device.isDefault ? "is-default" : ""}`}
+                aria-pressed={device.isDefault}
+                disabled={!desktop || switching !== ""}
+                onClick={() => void switchDevice(device)}
+              >
+                <span className="settings-list-icon" aria-hidden="true">
+                  <Headphones size={15} />
+                </span>
+                <span className="settings-list-copy">
+                  <strong>{device.name}</strong>
+                  <small>
+                    {device.isDefault
+                      ? t("当前默认设备")
+                      : t("点击切换为默认输出设备")}
+                  </small>
+                </span>
+                {device.isDefault && (
+                  <span className="audio-device-badge">{t("默认")}</span>
+                )}
+                {switching === device.id && (
+                  <RefreshCw className="audio-device-spinner" size={13} />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="card-hint" role="status">
+          {audioMessage}
+        </p>
+      </section>
+    </>
   );
 }

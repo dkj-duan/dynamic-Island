@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   Music2,
   Pause,
@@ -19,6 +25,9 @@ import {
   ChevronRight,
   ChevronUp,
   Bot,
+  Plus,
+  Headphones,
+  Droplet,
   RefreshCw,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -131,7 +140,7 @@ function formatMediaTime(seconds: number) {
 function NoticeIcon({
   kind,
 }: {
-  kind: "volume" | "power" | "brightness" | "bluetooth";
+  kind: "volume" | "power" | "brightness" | "bluetooth" | "audio";
 }) {
   const Icon =
     kind === "volume"
@@ -140,8 +149,48 @@ function NoticeIcon({
         ? PlugZap
         : kind === "brightness"
           ? Sun
-          : Bluetooth;
+          : kind === "audio"
+            ? Headphones
+            : Bluetooth;
   return <Icon size={15} aria-hidden="true" />;
+}
+
+/** Shared empty page state: tinted glyph, title and a bounded hint line. */
+function IslandEmpty({
+  tone,
+  icon,
+  title,
+  hint,
+}: {
+  tone: "music" | "mail" | "ai";
+  icon: ReactNode;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <div className={`island-empty is-${tone}`}>
+      <span className="island-empty-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <strong>{title}</strong>
+      <span className="island-empty-hint">{hint}</span>
+    </div>
+  );
+}
+
+/** Glyph for the bottom page switcher: one icon per island page. */
+function IslandPageIcon({ page }: { page: IslandTab }) {
+  const Icon =
+    page === "timer"
+      ? Timer
+      : page === "music"
+        ? Music2
+        : page === "mail"
+          ? Mail
+          : page === "water"
+            ? Droplet
+            : Bot;
+  return <Icon size={13} aria-hidden="true" />;
 }
 
 function MediaWave({
@@ -384,6 +433,18 @@ export function IslandWindow() {
     const next =
       (index + direction + ISLAND_PAGES.length) % ISLAND_PAGES.length;
     selectPage(ISLAND_PAGES[next].id);
+  }
+  const lastPageWheel = useRef(0);
+  function handlePageWheel(event: React.WheelEvent) {
+    if (!expanded) return;
+    const target = event.target as HTMLElement;
+    // Sliders and text fields keep their own wheel behaviour.
+    if (target.closest("input, textarea, select")) return;
+    if (Math.abs(event.deltaY) < 6) return;
+    const now = Date.now();
+    if (now - lastPageWheel.current < 260) return;
+    lastPageWheel.current = now;
+    cyclePage(event.deltaY > 0 ? 1 : -1);
   }
   // Opening the quota page pulls fresh numbers instead of showing up to two
   // minutes of stale data.
@@ -672,12 +733,27 @@ export function IslandWindow() {
     // crosses the top of the screen.
     hoverTimeout.current = window.setTimeout(() => {
       hoverTimeout.current = null;
+      openReminderPage();
       void toggleExpanded();
     }, 180);
   }
   function handlePanelLeave() {
     cancelHoverExpand();
     scheduleAutoCollapse();
+  }
+  // Reminder capsules carry their own destination, so opening the panel from
+  // one (by click or by hover) must land on that page instead of the last tab.
+  function openReminderPage() {
+    if (expanded) return;
+    if (display === "mail") {
+      setActiveTab("mail");
+      setMailIndex(0);
+      setCopyStatus(null);
+      // Opening the panel counts as handling the reminder.
+      dismissHighlight();
+    } else if (display === "water") {
+      setActiveTab("water");
+    }
   }
   function beginDrag(event: React.PointerEvent) {
     if (event.button !== 0) return;
@@ -696,9 +772,15 @@ export function IslandWindow() {
     state.active = true;
     dragMoved.current = true;
     cancelHoverExpand();
-    void invoke("start_island_drag").catch(() => {
-      dragMoved.current = false;
-    });
+    void invoke("start_island_drag")
+      .catch(() => {
+        dragMoved.current = false;
+      })
+      .finally(() => {
+        // Native dragging owns the pointer, so pointerup never reaches the
+        // webview; a stale active flag would keep blocking hover expansion.
+        if (dragState.current === state) dragState.current = null;
+      });
   }
   function endDrag() {
     dragState.current = null;
@@ -804,15 +886,15 @@ export function IslandWindow() {
   const waterToneColor = waterToneColors[waterToneValue];
   // The mail capsule needs a little more room for the account line.
   // Only the capsule grows with the size setting; type stays the same.
-  const idleMusic = media
-    ? media.playing
-      ? {
-          title: media.title,
-          artist: media.artist || t("未知艺术家"),
-          artwork: artwork?.key === mediaKey ? artwork.src : null,
-        }
-      : null
-    : undefined;
+  // Only real playback earns the music widget; the settings preview supplies
+  // its own sample tracks when no data is passed.
+  const idleMusic = media?.playing
+    ? {
+        title: media.title,
+        artist: media.artist || t("未知艺术家"),
+        artwork: artwork?.key === mediaKey ? artwork.src : null,
+      }
+    : null;
   const idleData: IdleData = {
     quota:
       pinnedAi && pinnedAiResult?.quota
@@ -1010,15 +1092,8 @@ export function IslandWindow() {
               dragMoved.current = false;
               return;
             }
-            if (!expanded && display === "mail") {
-              setActiveTab("mail");
-              setMailIndex(0);
-              setCopyStatus(null);
-              // Opening the panel counts as handling the reminder.
-              dismissHighlight();
-            } else if (!expanded && display === "water") {
-              setActiveTab("water");
-            }
+            cancelHoverExpand();
+            openReminderPage();
             void toggleExpanded();
           }}
         >
@@ -1257,6 +1332,7 @@ export function IslandWindow() {
           className="island-details"
           aria-hidden={!expanded}
           inert={!expanded}
+          onWheel={handlePageWheel}
         >
           <div
             className="island-head"
@@ -1450,11 +1526,12 @@ export function IslandWindow() {
             ) : activeTab === "ai" ? (
               <div className="quota-view">
                 {ai.accounts.length === 0 ? (
-                  <div className="media-empty">
-                    <Bot size={20} />
-                    <strong>{t("尚未添加 AI 账户")}</strong>
-                    <span>{t("在设置的 AI 额度页面添加。")}</span>
-                  </div>
+                  <IslandEmpty
+                    tone="ai"
+                    icon={<Bot size={14} />}
+                    title={t("尚未添加 AI 账户")}
+                    hint={t("在设置的 AI 额度页面添加。")}
+                  />
                 ) : (
                   <div
                     className={`quota-hero ${selectedRings.length ? "" : "is-balance"}`}
@@ -1676,15 +1753,16 @@ export function IslandWindow() {
                     </div>
                   </>
                 ) : (
-                  <div className="media-empty">
-                    <Mail size={20} />
-                    <strong>{t("暂无新邮件提醒")}</strong>
-                    <span>{t("在设置中添加邮箱后，新邮件会显示在这里。")}</span>
-                  </div>
+                  <IslandEmpty
+                    tone="mail"
+                    icon={<Mail size={14} />}
+                    title={t("暂无新邮件提醒")}
+                    hint={t("在设置中添加邮箱后，新邮件会显示在这里。")}
+                  />
                 )}
               </div>
             ) : activeTab === "music" ? (
-              <div className="media-view">
+              <div className={`media-view ${media ? "" : "is-empty"}`}>
                 {media ? (
                   <>
                     <div className="media-now">
@@ -1830,13 +1908,12 @@ export function IslandWindow() {
                     )}
                   </>
                 ) : (
-                  <div className="media-empty">
-                    <Music2 size={21} />
-                    <strong>{t("没有正在播放的媒体")}</strong>
-                    <span>
-                      {t("开始播放音乐后，这里会显示曲目信息和控制按钮。")}
-                    </span>
-                  </div>
+                  <IslandEmpty
+                    tone="music"
+                    icon={<Music2 size={14} />}
+                    title={t("没有正在播放的媒体")}
+                    hint={t("开始播放音乐后，这里会显示曲目信息和控制按钮。")}
+                  />
                 )}
               </div>
             ) : (
@@ -1992,36 +2069,61 @@ export function IslandWindow() {
                         </button>
                       </form>
                     ) : (
-                      <div className="timer-controls">
+                      <div className="timer-presets">
                         <button
+                          className="timer-preset"
                           onClick={() => {
                             beginFocus(pomodoro.focusMinutes * 60_000);
                             setCustomTimerOpen(false);
                           }}
                         >
-                          {`${t("专注")} ${pomodoro.focusMinutes} ${t("分")}`}
+                          <span className="timer-preset-label">
+                            {t("专注")}
+                          </span>
+                          <span className="timer-preset-value">
+                            {pomodoro.focusMinutes} {t("分")}
+                          </span>
                         </button>
                         <button
+                          className="timer-preset"
                           onClick={() => {
                             beginBreak("break");
                             setCustomTimerOpen(false);
                           }}
                         >
-                          {`${t("短休")} ${pomodoro.shortBreakMinutes} ${t("分")}`}
+                          <span className="timer-preset-label">
+                            {t("短休")}
+                          </span>
+                          <span className="timer-preset-value">
+                            {pomodoro.shortBreakMinutes} {t("分")}
+                          </span>
                         </button>
                         <button
+                          className="timer-preset"
                           onClick={() => {
                             beginBreak("longBreak");
                             setCustomTimerOpen(false);
                           }}
                         >
-                          {`${t("长休")} ${pomodoro.longBreakMinutes} ${t("分")}`}
+                          <span className="timer-preset-label">
+                            {t("长休")}
+                          </span>
+                          <span className="timer-preset-value">
+                            {pomodoro.longBreakMinutes} {t("分")}
+                          </span>
                         </button>
                         <button
-                          className="is-ghost"
+                          className="timer-preset is-ghost"
                           onClick={() => setCustomTimerOpen(true)}
                         >
-                          {t("自定义")}
+                          <span className="timer-preset-label">
+                            {t("自定义")}
+                          </span>
+                          <Plus
+                            className="timer-preset-icon"
+                            size={13}
+                            aria-hidden="true"
+                          />
                         </button>
                       </div>
                     )}
@@ -2101,16 +2203,8 @@ export function IslandWindow() {
             )}
           </div>
           <div className="island-pager">
-            <button
-              className="pager-arrow is-left"
-              aria-label={t("上一页")}
-              title={t("上一页")}
-              onClick={() => cyclePage(-1)}
-            >
-              <ChevronLeft size={14} aria-hidden="true" />
-            </button>
             <div
-              className="pager-dots"
+              className="pager-tabs"
               role="tablist"
               aria-label={t("灵动岛页面")}
             >
@@ -2121,20 +2215,32 @@ export function IslandWindow() {
                   aria-selected={activeTab === page.id}
                   aria-label={t(page.label)}
                   title={t(page.label)}
-                  className={activeTab === page.id ? "active" : ""}
+                  className={`pager-tab is-${page.id} ${activeTab === page.id ? "active" : ""}`}
                   onClick={() => selectPage(page.id)}
-                />
+                >
+                  <IslandPageIcon page={page.id} />
+                </button>
               ))}
             </div>
-            <button
-              className="pager-arrow is-right"
-              aria-label={t("下一页")}
-              title={t("下一页")}
-              onClick={() => cyclePage(1)}
-            >
-              <ChevronRight size={14} aria-hidden="true" />
-            </button>
           </div>
+          {/* Edge steppers keep a fixed vertical slot, so they never move
+              between pages; the wheel offers the same switching. */}
+          <button
+            className="pager-arrow is-left"
+            aria-label={t("上一页")}
+            title={t("上一页")}
+            onClick={() => cyclePage(-1)}
+          >
+            <ChevronLeft size={14} aria-hidden="true" />
+          </button>
+          <button
+            className="pager-arrow is-right"
+            aria-label={t("下一页")}
+            title={t("下一页")}
+            onClick={() => cyclePage(1)}
+          >
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
         </div>
       </div>
       {error && (

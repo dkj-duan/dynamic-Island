@@ -75,7 +75,7 @@ html.island-window #root {
 
 .is-expanded .island-panel {
   /* Height = page height + a lane for the transient banner, when present. */
-  --panel-h: 148px;
+  --panel-h: 166px;
   width: 340px;
   height: calc(var(--panel-h) + var(--banner-extra, 0px));
   border-radius: 30px;
@@ -190,8 +190,12 @@ html.island-window #root {
 }
 
 .system-notice strong {
+  min-width: 0;
+  overflow: hidden;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* —— Mail capsule: account on top, code below, both centered —— */
@@ -756,6 +760,7 @@ html.island-window #root {
 }
 
 /* —— Pager: dots + edge arrows (arrows anchor to the panel corner) —— */
+/* Direct page switching at the bottom; the side steppers handle stepping. */
 .island-pager {
   display: flex;
   align-items: center;
@@ -764,51 +769,80 @@ html.island-window #root {
   height: 15px;
 }
 
-.pager-dots {
+.pager-tabs {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
-.pager-dots button {
-  width: 5px;
-  height: 5px;
+.pager-tab {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 17px;
   padding: 0;
   border: 0;
-  border-radius: 99px;
-  background: #3b3b43;
+  border-radius: 6px;
+  background: transparent;
+  color: #77777f;
   cursor: pointer;
   transition:
-    width var(--motion-base) var(--ease-out),
-    background var(--motion-base) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
 }
 
-.pager-dots button:hover {
-  background: #5b5b66;
-  transform: scale(1.2);
+.pager-tab:hover {
+  background: #26262d;
+  color: #d6d6de;
 }
 
-.pager-dots button.active {
-  width: 13px;
-  background: #e9e9ef;
+.pager-tab.active {
+  color: #e9e9ef;
+  background: #2c2c34;
 }
 
+/* The active page keeps its title colour, so the strip reads as navigation. */
+.pager-tab.is-timer.active {
+  background: rgb(240 178 107 / 0.14);
+  color: #f0b26b;
+}
+
+.pager-tab.is-music.active {
+  background: rgb(127 212 195 / 0.14);
+  color: #7fd4c3;
+}
+
+.pager-tab.is-mail.active {
+  background: rgb(179 162 248 / 0.16);
+  color: #b3a2f8;
+}
+
+.pager-tab.is-water.active {
+  background: rgb(127 184 242 / 0.15);
+  color: #7fb8f2;
+}
+
+.pager-tab.is-ai.active {
+  background: rgb(143 192 242 / 0.15);
+  color: #8fc0f2;
+}
+
+/* —— Pager: ghost steppers in a fixed slot + wheel switching —— */
 .pager-arrow {
-  /* Anchored to the panel top, not its middle: the arrows must not drift when
-     the panel grows for another page or for a banner. */
+  /* Fixed distance from the panel top: the slot must not move when the
+     panel grows for another page or for a banner. */
   position: absolute;
-  top: 82px;
+  top: 86px;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #212126;
-  color: #b4b4bd;
+  background: transparent;
+  color: #7d7d88;
   cursor: pointer;
   transition:
     background var(--motion-fast) var(--ease-out),
@@ -816,16 +850,20 @@ html.island-window #root {
 }
 
 .pager-arrow:hover {
-  background: #2e2e35;
-  color: #f0f0f4;
+  background: rgb(255 255 255 / 0.07);
+  color: #f2f2f6;
+}
+
+.pager-arrow:active {
+  background: rgb(255 255 255 / 0.1);
 }
 
 .pager-arrow.is-left {
-  left: 5px;
+  left: 4px;
 }
 
 .pager-arrow.is-right {
-  right: 5px;
+  right: 4px;
 }
 
 .media-view {
@@ -834,6 +872,11 @@ html.island-window #root {
   flex-direction: column;
   justify-content: center;
   gap: 7px;
+}
+
+/* Let the empty state use the whole page body so it centers with the pager. */
+.media-view.is-empty {
+  flex: 1;
 }
 
 .media-view > * {
@@ -1075,26 +1118,59 @@ html.island-window #root {
   }
 }
 
-.media-empty {
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 6px;
+/* Shared empty page state (Music, Mail, AI quota). The hint stays narrow so
+   the pager arrows on both edges never touch the copy. */
+.island-empty {
   flex: 1;
-  color: #b0b0ba;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 10px;
   text-align: center;
 }
 
-.media-empty strong {
-  color: #d6d6de;
-  font-size: 13px;
-  font-weight: 600;
+.island-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 3px;
+  border-radius: 9px;
+  background: rgb(255 255 255 / 0.06);
+  color: #b0b0ba;
 }
 
-.media-empty span {
-  color: #adaeb8;
+.island-empty.is-music .island-empty-icon {
+  background: rgb(127 212 195 / 0.14);
+  color: #7fd4c3;
+}
+
+.island-empty.is-mail .island-empty-icon {
+  background: rgb(179 162 248 / 0.16);
+  color: #c0b3f8;
+}
+
+.island-empty.is-ai .island-empty-icon {
+  background: rgb(143 192 242 / 0.15);
+  color: #8fc0f2;
+}
+
+.island-empty strong {
+  color: #d8d8e0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.island-empty-hint {
+  max-width: 216px;
+  color: #a5a5af;
   font-size: 12px;
   line-height: 1.5;
+  text-wrap: balance;
 }
 
 .timer-view {
@@ -1287,11 +1363,81 @@ html.island-window #root {
 }
 
 .timer-controls {
+  /* Wrap instead of clipping: labels vary with the UI language. */
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 5px;
+  gap: 5px 6px;
   margin-top: 0;
+  padding: 0 2px;
+}
+
+/* Idle presets: one row of two-line chips. Stacking the mode over the duration
+   keeps long English labels like "Long break" inside an even 340px panel. */
+.timer-presets {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  margin-top: 0;
+}
+
+.timer-preset {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 6px;
+  border: 1px solid #36363d;
+  border-radius: 11px;
+  background: #222227;
+  color: #e0e0e6;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.timer-preset:hover {
+  background: #2c2c33;
+  border-color: #44444c;
+}
+
+.timer-preset-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: #9a9aa3;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-preset-value {
+  color: #e6e6ec;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timer-preset.is-ghost {
+  border-color: #32323a;
+  background: transparent;
+}
+
+.timer-preset.is-ghost .timer-preset-label {
+  color: #8f8f99;
+}
+
+.timer-preset-icon {
+  color: #b9b9c2;
 }
 
 .timer-controls button {
@@ -1470,10 +1616,6 @@ html.island-window #root {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.island-mail-view > .media-empty {
-  margin: auto;
 }
 
 .island-mail-top {

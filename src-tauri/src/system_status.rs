@@ -120,6 +120,7 @@ pub struct SystemStatus {
     on_ac: Option<bool>,
     battery: Option<u8>,
     charging: Option<bool>,
+    output_device: Option<crate::audio::AudioDevice>,
 }
 
 #[tauri::command]
@@ -179,6 +180,7 @@ fn read_status() -> SystemStatus {
                 } else {
                     None
                 },
+                output_device: crate::audio::default_device(),
             }
         }
     }
@@ -189,5 +191,6 @@ fn read_status() -> SystemStatus {
         on_ac: None,
         battery: None,
         charging: None,
+        output_device: None,
     }
 }

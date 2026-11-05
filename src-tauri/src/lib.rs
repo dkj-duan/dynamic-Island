@@ -1,11 +1,12 @@
 use serde::Serialize;
 #[cfg(not(target_os = "windows"))]
 use tauri::LogicalSize;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
 use tauri::tray::TrayIconEvent;
 use tauri::{Manager, PhysicalPosition, WindowEvent};
 
 mod ai_quota;
+mod audio;
 mod lyrics;
 mod mail;
 #[cfg(target_os = "windows")]
@@ -437,18 +438,129 @@ unsafe extern "system" fn island_window_subclass(
     }
 }
 
+/// Opens the settings window and makes sure it is actually in front:
+/// restored if it was minimised, focused, and briefly pinned on top so the
+/// foreground window cannot bury it.
 #[tauri::command]
 fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or("settings window unavailable")?;
     window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())
+    window.unminimize().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        if let Some(window) = handle.get_webview_window("main") {
+            let _ = window.set_always_on_top(false);
+        }
+    });
+    Ok(())
+}
+
+/// Moves the island to the top of the topmost band. Windows lets other
+/// topmost windows (taskbar, another app's "always on top") sit above it, and
+/// a window that lost the flag is not recovered by tauri's flag setter.
+#[cfg(target_os = "windows")]
+fn raise_island(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos,
+    };
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+    let raised = unsafe {
+        SetWindowPos(
+            hwnd.0,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+    };
+    if raised == 0 {
+        return Err(std::io::Error::last_os_error().to_string());
+    }
+    Ok(())
+}
+
+/// Tray menu with a live output-device submenu (checkmark = current default).
+fn build_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let show = MenuItem::with_id(app, "show", "显示设置", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let devices = Submenu::with_id(app, "audio", "输出设备", true)?;
+    match audio::list() {
+        Ok(list) if !list.is_empty() => {
+            for device in list {
+                let item = CheckMenuItem::with_id(
+                    app,
+                    format!("audio:{}", device.id),
+                    device.name,
+                    true,
+                    device.is_default,
+                    None::<&str>,
+                )?;
+                devices.append(&item)?;
+            }
+        }
+        _ => {
+            let empty =
+                MenuItem::with_id(app, "audio:none", "未找到输出设备", false, None::<&str>)?;
+            devices.append(&empty)?;
+        }
+    }
+    Menu::with_items(app, &[&show, &devices, &quit])
+}
+
+/// Rebuilds the tray menu when the device list or default device changes.
+fn spawn_tray_audio_refresh<R: tauri::Runtime + 'static>(app: tauri::AppHandle<R>) {
+    std::thread::spawn(move || {
+        let mut signature: Vec<(String, String, bool)> = Vec::new();
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            let Ok(devices) = audio::list() else {
+                continue;
+            };
+            let next: Vec<(String, String, bool)> = devices
+                .into_iter()
+                .map(|device| (device.id, device.name, device.is_default))
+                .collect();
+            if next == signature {
+                continue;
+            }
+            signature = next;
+            let Ok(menu) = build_tray_menu(&app) else {
+                continue;
+            };
+            if let Some(tray) = app.tray_by_id("app-tray") {
+                let _ = tray.set_menu(Some(menu));
+            }
+        }
+    });
 }
 
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
+}
+
+#[tauri::command]
+async fn get_audio_devices() -> Result<Vec<audio::AudioDevice>, String> {
+    tauri::async_runtime::spawn_blocking(audio::list)
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn set_audio_device(window: tauri::WebviewWindow, device_id: String) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能切换输出设备".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || audio::set_default(&device_id))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[cfg(target_os = "windows")]
@@ -658,6 +770,8 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
             }
             return Err(std::io::Error::last_os_error().to_string());
         }
+        // Reopening the panel must also put it back above every other window.
+        raise_island(&window)?;
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]
@@ -699,6 +813,8 @@ pub fn run() {
             start_island_drag,
             reset_island_position,
             set_window_theme,
+            get_audio_devices,
+            set_audio_device,
             get_media_state,
             get_media_artwork,
             control_media,
@@ -775,24 +891,43 @@ pub fn run() {
             }
             // A tray icon is the safety rope: both windows can be hidden
             // (close / minimize) and this is the only way back.
-            let show = MenuItem::with_id(app, "show", "显示设置", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show, &quit])?;
+            let tray_menu = build_tray_menu(app.handle())?;
+            let tray_handle = app.handle().clone();
             tauri::tray::TrayIconBuilder::with_id("app-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Dynamic Island")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
+                .on_menu_event(|app, event| {
+                    let id = event.id.as_ref();
+                    match id {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.unminimize();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "quit" => app.exit(0),
+                        _ => {
+                            if let Some(device_id) = id.strip_prefix("audio:")
+                                && device_id != "none"
+                            {
+                                let handle = app.clone();
+                                let device_id = device_id.to_string();
+                                std::thread::spawn(move || {
+                                    if audio::set_default(&device_id).is_err() {
+                                        return;
+                                    }
+                                    if let Ok(menu) = build_tray_menu(&handle)
+                                        && let Some(tray) = handle.tray_by_id("app-tray")
+                                    {
+                                        let _ = tray.set_menu(Some(menu));
+                                    }
+                                });
+                            }
                         }
                     }
-                    "quit" => app.exit(0),
-                    _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
@@ -800,20 +935,20 @@ pub fn run() {
                         button_state: tauri::tray::MouseButtonState::Up,
                         ..
                     } = event
+                        && let Some(window) = tray.app_handle().get_webview_window("main")
                     {
-                        if let Some(window) = tray.app_handle().get_webview_window("main") {
-                            let visible = window.is_visible().unwrap_or(false);
-                            if visible {
-                                let _ = window.hide();
-                            } else {
-                                let _ = window.show();
-                                let _ = window.unminimize();
-                                let _ = window.set_focus();
-                            }
+                        let visible = window.is_visible().unwrap_or(false);
+                        if visible {
+                            let _ = window.hide();
+                        } else {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
                         }
                     }
                 })
                 .build(app)?;
+            spawn_tray_audio_refresh(tray_handle);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -827,6 +962,12 @@ pub fn run() {
                     && window.is_minimized().unwrap_or(false)
                 {
                     let _ = window.hide();
+                }
+            }
+            if window.label() == "island" && matches!(event, WindowEvent::Focused(true)) {
+                #[cfg(target_os = "windows")]
+                if let Some(island) = window.app_handle().get_webview_window("island") {
+                    let _ = raise_island(&island);
                 }
             }
             if window.label() == "island" && matches!(event, WindowEvent::Moved(_)) {

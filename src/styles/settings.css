@@ -823,6 +823,55 @@
   flex: none;
 }
 
+/* Output device list: rows are buttons that switch the default endpoint. */
+.audio-device-row {
+  width: 100%;
+  margin: 0;
+  padding: 9px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.audio-device-row:hover:not(:disabled),
+.audio-device-row:focus-visible {
+  background: var(--settings-surface-2);
+}
+
+.audio-device-row:disabled,
+.audio-device-row.is-default {
+  cursor: default;
+}
+
+.audio-device-row.is-default .settings-list-icon {
+  color: var(--settings-text-strong);
+  background: var(--settings-surface-3);
+}
+
+.audio-device-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--settings-surface-3);
+  color: var(--settings-text-strong);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+
+.audio-device-spinner {
+  flex: none;
+  animation: audio-device-spin 0.9s linear infinite;
+}
+
+@keyframes audio-device-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .tag {
   padding: 1px 5px;
   border-radius: 4px;

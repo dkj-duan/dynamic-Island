@@ -43,7 +43,7 @@
 /* —— Island —— */
 /* The expanded panel keeps a per-page height; large displays get a little more. */
 :root[data-large-display="true"] .is-expanded .island-panel {
-  --panel-h: 162px;
+  --panel-h: 180px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="music"] .island-panel {
@@ -90,6 +90,10 @@
 
 :root[data-large-display="true"] .timer-clock {
   font-size: 38px;
+}
+
+:root[data-large-display="true"] .timer-preset-value {
+  font-size: 14px;
 }
 
 :root[data-large-display="true"] .timer-clock.is-finished {

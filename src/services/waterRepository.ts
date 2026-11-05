@@ -57,7 +57,8 @@ export async function recordPomodoro(
 export async function loadDailyStats(limit = 30): Promise<DailyStat[]> {
   if (!isTauri()) return [];
   try {
-    return await invoke<DailyStat[]>("get_daily_stats", { limit });
+    const value = await invoke<unknown>("get_daily_stats", { limit });
+    return Array.isArray(value) ? (value as DailyStat[]) : [];
   } catch {
     return [];
   }

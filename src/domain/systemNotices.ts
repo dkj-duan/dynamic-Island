@@ -6,6 +6,12 @@ export type SystemStatus = {
   onAc: boolean | null;
   battery: number | null;
   charging: boolean | null;
+  outputDevice: AudioDevice | null;
+};
+export type AudioDevice = {
+  id: string;
+  name: string;
+  isDefault: boolean;
 };
 export type BluetoothStatus = {
   id: string;
@@ -13,7 +19,7 @@ export type BluetoothStatus = {
   battery: number | null;
 };
 export type SystemNotice = {
-  kind: "volume" | "power" | "brightness" | "bluetooth";
+  kind: "volume" | "power" | "brightness" | "bluetooth" | "audio";
   label: string;
   value: string;
 };
@@ -24,7 +30,14 @@ export function systemChanges(
 ): SystemNotice[] {
   if (!previous) return [];
   const notices: SystemNotice[] = [];
+  // Switching outputs changes the reported volume too; announce the device
+  // instead of a misleading volume change.
+  const deviceChanged =
+    !!current.outputDevice &&
+    !!previous.outputDevice &&
+    current.outputDevice.id !== previous.outputDevice.id;
   if (
+    !deviceChanged &&
     current.volume !== null &&
     previous.volume !== null &&
     (current.volume !== previous.volume ||
@@ -52,6 +65,13 @@ export function systemChanges(
           : t("已接通电源")
         : t("电源已断开"),
       value: `${current.battery}%`,
+    });
+  }
+  if (deviceChanged && current.outputDevice) {
+    notices.push({
+      kind: "audio",
+      label: t("输出设备"),
+      value: current.outputDevice.name,
     });
   }
   return notices;

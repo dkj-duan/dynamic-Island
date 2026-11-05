@@ -8,6 +8,7 @@ describe("system status changes", () => {
     onAc: true,
     battery: 80,
     charging: true,
+    outputDevice: { id: "a", name: "耳机 A", isDefault: true },
   };
   it("does not announce the initial snapshot or unavailable values", () => {
     expect(systemChanges(undefined, initial)).toEqual([]);
@@ -35,5 +36,28 @@ describe("system status changes", () => {
     expect(deviceChanges([headset], [])).toEqual([
       { kind: "bluetooth", label: "耳机", value: "已断开" },
     ]);
+  });
+  it("reports output device switches", () => {
+    expect(
+      systemChanges(initial, {
+        ...initial,
+        outputDevice: { id: "b", name: "耳机 B", isDefault: true },
+      }),
+    ).toEqual([{ kind: "audio", label: "输出设备", value: "耳机 B" }]);
+    expect(
+      systemChanges(initial, {
+        ...initial,
+        outputDevice: { id: "a", name: "耳机 A", isDefault: true },
+      }),
+    ).toEqual([]);
+  });
+  it("prefers the device notice over the volume side effect", () => {
+    expect(
+      systemChanges(initial, {
+        ...initial,
+        volume: 12,
+        outputDevice: { id: "b", name: "耳机 B", isDefault: true },
+      }),
+    ).toEqual([{ kind: "audio", label: "输出设备", value: "耳机 B" }]);
   });
 });

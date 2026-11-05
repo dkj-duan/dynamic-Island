@@ -31,14 +31,20 @@ export function useSystemNotice() {
       if (
         !current ||
         (next.kind === current.kind &&
-          (next.kind === "volume" || next.kind === "brightness"))
+          (next.kind === "volume" ||
+            next.kind === "brightness" ||
+            next.kind === "audio"))
       ) {
         window.clearTimeout(dismissal);
         current = next;
         setNotice(next);
         dismissal = window.setTimeout(advance, 3000);
       } else {
-        if (next.kind === "volume" || next.kind === "brightness") {
+        if (
+          next.kind === "volume" ||
+          next.kind === "brightness" ||
+          next.kind === "audio"
+        ) {
           const existing = pending.findIndex((item) => item.kind === next.kind);
           if (existing >= 0) pending.splice(existing, 1);
         }
