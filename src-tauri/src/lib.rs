@@ -743,8 +743,10 @@ pub fn run() {
             {
                 let scale = monitor.scale_factor();
                 let size = monitor.size();
-                let width = (size.width as f64 / scale * 0.72).clamp(900.0, 1500.0);
-                let height = (size.height as f64 / scale * 0.88).clamp(640.0, 960.0);
+                // Large displays also get larger type (large-display.css), so
+                // the caps must leave room for the taller content.
+                let width = (size.width as f64 / scale * 0.72).clamp(900.0, 1680.0);
+                let height = (size.height as f64 / scale * 0.88).clamp(640.0, 1120.0);
                 window.set_size(tauri::LogicalSize::new(width, height))?;
                 window.center()?;
             }
