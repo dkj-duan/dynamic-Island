@@ -1,3 +1,4 @@
+import { SettingsCard } from "./SettingsCard";
 import { useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -63,7 +64,7 @@ export function StorageSettings({
   }
   return (
     <div className="settings-stack">
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("数据目录")}</h2>
           <span className="card-note">SQLite</span>
@@ -101,9 +102,9 @@ export function StorageSettings({
             {message}
           </p>
         )}
-      </section>
+      </SettingsCard>
 
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("凭据与隐私")}</h2>
         </div>
@@ -121,7 +122,7 @@ export function StorageSettings({
             <dd>{t("仅内存保留约 5 分钟，不保存正文与验证码")}</dd>
           </div>
         </dl>
-      </section>
+      </SettingsCard>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 /* Style entry — import order matters: base → settings → water → island → large. */
 @import "./base.css";
 @import "./settings.css";
+@import "./settings-controls.css";
 @import "./water.css";
 @import "./island.css";
 @import "./large-display.css";

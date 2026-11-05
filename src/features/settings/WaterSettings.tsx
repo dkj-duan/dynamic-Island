@@ -1,3 +1,4 @@
+import { SettingsCard } from "./SettingsCard";
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -120,7 +121,7 @@ export function WaterSettings() {
 
   return (
     <div className="settings-stack">
-      <section className="settings-card settings-water-hero">
+      <SettingsCard className="settings-water-hero">
         <div className="settings-water-glass-wrap">
           <WaterGlass
             percent={percent}
@@ -220,10 +221,10 @@ export function WaterSettings() {
             </span>
           )}
         </div>
-      </section>
+      </SettingsCard>
 
       <div className="settings-columns is-stretch">
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <div>
               <h2>{t("目标与提醒")}</h2>
@@ -289,7 +290,7 @@ export function WaterSettings() {
               />
             </label>
             <div className="field-row">
-              <label className="field">
+              <div className="field">
                 <span>{t("提醒时段")}</span>
                 <Select
                   ariaLabel={t("提醒开始时间")}
@@ -304,8 +305,8 @@ export function WaterSettings() {
                     }));
                   }}
                 />
-              </label>
-              <label className="field">
+              </div>
+              <div className="field">
                 <span>{t("结束时间")}</span>
                 <Select
                   ariaLabel={t("提醒结束时间")}
@@ -320,7 +321,7 @@ export function WaterSettings() {
                     }));
                   }}
                 />
-              </label>
+              </div>
             </div>
             <label className="setting-row">
               <span className="setting-row-copy">
@@ -387,9 +388,9 @@ export function WaterSettings() {
               </button>
             )}
           </div>
-        </section>
+        </SettingsCard>
 
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <div>
               <h2>{t("近 30 天饮水")}</h2>
@@ -419,7 +420,7 @@ export function WaterSettings() {
             format={(value) => `${value} ml`}
             label={t("近 30 天饮水")}
           />
-        </section>
+        </SettingsCard>
       </div>
     </div>
   );

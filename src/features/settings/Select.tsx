@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { useLayoutEffect, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 export type SelectOption = { value: string; label: string };
@@ -11,138 +12,74 @@ interface Props {
   ariaLabel?: string;
 }
 
-/**
- * Listbox styled with the app surface. A native <select> popup is drawn by
- * Windows and ignores every CSS rule, which breaks the panel styling.
- */
+/** Shared settings select; Radix handles focus, keyboard navigation and positioning. */
 export function Select({
   value,
   options,
   onChange,
-  disabled = false,
+  disabled,
   ariaLabel,
 }: Props) {
-  const id = useId();
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const wrapper = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const list = useRef<HTMLUListElement>(null);
-  const selectedIndex = Math.max(
-    0,
-    options.findIndex((option) => option.value === value),
-  );
-  const current = options[selectedIndex];
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
+  const [portal] = useState(() => document.createElement("div"));
+  useLayoutEffect(() => {
+    const syncZoom = () => {
+      const zoom =
+        Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+      portal.setAttribute("style", `zoom: ${1 / zoom}`);
     };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    list.current
-      ?.querySelector<HTMLElement>('[data-active="true"]')
-      ?.scrollIntoView({ block: "nearest" });
-  }, [open, active]);
-
-  function openMenu() {
-    if (disabled) return;
-    setActive(selectedIndex);
-    setOpen(true);
-  }
-
-  function commit(index: number) {
-    const option = options[index];
-    setOpen(false);
-    trigger.current?.focus();
-    if (option && option.value !== value) onChange(option.value);
-  }
-
-  function onKeyDown(event: React.KeyboardEvent) {
-    if (disabled) return;
-    const last = options.length - 1;
-    if (!open) {
-      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
-        event.preventDefault();
-        openMenu();
-      }
-      return;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setActive((index) => Math.min(last, index + 1));
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActive((index) => Math.max(0, index - 1));
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      setActive(0);
-    } else if (event.key === "End") {
-      event.preventDefault();
-      setActive(last);
-    } else if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      commit(active);
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      setOpen(false);
-    } else if (event.key === "Tab") {
-      setOpen(false);
-    }
-  }
-
+    syncZoom();
+    document.body.appendChild(portal);
+    const observer = new MutationObserver(syncZoom);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    return () => {
+      observer.disconnect();
+      portal.remove();
+    };
+  }, [portal]);
   return (
-    <div className="select" ref={wrapper}>
-      <button
-        type="button"
-        ref={trigger}
+    <SelectPrimitive.Root
+      value={value}
+      onValueChange={onChange}
+      disabled={disabled}
+    >
+      <SelectPrimitive.Trigger
         className="select-trigger"
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
         aria-label={ariaLabel}
-        aria-activedescendant={open ? `${id}-${active}` : undefined}
-        onClick={() => (open ? setOpen(false) : openMenu())}
-        onKeyDown={onKeyDown}
       >
-        <span>{current?.label ?? ""}</span>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && (
-        <ul
+        <SelectPrimitive.Value />
+        <SelectPrimitive.Icon>
+          <ChevronDown size={14} aria-hidden="true" />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+      <SelectPrimitive.Portal container={portal}>
+        <SelectPrimitive.Content
           className="select-menu"
-          role="listbox"
-          aria-label={ariaLabel}
-          ref={list}
+          position="popper"
+          align="start"
+          sideOffset={4}
+          collisionPadding={12}
         >
-          {options.map((option, index) => {
-            const selected = option.value === value;
-            return (
-              <li
+          <SelectPrimitive.Viewport className="select-viewport">
+            {options.map((option) => (
+              <SelectPrimitive.Item
                 key={option.value}
-                id={`${id}-${index}`}
-                role="option"
-                aria-selected={selected}
-                data-active={index === active}
+                value={option.value}
                 className="select-option"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  commit(index);
-                }}
-                onPointerEnter={() => setActive(index)}
               >
-                <span>{option.label}</span>
-                {selected && <Check size={13} aria-hidden="true" />}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+                <SelectPrimitive.ItemText>
+                  {option.label}
+                </SelectPrimitive.ItemText>
+                <SelectPrimitive.ItemIndicator>
+                  <Check size={13} aria-hidden="true" />
+                </SelectPrimitive.ItemIndicator>
+              </SelectPrimitive.Item>
+            ))}
+          </SelectPrimitive.Viewport>
+        </SelectPrimitive.Content>
+      </SelectPrimitive.Portal>
+    </SelectPrimitive.Root>
   );
 }

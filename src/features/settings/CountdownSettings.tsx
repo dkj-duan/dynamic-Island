@@ -1,3 +1,5 @@
+import { SettingsCard } from "./SettingsCard";
+import { TimeSelect } from "./TimeSelect";
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -184,7 +186,7 @@ export function CountdownSettings() {
 
   return (
     <div className="settings-stack">
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("倒计时")}</h2>
           <button
@@ -311,18 +313,16 @@ export function CountdownSettings() {
               ))}
             </div>
             {draft.kind === "target" ? (
-              <label className="field">
+              <div className="field">
                 <span>{t("目标时间")}</span>
-                <input
-                  type="time"
-                  step={60}
+                <TimeSelect
                   value={draft.targetTime}
                   disabled={!desktop || busy}
-                  onChange={(event) =>
-                    setDraft({ ...draft, targetTime: event.target.value })
+                  onChange={(value) =>
+                    setDraft({ ...draft, targetTime: value })
                   }
                 />
-              </label>
+              </div>
             ) : (
               <div className="field-row">
                 <label className="field">
@@ -379,7 +379,7 @@ export function CountdownSettings() {
         <p className="card-hint" role="status">
           {error || status}
         </p>
-      </section>
+      </SettingsCard>
     </div>
   );
 }

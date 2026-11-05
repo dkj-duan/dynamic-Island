@@ -1,3 +1,4 @@
+import { SettingsCard } from "./SettingsCard";
 import { useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -96,7 +97,7 @@ export function AiSettings() {
   return (
     <div className="settings-stack">
       <div className="settings-columns">
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <h2>{t("账户与额度")}</h2>
             <button
@@ -172,9 +173,9 @@ export function AiSettings() {
               ))}
             </div>
           )}
-        </section>
+        </SettingsCard>
 
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <h2>{t("添加账户")}</h2>
           </div>
@@ -266,10 +267,10 @@ export function AiSettings() {
               </button>
             </div>
           </form>
-        </section>
+        </SettingsCard>
       </div>
 
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("灵动岛上的额度显示")}</h2>
         </div>
@@ -287,7 +288,7 @@ export function AiSettings() {
             <dd>{t("点「常驻」把某个账户固定在灵动岛上，切换立即生效。")}</dd>
           </div>
         </dl>
-      </section>
+      </SettingsCard>
     </div>
   );
 }

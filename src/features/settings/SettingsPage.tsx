@@ -1,8 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
-  BatteryMedium,
-  CalendarCheck,
   CircleHelp,
   MousePointer2,
   Palette,
@@ -10,24 +7,14 @@ import {
   Database,
   Mail,
   Bot,
-  Check,
   Timer,
   Droplets,
-  Clock3,
-  Flame,
-  Headphones,
   Hourglass,
-  Music2,
-  Volume2,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
-import {
-  MAX_IDLE_WIDGETS,
-  type AppearanceSettings,
-  type IdleWidgetId,
-  type PomodoroIdleView,
-} from "../../domain/settings";
+import type { AppearanceSettings } from "../../domain/settings";
+import { AppearancePage } from "./AppearanceSettings";
+import { BehaviorSettings } from "./BehaviorSettings";
+import { AboutSettings } from "./AboutSettings";
 import { CountdownSettings } from "./CountdownSettings";
 import { StatusSettings } from "./StatusSettings";
 import { StorageSettings } from "./StorageSettings";
@@ -35,7 +22,7 @@ import { MailSettings } from "./MailSettings";
 import { AiSettings } from "./AiSettings";
 import { PomodoroSettings } from "./PomodoroSettings";
 import { WaterSettings } from "./WaterSettings";
-import { languageOptions, setLanguage, t } from "../../services/i18n";
+import { setLanguage, t } from "../../services/i18n";
 import appIcon from "../../assets/app-icon.png";
 
 type Page =
@@ -122,76 +109,8 @@ const navItems: NavItem[] = [
 const navGroups: { label: string; ids: Page[] }[] = [
   { label: "通用", ids: ["appearance", "behavior"] },
   { label: "功能", ids: ["pomodoro", "water", "countdown"] },
-  { label: "提醒源", ids: ["status", "mail", "ai"] },
-  { label: "系统", ids: ["storage", "about"] },
-];
-
-const aboutFeatures: { icon: typeof Palette; label: string; text: string }[] = [
-  {
-    icon: Timer,
-    label: "计时器与番茄钟",
-    text: "一键开始专注或休息，结束时灵动岛持续提醒。",
-  },
-  {
-    icon: Music2,
-    label: "音乐控制",
-    text: "显示曲名、歌手与同步歌词，可直接切歌和暂停。",
-  },
-  {
-    icon: Mail,
-    label: "邮箱验证码",
-    text: "新邮件验证码直接显示在岛上，一键复制。",
-  },
-  {
-    icon: Bot,
-    label: "AI 额度",
-    text: "Codex、DeepSeek 等账户的余额与订阅额度常驻显示。",
-  },
-  {
-    icon: Droplets,
-    label: "喝水打卡",
-    text: "记录每日饮水量，进度以圆环显示在灵动岛。",
-  },
-  {
-    icon: Bell,
-    label: "系统状态提醒",
-    text: "音量、亮度、电源与蓝牙变化即时提示。",
-  },
-];
-
-const idleWidgetOptions: {
-  id: IdleWidgetId;
-  label: string;
-  icon: typeof Palette;
-}[] = [
-  { id: "clock", label: "时钟", icon: Clock3 },
-  { id: "quota", label: "常驻额度", icon: Bot },
-  { id: "water", label: "喝水进度", icon: Droplets },
-  { id: "pomodoro", label: "番茄进度", icon: Timer },
-  { id: "music", label: "正在播放", icon: Music2 },
-  { id: "battery", label: "电池与充电", icon: BatteryMedium },
-  { id: "focus", label: "今日专注", icon: Flame },
-  { id: "streak", label: "连续专注", icon: CalendarCheck },
-  { id: "volume", label: "音量与静音", icon: Volume2 },
-  { id: "bluetooth", label: "蓝牙耳机电量", icon: Headphones },
-  { id: "waterTimer", label: "喝水倒计时", icon: Hourglass },
-  { id: "countdown", label: "倒计时", icon: Hourglass },
-];
-
-const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [
-  { value: "count", label: "今日个数" },
-  { value: "focus", label: "专注分钟" },
-  { value: "cycle", label: "本轮轮次" },
-];
-
-const themeOptions = [
-  {
-    value: "system" as const,
-    label: "跟随系统",
-    hint: "随 Windows 深浅色切换",
-  },
-  { value: "light" as const, label: "浅色", hint: "明亮低对比" },
-  { value: "dark" as const, label: "深色", hint: "夜间使用" },
+  { label: "服务", ids: ["mail", "ai"] },
+  { label: "系统", ids: ["status", "storage", "about"] },
 ];
 
 export function SettingsPage({
@@ -204,38 +123,9 @@ export function SettingsPage({
   onStorageChanged,
 }: Props) {
   const [page, setPage] = useState<Page>("appearance");
-  const [positionReset, setPositionReset] = useState(false);
   setLanguage(appearance.language);
   const meta = pageMeta[page];
   const hasError = status.includes("失败");
-  const idleWidgetOrder = [
-    ...appearance.idleWidgets,
-    ...idleWidgetOptions
-      .map((option) => option.id)
-      .filter((id) => !appearance.idleWidgets.includes(id)),
-  ];
-
-  const idleWidgetLimitReached =
-    appearance.idleWidgets.length >= MAX_IDLE_WIDGETS;
-
-  function toggleIdleWidget(id: IdleWidgetId) {
-    const enabled = appearance.idleWidgets.includes(id);
-    if (!enabled && idleWidgetLimitReached) return;
-    const widgets = enabled
-      ? appearance.idleWidgets.filter((item) => item !== id)
-      : [...appearance.idleWidgets, id];
-    onAppearanceChange({ ...appearance, idleWidgets: widgets });
-  }
-
-  function moveIdleWidget(id: IdleWidgetId, delta: -1 | 1) {
-    const widgets = [...appearance.idleWidgets];
-    const from = widgets.indexOf(id);
-    const to = from + delta;
-    if (from < 0 || to < 0 || to >= widgets.length) return;
-    [widgets[from], widgets[to]] = [widgets[to], widgets[from]];
-    onAppearanceChange({ ...appearance, idleWidgets: widgets });
-  }
-
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () =>
@@ -317,362 +207,20 @@ export function SettingsPage({
             aria-label={meta.title}
           >
             {page === "appearance" && (
-              <div className="settings-stack">
-                <section className="settings-card preview-card">
-                  <div className="card-head">
-                    <h2>{t("桌面预览")}</h2>
-                    <span className="card-note">{t("实时同步")}</span>
-                  </div>
-                  <div className="preview-stage">{preview}</div>
-                  <div className="preview-caption">
-                    <span>{t("屏幕顶部 · 居中")}</span>
-                    <span>{t("拖动组件可调整顺序")}</span>
-                  </div>
-                </section>
-
-                <section className="settings-card">
-                  <div className="card-head">
-                    <h2>{t("界面主题")}</h2>
-                    <span className="card-note">{t("仅影响设置窗口")}</span>
-                  </div>
-                  <div
-                    className="theme-options"
-                    role="radiogroup"
-                    aria-label={t("界面主题")}
-                  >
-                    {themeOptions.map((option) => {
-                      const active = appearance.theme === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={active}
-                          disabled={!canEdit}
-                          className={`theme-option ${active ? "active" : ""}`}
-                          onClick={() =>
-                            onAppearanceChange({
-                              ...appearance,
-                              theme: option.value,
-                            })
-                          }
-                        >
-                          <span
-                            className={`theme-option-preview theme-option-preview-${option.value}`}
-                            aria-hidden="true"
-                          />
-                          <span className="theme-option-copy">
-                            <strong>{t(option.label)}</strong>
-                            <small>{t(option.hint)}</small>
-                          </span>
-                          <span
-                            className="theme-option-check"
-                            aria-hidden="true"
-                          >
-                            {active && <Check size={13} strokeWidth={2.6} />}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="setting-row">
-                    <span className="setting-row-copy">
-                      <strong>{t("界面语言")}</strong>
-                      <small>
-                        {t("界面语言选择后立即生效，两个窗口一起切换。")}
-                      </small>
-                    </span>
-                    <div
-                      className="segmented"
-                      role="group"
-                      aria-label={t("界面语言")}
-                    >
-                      {languageOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          disabled={!canEdit}
-                          aria-pressed={appearance.language === option.value}
-                          className={
-                            appearance.language === option.value ? "active" : ""
-                          }
-                          onClick={() =>
-                            onAppearanceChange({
-                              ...appearance,
-                              language: option.value,
-                            })
-                          }
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="settings-card">
-                  <div className="card-head">
-                    <h2>{t("胶囊")}</h2>
-                  </div>
-                  <div className="idle-widget-block">
-                    <div className="setting-row-copy">
-                      <strong>{t("闲时内容")}</strong>
-                      <small>
-                        {t("在预览中拖动组件，或使用箭头调整顺序。")}
-                      </small>
-                    </div>
-                    <ul className="idle-widget-list">
-                      {idleWidgetOrder.map((id) => {
-                        const option = idleWidgetOptions.find(
-                          (item) => item.id === id,
-                        )!;
-                        const Icon = option.icon;
-                        const index = appearance.idleWidgets.indexOf(id);
-                        const enabled = index >= 0;
-                        return (
-                          <li
-                            key={id}
-                            className={`idle-widget-row ${enabled ? "" : "is-off"}`}
-                          >
-                            <label className="idle-widget-toggle">
-                              <input
-                                type="checkbox"
-                                disabled={
-                                  !canEdit ||
-                                  (!enabled && idleWidgetLimitReached)
-                                }
-                                checked={enabled}
-                                onChange={() => toggleIdleWidget(id)}
-                              />
-                              <Icon size={15} aria-hidden="true" />
-                              <span>{t(option.label)}</span>
-                            </label>
-                            <span className="idle-widget-actions">
-                              <button
-                                type="button"
-                                aria-label={t("上移")}
-                                disabled={!canEdit || !enabled || index === 0}
-                                onClick={() => moveIdleWidget(id, -1)}
-                              >
-                                <ChevronUp size={14} aria-hidden="true" />
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={t("下移")}
-                                disabled={
-                                  !canEdit ||
-                                  !enabled ||
-                                  index === appearance.idleWidgets.length - 1
-                                }
-                                onClick={() => moveIdleWidget(id, 1)}
-                              >
-                                <ChevronDown size={14} aria-hidden="true" />
-                              </button>
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <p className="form-note">
-                      {t(
-                        "常驻额度仅在有常驻 AI 账户时显示；最多同时显示 6 个，没有数据的组件自动隐藏。",
-                      )}
-                    </p>
-                    <div className="setting-row">
-                      <span className="setting-row-copy">
-                        <strong>{t("番茄组件显示")}</strong>
-                        <small>{t("选择番茄组件在胶囊上展示的信息。")}</small>
-                      </span>
-                      <div
-                        className="segmented"
-                        role="group"
-                        aria-label={t("番茄组件显示")}
-                      >
-                        {pomodoroViewOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            disabled={!canEdit}
-                            aria-pressed={
-                              appearance.pomodoroView === option.value
-                            }
-                            className={
-                              appearance.pomodoroView === option.value
-                                ? "active"
-                                : ""
-                            }
-                            onClick={() =>
-                              onAppearanceChange({
-                                ...appearance,
-                                pomodoroView: option.value,
-                              })
-                            }
-                          >
-                            {t(option.label)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </section>
-              </div>
+              <AppearancePage
+                appearance={appearance}
+                onAppearanceChange={onAppearanceChange}
+                preview={preview}
+                canEdit={canEdit}
+              />
             )}
-
             {page === "behavior" && (
-              <section className="settings-card">
-                <div className="card-head">
-                  <div>
-                    <h2>{t("展开方式")}</h2>
-                    <p>{t("悬停模式把指针移到胶囊上就会展开，不用点击。")}</p>
-                  </div>
-                </div>
-                <div
-                  className="segmented"
-                  role="group"
-                  aria-label={t("展开方式")}
-                >
-                  {[
-                    { value: "click", label: "点击展开" },
-                    { value: "hover", label: "悬停展开" },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      disabled={!canEdit}
-                      aria-pressed={appearance.expandTrigger === option.value}
-                      className={
-                        appearance.expandTrigger === option.value
-                          ? "active"
-                          : ""
-                      }
-                      onClick={() =>
-                        onAppearanceChange({
-                          ...appearance,
-                          expandTrigger: option.value as "click" | "hover",
-                        })
-                      }
-                    >
-                      {t(option.label)}
-                    </button>
-                  ))}
-                </div>
-                <div className="setting-row">
-                  <span className="setting-row-copy">
-                    <strong>{t("灵动岛位置")}</strong>
-                    <small>
-                      {t("按住胶囊或面板顶栏即可拖动，松手后位置会被记住。")}
-                    </small>
-                  </span>
-                  <button
-                    className="btn btn-quiet"
-                    type="button"
-                    disabled={!isTauri() || positionReset}
-                    onClick={() => {
-                      void invoke("reset_island_position")
-                        .then(() => {
-                          setPositionReset(true);
-                          window.setTimeout(
-                            () => setPositionReset(false),
-                            1600,
-                          );
-                        })
-                        .catch(() => undefined);
-                    }}
-                  >
-                    {positionReset ? t("已恢复") : t("恢复默认位置")}
-                  </button>
-                </div>
-              </section>
+              <BehaviorSettings
+                appearance={appearance}
+                onAppearanceChange={onAppearanceChange}
+                canEdit={canEdit}
+              />
             )}
-
-            {page === "behavior" && (
-              <section className="settings-card">
-                <div className="card-head">
-                  <div>
-                    <h2>{t("鼠标离开后自动收起")}</h2>
-                    <p>
-                      {t(
-                        "点击或悬停展开后都生效；鼠标移出面板后按设定时间折叠，选择「立即」则马上收起，计时不会中断。",
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div
-                  className="segmented"
-                  role="group"
-                  aria-label={t("鼠标离开后自动收起")}
-                >
-                  {[
-                    { value: 0, label: "立即" },
-                    { value: 1, label: "1 秒" },
-                    { value: 3, label: "3 秒" },
-                    { value: 5, label: "5 秒" },
-                    { value: 10, label: "10 秒" },
-                    { value: 15, label: "15 秒" },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      disabled={!canEdit}
-                      aria-pressed={
-                        appearance.autoCollapseSeconds === option.value
-                      }
-                      className={
-                        appearance.autoCollapseSeconds === option.value
-                          ? "active"
-                          : ""
-                      }
-                      onClick={() =>
-                        onAppearanceChange({
-                          ...appearance,
-                          autoCollapseSeconds: option.value,
-                        })
-                      }
-                    >
-                      {t(option.label)}
-                    </button>
-                  ))}
-                </div>
-                <p className="card-hint">
-                  {t(
-                    "鼠标移回胶囊会取消收起计时；自动收起不会停止正在进行的倒计时。",
-                  )}
-                </p>
-              </section>
-            )}
-
-            {page === "behavior" && (
-              <section className="settings-card">
-                <div className="card-head">
-                  <div>
-                    <h2>{t("音乐")}</h2>
-                    <p>{t("控制收起胶囊里显示的内容。")}</p>
-                  </div>
-                </div>
-                <label className="setting-row">
-                  <span className="setting-row-copy">
-                    <strong>{t("岛上显示歌词")}</strong>
-                    <small>
-                      {t("关闭时显示歌手；歌词仍可在展开的音乐页查看。")}
-                    </small>
-                  </span>
-                  <input
-                    className="toggle-input"
-                    type="checkbox"
-                    disabled={!canEdit}
-                    checked={appearance.islandLyrics}
-                    onChange={(event) =>
-                      onAppearanceChange({
-                        ...appearance,
-                        islandLyrics: event.target.checked,
-                      })
-                    }
-                  />
-                </label>
-              </section>
-            )}
-
             {page === "pomodoro" && <PomodoroSettings />}
             {page === "status" && <StatusSettings />}
             {page === "water" && <WaterSettings />}
@@ -686,80 +234,7 @@ export function SettingsPage({
             {page === "mail" && <MailSettings />}
             {page === "ai" && <AiSettings />}
             {page === "about" && (
-              <>
-                <section className="settings-card">
-                  <div className="about-head">
-                    <span className="about-mark" aria-hidden="true">
-                      <img src={appIcon} alt="" />
-                    </span>
-                    <div>
-                      <h2>{t("灵动岛")}</h2>
-                      <p>
-                        {t("为 Windows 桌面打造的状态提醒与快捷操作入口。")}
-                      </p>
-                    </div>
-                  </div>
-                  <dl className="about-rows">
-                    <div>
-                      <dt>{t("版本")}</dt>
-                      <dd>0.1.0</dd>
-                    </div>
-                    <div>
-                      <dt>{t("技术栈")}</dt>
-                      <dd>Tauri 2 · React 19 · Rust</dd>
-                    </div>
-                    <div>
-                      <dt>{t("运行环境")}</dt>
-                      <dd>Windows 10/11 · WebView2</dd>
-                    </div>
-                    <div>
-                      <dt>{t("数据")}</dt>
-                      <dd>{t("本机 SQLite，凭据使用 Windows 用户加密")}</dd>
-                    </div>
-                    <div>
-                      <dt>{t("项目地址")}</dt>
-                      <dd>
-                        <a
-                          className="about-link"
-                          href="https://github.com/dkj-duan/dynamic-Island"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          github.com/dkj-duan/dynamic-Island
-                        </a>
-                      </dd>
-                    </div>
-                  </dl>
-                  <div className="button-row">
-                    <button
-                      className="btn btn-quiet"
-                      type="button"
-                      onClick={() => setPage("storage")}
-                    >
-                      {t("查看数据目录")}
-                    </button>
-                  </div>
-                </section>
-
-                <section className="settings-card">
-                  <div className="card-head">
-                    <h2>{t("主要功能")}</h2>
-                  </div>
-                  <div className="feature-grid">
-                    {aboutFeatures.map(({ icon: Icon, label, text }) => (
-                      <div className="feature-item" key={label}>
-                        <span className="feature-icon" aria-hidden="true">
-                          <Icon size={15} />
-                        </span>
-                        <div>
-                          <strong>{t(label)}</strong>
-                          <small>{t(text)}</small>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </>
+              <AboutSettings onStorage={() => setPage("storage")} />
             )}
           </div>
         </div>

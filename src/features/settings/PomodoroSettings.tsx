@@ -1,3 +1,4 @@
+import { SettingsCard } from "./SettingsCard";
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -85,7 +86,7 @@ export function PomodoroSettings() {
 
   return (
     <div className="settings-stack">
-      <section className="settings-card settings-pomodoro-hero">
+      <SettingsCard className="settings-pomodoro-hero">
         <div className="settings-pomodoro-art">
           <img src={pomodoroClock} alt="" draggable={false} />
         </div>
@@ -114,10 +115,10 @@ export function PomodoroSettings() {
             {t("长休")} · {settings.longBreakMinutes} {t("分钟")}
           </span>
         </div>
-      </section>
+      </SettingsCard>
 
       <div className="settings-columns is-stretch">
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <div>
               <h2>{t("番茄钟")}</h2>
@@ -189,9 +190,9 @@ export function PomodoroSettings() {
               </button>
             </div>
           </form>
-        </section>
+        </SettingsCard>
 
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <div>
               <h2>{t("专注统计")}</h2>
@@ -204,7 +205,7 @@ export function PomodoroSettings() {
             format={(value) => `${value} ${t("个番茄")}`}
             label={t("近 30 天番茄")}
           />
-        </section>
+        </SettingsCard>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { SettingsCard } from "./SettingsCard";
 import { useEffect, useState, type FormEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -136,7 +137,7 @@ export function MailSettings() {
   return (
     <div className="settings-stack">
       <div className="settings-columns">
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <h2>{t("已添加的邮箱")}</h2>
             <span className="card-note">
@@ -179,9 +180,9 @@ export function MailSettings() {
                 : t("请在桌面应用中添加邮箱。")}
             </p>
           )}
-        </section>
+        </SettingsCard>
 
-        <section className="settings-card">
+        <SettingsCard>
           <div className="card-head">
             <h2>{t("添加邮箱")}</h2>
           </div>
@@ -267,10 +268,10 @@ export function MailSettings() {
               </button>
             </div>
           </form>
-        </section>
+        </SettingsCard>
       </div>
 
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("灵动岛上的邮件提醒")}</h2>
         </div>
@@ -292,7 +293,7 @@ export function MailSettings() {
             <dd>{t("不保存邮件正文，提醒只在内存保留约 5 分钟。")}</dd>
           </div>
         </dl>
-      </section>
+      </SettingsCard>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { SettingsCard } from "./SettingsCard";
 import { useEffect, useState } from "react";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
@@ -184,7 +185,7 @@ export function StatusSettings() {
   ];
   return (
     <div className="settings-stack">
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("当前状态")}</h2>
           <button
@@ -223,9 +224,9 @@ export function StatusSettings() {
         <p className="card-hint" role="status">
           {previewMessage || t("演示使用示例数据，不会修改系统设置。")}
         </p>
-      </section>
+      </SettingsCard>
 
-      <section className="settings-card">
+      <SettingsCard>
         <div className="card-head">
           <h2>{t("输出设备")}</h2>
           <div className="settings-list-actions">
@@ -309,7 +310,7 @@ export function StatusSettings() {
         <p className="card-hint" role="status">
           {audioMessage}
         </p>
-      </section>
+      </SettingsCard>
     </div>
   );
 }
