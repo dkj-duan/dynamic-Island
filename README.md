@@ -6,6 +6,10 @@ _A dynamic island for Windows 10/11 — pomodoro, water, media & lyrics, mail co
 
 Tauri 2 · Rust · React 19 · TypeScript · WebView2 · [MIT License](LICENSE)
 
+[![Quality](https://github.com/dkj-duan/dynamic-Island/actions/workflows/quality.yml/badge.svg)](https://github.com/dkj-duan/dynamic-Island/actions/workflows/quality.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg)](#环境要求)
+
 ![展开后的音乐页](docs/screenshots/island-music.png)
 
 ## 功能
@@ -22,9 +26,12 @@ Tauri 2 · Rust · React 19 · TypeScript · WebView2 · [MIT License](LICENSE)
 **设置窗口**
 
 - 外观：主题（跟随系统 / 浅色 / 深色）、语言（简体中文 / English）、桌面实时预览、闲时组件管理。
-- 交互：展开方式、自动收起、恢复默认位置、音乐页的「岛上歌词」开关。
-- 番茄钟 / 喝水：3D 主视觉卡片、可配置参数与近 30 天统计图表。
-- AI 额度、邮箱提醒、状态提醒、数据与存储、关于。
+- 交互：展开方式、自动收起、恢复默认位置、开机自启动、音乐页的「岛上歌词」开关。
+- 提醒：提醒动效，以及验证码、喝水、计时结束时是否自动展开面板。
+- 番茄钟 / 喝水提醒：3D 主视觉卡片、可配置参数与近 30 天统计图表。
+- 倒计时：目标时间或固定时长，可启用一条显示在空闲胶囊。
+- 系统状态：音量、亮度、电源、蓝牙提示，以及输出/输入音频设备切换。
+- 邮箱提醒、AI 额度、数据与存储、关于。
 
 ## 截图
 
@@ -32,12 +39,16 @@ Tauri 2 · Rust · React 19 · TypeScript · WebView2 · [MIT License](LICENSE)
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/island-idle.png" alt="收起：闲时"><br><sub>收起：闲时组件（时钟 · 喝水 · 番茄 · 额度 · 音乐）</sub></td>
-    <td><img src="docs/screenshots/island-timer.png" alt="展开：计时器"><br><sub>展开：番茄钟</sub></td>
+    <td><img src="docs/screenshots/island-idle.png" alt="收起：闲时" width="331"><br><sub>收起：闲时组件（时钟 · 喝水 · 番茄 · 额度 · 音乐）</sub></td>
+    <td><img src="docs/screenshots/island-timer.png" alt="展开：计时器" width="348"><br><sub>展开：番茄钟</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/island-music.png" alt="展开：音乐"><br><sub>展开：音乐与同步歌词</sub></td>
-    <td><img src="docs/screenshots/island-water.png" alt="展开：喝水"><br><sub>展开：喝水进度与一键记录</sub></td>
+    <td><img src="docs/screenshots/island-music.png" alt="展开：音乐" width="348"><br><sub>展开：音乐与同步歌词</sub></td>
+    <td><img src="docs/screenshots/island-water.png" alt="展开：喝水" width="348"><br><sub>展开：喝水进度与一键记录</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/island-mail.png" alt="展开：邮件" width="348"><br><sub>展开：邮件提醒（暂无新邮件）</sub></td>
+    <td><img src="docs/screenshots/island-device.png" alt="展开：设备" width="348"><br><sub>展开：输出与输入设备切换</sub></td>
   </tr>
 </table>
 
@@ -59,15 +70,27 @@ Tauri 2 · Rust · React 19 · TypeScript · WebView2 · [MIT License](LICENSE)
 
 <img src="docs/screenshots/settings-ai.png" alt="设置：AI 额度" width="900">
 
+<img src="docs/screenshots/settings-mail.png" alt="设置：邮箱提醒" width="900">
+
+<img src="docs/screenshots/settings-reminder.png" alt="设置：提醒" width="900">
+
+<img src="docs/screenshots/settings-countdown.png" alt="设置：倒计时" width="900">
+
+<img src="docs/screenshots/settings-status.png" alt="设置：系统状态与音频设备" width="900">
+
+<img src="docs/screenshots/settings-storage.png" alt="设置：数据与存储" width="900">
+
+<img src="docs/screenshots/settings-about.png" alt="设置：关于" width="900">
+
 </details>
 
 ## 快速开始
 
 ### 环境要求
 
-- Windows 10 / 11（WebView2 运行时，Win11 已内置）
+- Windows 10 / 11，需要 [Microsoft Edge WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)（Windows 11 已内置）
 - Node.js 20+ 与 npm
-- Rust stable 与 [Tauri 2 的 Windows 构建依赖](https://v2.tauri.app/start/prerequisites/)（含 Microsoft C++ Build Tools）
+- Rust stable 与 [Tauri 2 的 Windows 构建依赖](https://v2.tauri.app/start/prerequisites/)（含 Microsoft C++ Build Tools 与 Windows SDK）
 
 ### 运行
 
@@ -97,7 +120,7 @@ npm run check   # prettier + eslint + vitest + tsc + vite build
 
 ### 交互与外观
 
-点击胶囊或悬停展开（在「设置 → 交互」里切换），拖动面板顶部可移动灵动岛，「恢复默认位置」会回到主屏顶部居中。展开面板每一页高度随内容自适应，「立即」表示鼠标离开面板就收起。调整设置后会立即同步到灵动岛。
+点击胶囊或悬停展开（在「设置 → 交互」里切换），拖动面板顶部可移动灵动岛，「恢复默认位置」会回到主屏顶部居中。展开面板每一页高度随内容自适应，「立即」表示鼠标离开面板就收起。滚轮与两侧箭头可以切页，设备页等长列表也不会出现滚动条。交互页还可以开启「开机自启动」：开机启动只显示灵动岛，不弹设置窗口。调整设置后会立即同步到灵动岛。
 
 ### 番茄钟
 
@@ -133,9 +156,9 @@ npm run check   # prettier + eslint + vitest + tsc + vite build
 
 ### 系统状态提醒
 
-音量、显示器亮度、电源连接、蓝牙连接和默认输出设备发生变化时会短暂接管灵动岛，随后恢复原有内容。亮度依赖显示器与驱动提供的 WMI 数据，外接显示器可能不支持；蓝牙电量优先读取系统 BatteryLife，经典蓝牙耳机则从 Hands-Free 节点的电量指示读取，设备未上报时自动隐藏。启动时先建立基线，不会提示已有状态；「设置 → 状态」可刷新读数或用示例数据演示。
+音量、显示器亮度、电源连接、蓝牙连接和默认音频设备发生变化时会短暂接管灵动岛，随后恢复原有内容。亮度依赖显示器与驱动提供的 WMI 数据，外接显示器可能不支持；蓝牙电量优先读取系统 BatteryLife，经典蓝牙耳机则从 Hands-Free 节点的电量指示读取，设备未上报时自动隐藏。启动时先建立基线，不会提示已有状态；「设置 → 系统状态」可刷新读数或用示例数据演示。
 
-「设置 → 状态」和托盘右键菜单都能列出并切换默认播放设备，切换后灵动岛会提示新的设备名。设备枚举使用公开的 Core Audio 接口，切换默认设备依赖 Windows 未公开的 PolicyConfig 接口（Win10/11 通用），失败时会保留原设备并显示错误。
+「设置 → 系统状态」和托盘右键菜单都能列出并切换默认输出设备；灵动岛「设备」页同时列出输出与麦克风输入设备，点击即可设为默认。设备枚举使用公开的 Core Audio 接口，切换默认设备依赖 Windows 未公开的 PolicyConfig 接口（Win10/11 通用），失败时会保留原设备并显示错误。
 
 ## 数据与隐私
 
@@ -144,6 +167,18 @@ npm run check   # prettier + eslint + vitest + tsc + vite build
 - 不保存邮件正文与验证码；邮件提醒仅在内存保留约 5 分钟。
 - 「设置 → 数据与存储」可迁移数据目录或复用已有数据库，迁移不会覆盖目标目录中已有的数据库，原目录文件保留。复制数据库到其他 Windows 用户或电脑后，需要重新添加邮箱授权码。
 
+网络请求只发往功能实际需要的服务：
+
+| 功能       | 目标                                                                                                        |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| 歌词       | `music.163.com`、`lrclib.net`；封面来自 `p1.music.126.net`                                                  |
+| AI 额度    | `api.deepseek.com`、`openrouter.ai`、`www.minimaxi.com`、`www.minimax.io`                                   |
+| Kimi       | 仅本机 `127.0.0.1` 上的 Kimi 服务，不经过外网                                                               |
+| 邮箱       | 你填写的 IMAP 服务器；预置 `imap.163.com`、`imap.126.com`、`imap.yeah.net`、`imap.qq.com`、`imap.gmail.com` |
+| 网易云回退 | 只读取本机客户端日志，不上传                                                                                |
+
+应用不包含遥测、崩溃上报或自动更新检查；除上述功能请求外不会主动联网。
+
 ## 已知限制
 
 - 灵动岛停靠在主显示器顶部，可拖动，但尚无全屏避让与多屏分别摆放。
@@ -151,6 +186,7 @@ npm run check   # prettier + eslint + vitest + tsc + vite build
 - 只有 Codex 返回重置时间，其余服务的接口没有该字段，因此不显示。
 - 插件机制尚未实现。
 - 浏览器预览（`npm run dev`）只用于调样式，不保存设置，也不调用任何 Windows 能力。
+- 安装包未做代码签名，也没有内置自动更新；Windows SmartScreen 可能提示未知发布者。
 
 ## 开发
 
@@ -161,8 +197,8 @@ src/features   两套窗口（island / main）的界面与交互
 src/domain     纯业务逻辑（番茄钟、喝水、额度、显示优先级……）
 src/services   Tauri 命令封装、存储与显示适配
 src/styles     设计 token、灵动岛与设置页样式
-src-tauri/src  Rust：窗口、媒体、歌词、IMAP、AI 额度、SQLite
-docs/          架构与开发文档
+src-tauri/src  Rust：窗口、系统状态、音频、媒体、歌词、IMAP、AI 额度、SQLite
+docs/          架构、开发与路线图文档
 ```
 
 ### 提交前检查
@@ -176,7 +212,16 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 窗口、字体、媒体与额度相关的改动还需要在真实 Windows 桌面上验收（透明区域、点击穿透、DPI 缩放、实际播放器）。
 
-更多设计说明见 [技术架构](docs/architecture.md)，开发约定见 [开发规范](docs/development.md)。
+更多设计说明见 [技术架构](docs/architecture.md)，开发约定见 [开发规范](docs/development.md)，发布步骤见[发布流程](docs/release.md)。
+
+## 贡献
+
+欢迎提交 Issue 与 Pull Request。开始前请阅读：
+
+- [贡献指南](CONTRIBUTING.md)：环境搭建、改动范围、测试与提交要求。
+- [行为准则](CODE_OF_CONDUCT.md)：参与社区时的基本约定。
+- [安全策略](SECURITY.md)：漏洞请私下报告，不要在公开 Issue 中贴出凭据或利用细节。
+- [路线图](docs/roadmap.md) 与 [变更日志](CHANGELOG.md)：了解计划中的功能和版本变化。
 
 ## 第三方与许可
 
@@ -184,4 +229,5 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 - 网易云音乐时间轴适配参考了岛仔项目，许可见 [`src-tauri/DAOZAI-LICENSE.txt`](src-tauri/DAOZAI-LICENSE.txt)。
 - AI 服务图标及其归属见 [`src/assets/ai/ATTRIBUTION.txt`](src/assets/ai/ATTRIBUTION.txt)。
+- 应用图标、吉祥物与界面插图为本项目原创，随项目以 MIT 许可发布。
 - 其余第三方依赖的许可证以其各自仓库为准。

@@ -1,0 +1,100 @@
+name: Bug report
+description: 报告可复现的缺陷或异常行为
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。提交前请先搜索现有 Issue，并确认问题能在最新版本复现。
+        请勿粘贴真实邮箱授权码、AI 密钥、完整邮件正文或未脱敏的截图；安全漏洞请按 SECURITY.md 私下报告。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 简要说明发生了什么，以及影响范围。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开…
+        2. 点击…
+        3. 看到…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 如有错误提示，请粘贴脱敏后的文字。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      multiple: true
+      options:
+        - 灵动岛窗口/布局
+        - 设置窗口
+        - 计时器/番茄钟
+        - 喝水/统计
+        - 音乐/歌词
+        - 邮件
+        - AI 额度
+        - 系统状态/音频设备
+        - 开机启动/托盘
+        - 安装/更新
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: 应用版本
+      description: 设置 → 关于 中的版本号，或安装包文件名。
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本与缩放
+      placeholder: Windows 11 23H2 · 2560×1440 · 150%
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: 运行方式
+      options:
+        - 安装包
+        - npm run tauri dev
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 相关设置、播放器/邮箱服务商、脱敏后的日志或截图。
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 已搜索现有 Issue，未发现重复。
+          required: true
+        - label: 已移除密钥、授权码、邮件正文与其他个人信息。
+          required: true

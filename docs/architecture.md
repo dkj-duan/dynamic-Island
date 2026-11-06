@@ -2,50 +2,106 @@
 
 ## 目标与当前状态
 
-提供苹果风格的 Windows 桌面灵动岛、独立设置界面和可扩展的数据来源。当前已有主屏幕顶部独立窗口、设置页、媒体和系统状态数据源；插件运行时尚未实现。
+在 Windows 10/11 上提供苹果风格的桌面灵动岛：顶部常驻的透明小窗负责状态展示与快捷操作，独立设置窗口负责配置。当前已实现双窗口、托盘、六页灵动岛、媒体与歌词、系统状态与音频设备切换、邮件验证码、AI 额度、番茄钟/喝水/倒计时、本地存储与迁移。插件运行时尚未实现。
 
 ## 技术选型
 
-- Tauri 2：桌面容器、窗口与前后端通信；Windows 使用 WebView2。
-- React、TypeScript、Vite：界面与构建。动画目前用 CSS，复杂状态动画确定需求后再引入 Motion。
-- Rust：后续承载系统接口、配置存储和扩展进程管理。优先使用维护活跃的成熟库，避免提前引入未使用的依赖。
+- Tauri 2：桌面容器、窗口、托盘、单实例与前后端通信；Windows 使用 WebView2。
+- React 19、TypeScript、Vite：界面与构建；设置页使用 Ant Design，灵动岛使用自有样式与 CSS 动画。
+- Rust：Windows 系统接口、媒体、IMAP、SQLite、凭据与后台轮询。
+- SQLite（rusqlite，bundled）：设置与业务数据；Windows 凭据管理器保存邮箱授权码；DPAPI 加密 AI 密钥。
 
 ## 分层与依赖方向
 
-1. `src/domain`：与 UI 和运行时无关的领域类型。`ActivityProvider` 是内部接口草案，不是第三方协议。
-2. `src/features`：按功能组织界面。`island` 渲染活动；`settings` 管理设置交互。
-3. Tauri 边界：将来通过显式命令和事件暴露平台能力；前端组件不直接调用 Windows API。
-4. Rust 平台层：SQLite 管理设置、邮箱账户配置及邮件游标；Windows 凭据管理器保存邮箱授权码。窗口与系统数据源按模块实现，扩展宿主待实现。
+1. `src/domain`：与 UI、运行时无关的领域类型与纯逻辑（番茄钟、喝水、倒计时、额度、显示优先级、设置校验与迁移）。
+2. `src/features`：按功能组织界面。`island` 渲染灵动岛（计时、音乐、邮件、喝水、AI 额度、设备六页），`settings` 管理设置交互，`mail`/`ai`/`water`/`stats` 提供数据 hooks。
+3. `src/services`：Tauri 命令封装、设置/数据仓库、显示与主题适配、i18n。
+4. `src-tauri/src`：平台层。前端不直接调用 Windows API，只通过命令与事件交互。
 
-依赖由界面指向领域模型和应用服务，由平台适配器实现接口；避免领域层依赖 UI。不要把扩展进程输出直接当作可信 UI 内容。
+依赖方向为界面 → 领域/服务 → Tauri 边界。领域层不得依赖 UI 或 Tauri。
 
-## 目标运行时
+## 窗口与运行时
 
-设置窗口与透明、无边框的岛窗口分离；后台负责托盘与生命周期。活动由提供者发布，调度器按优先级、时间和用户设置选择展示，窗口只消费规范化状态。窗口启动、屏幕/DPI 改变、全屏检测及关闭行为需要 Windows 实测。设置保存应使用带版本的结构、验证、迁移与原子写入；窗口通过后端同步更新。
+- `main`：设置窗口，启动居中，关闭即隐藏；单实例再次启动时显示该窗口。
+- `island`：360×320 CSS 视口的透明、无边框、置顶窗口，通过 URL `?window=island` 选择界面。
+- 灵动岛 WebView 尺寸固定，展开/收起由 CSS 动画完成。收起后通过原生窗口区域（`set_island_panel_bounds`）限制绘制与命中范围，透明区域点击穿透；展开前恢复区域。
+- 高分辨率屏幕按逻辑宽度分级缩放 WebView（1.0–1.4），布局仍按 360×320 CSS 像素计算。
+- 托盘提供显示设置、输出设备子菜单、开机自启动与退出；设备列表变化时重建菜单。
+- 开机自启动使用 `tauri-plugin-autostart`，启动参数 `--autostart` 使应用只显示灵动岛、不弹设置窗口。
+- Windows 使用 `tauri-plugin-single-instance`，避免两个进程写入不同数据库。
 
-Windows 媒体页通过 Global System Media Transport Controls 读取当前会话和曲目信息，并发送播放/暂停、上一首和下一首请求。界面每两秒刷新一次状态；部分播放器（如网易云）会暴露会话却拒绝这些请求，此时退回系统媒体按键（`VK_MEDIA_*`）再试一次，仍失败时前端显示后台返回的具体原因。
+## 系统集成
 
-系统状态由 Rust 后台读取：Core Audio 获取默认输出设备音量，电源接口获取电池和交流电状态，WMI 获取支持的显示器亮度，设备枚举接口查询已连接蓝牙设备及可用电量。前端按快照比较变化，启动时不弹出已有状态；提示依次显示，连续音量和亮度变化合并。获取失败保留上一设备快照，避免误报断开。系统状态采集不阻塞窗口线程。
+### 媒体与歌词
 
-邮箱账户以独立 ID 存储在 SQLite；授权码保存在当前 Windows 用户凭据管理器，且与邮箱地址、服务器及端口绑定。后台使用 TLS 连接 IMAP，使用只读 `EXAMINE` 和 `BODY.PEEK`，按 UIDVALIDITY 与 UID 记录检查位置；首次添加账户以现有邮件为基线。检查间隔约 8 秒，连接在账户级别复用，避免每次检查都重新登录；连接失效时丢弃缓存并重连一次。每次读取限制大小，验证码按本地规则从纯文本中提取（数字可位于关键词之后或之前，允许跨行，并排除时长、日期、订单号等干扰），邮件正文及验证码不持久化。灵动岛每轮并发检查最多三个账户。
+通过 Global System Media Transport Controls 读取当前会话、曲目与封面，并发送播放/暂停、上一首、下一首请求。部分播放器（如网易云）暴露会话却拒绝控制请求，此时回退到系统媒体按键再试一次，仍失败则向界面返回具体原因。歌词按歌名、歌手与时长查询网易云音乐与 LRCLIB；封面来自网易云 CDN 并校验协议、体积与格式。切歌时旧请求不得覆盖新歌曲。网易云客户端不提供系统时间轴时，只读本机播放事件日志或已验证版本的时间轴作为回退。
 
-数据目录通过应用配置目录中的位置索引确定。切换目录时使用 SQLite 备份、完整性检查及原子更新索引；不覆盖目标文件，旧目录保留。可显式选择已有数据库，启动时如果已配置目录或文件不可访问则报错，不静默创建空库。应用安装目录与数据目录分离。
+### 系统状态与音频设备
 
-Windows 使用 Tauri 单实例插件，避免两个运行中的进程在数据目录切换后分别写入不同数据库。再次启动时显示已有的设置窗口。
+- Core Audio：默认输出设备音量/静音、默认输出与默认输入设备；WMI：显示器亮度；Win32：交流电与电池；WinRT：已连接蓝牙设备及电量。
+- 灵动岛每秒轮询系统状态、每三秒轮询设备状态，按快照比较变化；启动时先建立基线，不提示已有状态。
+- 状态采集在后台线程执行，不阻塞窗口线程；失败时保留上一份快照，避免误报断开。
+- 设备页通过 `get_audio_devices` 获取输出与输入端点，`set_audio_device` 切换默认设备。枚举使用公开的 Core Audio 接口；切换使用未公开的 `IPolicyConfig`（Win10/11 通用），同时设置 Console/Multimedia/Communications 三个角色，失败会向界面返回错误。
+- 设备列表不滚动：按数量收缩行高，超过阈值后折成多列，面板高度计入提示条与顶部横幅。
 
-Windows 上的灵动岛保持固定的 WebView 尺寸，以免展开和收起时 WebView 缩放导致旧画面拉伸。收起后通过原生窗口区域限制绘制和命中范围，展开前恢复完整区域；CSS 负责胶囊形变。屏幕缩放变化、窗口区域以及透明区域的点击穿透仍需在不同显示环境下验证。
+### 邮箱
 
-界面文案集中在 `src/services/i18n.ts`，按中文原文查表翻译为英文，缺失条目回退中文；语言存放在外观设置（v5）的 `language` 字段，两个窗口共用。设置窗口标题栏通过 `set_window_theme` 命令跟随主题。展开方式由设置中的 `expandTrigger` 决定：`click` 只响应点击，`hover` 在指针停留约 180 毫秒后自动展开，并在离开后按自动收起时长折叠。拖动通过前端阈值判断（移动超过 4 像素才调用 `start_island_drag`），避免与点击展开冲突；窗口位置在移动停止约 600 毫秒后写入 `settings` 表的 `island_position`，启动时若该坐标仍落在某个显示器内则直接沿用，否则回到主显示器顶部居中。
+账户以独立 ID 存储于 SQLite；授权码保存在当前 Windows 用户凭据管理器，并与邮箱地址、服务器及端口绑定。后台以 TLS 连接 IMAP，使用只读 `EXAMINE` 与 `BODY.PEEK`，按 UIDVALIDITY/UID 记录检查位置；首次添加以现有邮件为基线。检查间隔约 8 秒，连接按账户复用，失效时丢弃缓存并重连一次。每次读取限制响应大小；验证码按本地规则从纯文本提取。邮件正文与验证码不持久化，提醒仅在内存保留约 5 分钟。
+
+### AI 额度
+
+支持 Codex（本机 CLI App Server）、Kimi Code（仅本机 HTTP 服务）、DeepSeek、MiniMax（中国区/国际区）与 OpenRouter。密钥经 DPAPI 用当前 Windows 用户加密后存入 `ai_accounts`；本地服务令牌同样加密。每两分钟刷新，常驻账户的额度显示在灵动岛；只展示服务实际返回的额度，失败或字段缺失时显示错误。
+
+### 存储与迁移
+
+- SQLite 位于可配置的数据目录，默认使用应用数据目录；位置索引写在应用配置目录的 `data-location.json`。
+- 数据库 `PRAGMA user_version` 当前为 4：`settings`（键值 JSON）、`mail_accounts`、`ai_accounts`、`daily_stats`。
+- 设置结构带版本（外观当前为 v12），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
+- 切换数据目录使用 SQLite 备份、完整性检查与原子更新索引；不覆盖目标目录已有文件，旧目录保留。
+- 数据库连接与迁移失败时不静默重建，避免覆盖用户数据。
+
+## 前端结构
+
+- `src/main.tsx` 按窗口 URL 选择 `IslandWindow` 或设置界面。
+- 灵动岛状态主要包括：展开状态、当前页、计时器、番茄进度、喝水、计次、媒体、邮件、AI 额度与系统状态。
+- 设置窗口使用 Ant Design 组件与各设置页；修改通过仓库层保存并广播事件。
+
+### 事件
+
+| 事件                                                        | 方向          | 用途                   |
+| ----------------------------------------------------------- | ------------- | ---------------------- |
+| `appearance-changed`                                        | 设置 → 灵动岛 | 外观/语言/闲时组件更新 |
+| `pomodoro-changed` / `water-changed` / `countdowns-changed` | 设置 → 灵动岛 | 配置同步               |
+| `mail-accounts-changed` / `ai-accounts-changed`             | 设置 → 灵动岛 | 账户列表同步           |
+| `ai-quota-updated`                                          | Rust → 两窗口 | 额度刷新结果           |
+| `daily-stats-changed`                                       | Rust → 两窗口 | 喝水/番茄统计更新      |
+| `autostart-changed`                                         | Rust → 设置   | 自启动状态变化         |
+| `system-notice-preview`                                     | 设置 → 灵动岛 | 演示系统提示           |
+| `island-lyrics-changed`                                     | 灵动岛 → 设置 | 岛上歌词开关           |
+
+## 命令面
+
+Tauri 命令按模块注册，主要包括：
+
+- 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`apply_island_scale`、`start_island_drag`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
+- 自启动：`get_autostart`、`set_autostart`、`is_autostart_launch`。
+- 媒体：`get_media_state`、`get_media_artwork`、`control_media`、`seek_media`；歌词 `lyrics::get_lyrics`。
+- 系统与音频：`system_status::get_system_status`、`system_status::get_device_status`、`get_audio_devices`、`set_audio_device`。
+- 邮件：`mail::list_mail_accounts`、`add_mail_account`、`remove_mail_account`、`poll_mail`、`get_mail_monitor_status`、`copy_mail_code`。
+- AI：`ai_quota::list_ai_accounts`、`add_ai_account`、`remove_ai_account`、`pin_ai_account`、`query_ai_quota`。
+- 存储：`load/save_*` 系列、`get_daily_stats`、`add_water`、`reset_water`、`record_pomodoro`、`get_data_directory`、`set_data_directory`、`use_existing_data_directory`。
+
+## 安全与隐私边界
+
+- 外部数据（网络响应、IMAP 邮件、本机服务输出）先校验再使用；限制重定向、响应大小与超时。
+- 凭据不写入日志、不提交仓库；邮箱授权码只进凭据管理器，AI 密钥只以 DPAPI 密文入库。
+- 所有网络请求发往固定可信域名；Kimi 只访问 `127.0.0.1`。详细清单见 README「数据与隐私」。
+- 应用不包含遥测与自动更新检查。
+
+## 验证
+
+每个新功能在领域逻辑边界写单元测试；平台功能必须在真实 Windows 桌面手工验收：透明窗口、点击穿透、DPI、真实播放器、IMAP 账户与音频设备。依赖变更须提交 npm 与 Cargo 锁文件。
 
 ## 扩展设计（规划，尚未承诺稳定协议）
 
-第一阶段实现内置提供者及 HTTP 数据源，限定超时、刷新频率和响应大小，校验字段。未来的外部插件使用独立进程与版本化消息通信：清单声明 ID、协议版本、能力和入口；宿主管理启动、停止、超时、错误及重启。活动消息包含来源、稳定 ID、标题、摘要、优先级和时间；操作通过显式 action ID 往返。明确版本协商、资源限制、错误隔离与卸载流程后再发布 SDK。进程隔离不等于安全沙箱，运行第三方代码前必须明确来源和权限。
-
-## 验证与里程碑
-
-1. 骨架：TypeScript 构建、Rust 检查及设置预览。
-2. 实现双窗口、托盘和配置持久化，验证重启、多屏、DPI、点击穿透及全屏场景。
-3. 接入一个真实系统数据源和 HTTP 数据源；测试数据验证、错误、超时及恢复。
-4. 在接口稳定后设计插件协议、隔离与开发文档。
-
-每个新功能应在领域逻辑边界添加有意义的测试；平台功能补充 Windows 手工验收。依赖变更须提交锁文件。
+未来插件使用独立进程与版本化消息通信：清单声明 ID、协议版本、能力和入口；宿主管理启动、停止、超时、错误与重启。活动消息包含来源、稳定 ID、标题、摘要、优先级和时间；操作通过显式 action ID 往返。明确版本协商、资源限制与卸载流程后再发布 SDK。进程隔离不等于安全沙箱，运行第三方代码前必须确认来源与权限。

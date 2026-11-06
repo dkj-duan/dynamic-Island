@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/dkj-duan/dynamic-Island/security/policy
+    about: 请勿公开提交漏洞细节、凭据或利用方式，按安全策略私下报告。
+  - name: 开发与验收说明
+    url: https://github.com/dkj-duan/dynamic-Island/blob/main/docs/development.md
+    about: 环境搭建、常用命令、测试要求与手工验收范围。
+  - name: 路线图
+    url: https://github.com/dkj-duan/dynamic-Island/blob/main/docs/roadmap.md
+    about: 查看计划中的方向，避免重复提议。
