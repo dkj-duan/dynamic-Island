@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { AudioDevice } from "../../domain/systemNotices";
-import { t } from "../../services/i18n";
+import {
+  audioSwitchMessage,
+  switchDefaultAudioDevice,
+} from "../../services/audioDevices";
 
 type Feedback = { text: string; error: boolean } | null;
 
@@ -52,7 +55,7 @@ export function useAudioDevices(active: boolean) {
     setSwitching(device.id);
     setFeedback(null);
     try {
-      await invoke("set_audio_device", { deviceId: device.id });
+      // Paint the new default immediately; the authoritative list follows.
       setDevices(
         (current) =>
           current?.map((item) =>
@@ -61,17 +64,15 @@ export function useAudioDevices(active: boolean) {
               : item,
           ) ?? current,
       );
-      await load();
+      setDevices(await switchDefaultAudioDevice(device));
       setFeedback({
-        text: t(
-          device.direction === "input" ? "已切换输入设备" : "已切换输出设备",
-        ),
+        text: audioSwitchMessage(device.direction),
         error: false,
       });
     } catch (error) {
       await load();
       setFeedback({
-        text: typeof error === "string" ? error : t("切换音频设备失败，请重试"),
+        text: audioSwitchMessage(device.direction, error),
         error: true,
       });
     } finally {

@@ -19,6 +19,10 @@ import type {
 } from "../../domain/systemNotices";
 import { Section } from "./ui/Section";
 import { t } from "../../services/i18n";
+import {
+  audioSwitchMessage,
+  switchDefaultAudioDevice,
+} from "../../services/audioDevices";
 
 type DeviceStatus = {
   brightness: number | null;
@@ -85,16 +89,11 @@ export function StatusSettings() {
     setSwitching(device.id);
     setAudioMessage("");
     try {
-      await invoke("set_audio_device", { deviceId: device.id });
-      const list = await invoke<AudioDevice[]>("get_audio_devices");
+      const list = await switchDefaultAudioDevice(device);
       setAudio({ state: "ready", value: list });
-      setAudioMessage(
-        t(device.direction === "input" ? "已切换输入设备" : "已切换输出设备"),
-      );
+      setAudioMessage(audioSwitchMessage(device.direction));
     } catch (error) {
-      setAudioMessage(
-        typeof error === "string" ? error : t("切换音频设备失败，请重试"),
-      );
+      setAudioMessage(audioSwitchMessage(device.direction, error));
     } finally {
       setSwitching("");
     }
