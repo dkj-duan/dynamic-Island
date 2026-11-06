@@ -1,8 +1,11 @@
 [package]
-name = "tauri-app"
+name = "dynamic-island"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A Windows dynamic island for timers, water, media, mail codes, AI quota and audio devices"
+authors = ["dkj"]
+license = "MIT"
+repository = "https://github.com/dkj-duan/dynamic-Island"
+homepage = "https://github.com/dkj-duan/dynamic-Island#readme"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

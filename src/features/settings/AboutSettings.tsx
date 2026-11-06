@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   Button,
   Card,
@@ -22,6 +25,7 @@ import {
 import { Section } from "./ui/Section";
 import { t } from "../../services/i18n";
 import appIcon from "../../assets/app-icon.png";
+import { version as packageVersion } from "../../../package.json";
 
 const aboutFeatures = [
   {
@@ -57,6 +61,14 @@ const aboutFeatures = [
 ];
 
 export function AboutSettings({ onStorage }: { onStorage: () => void }) {
+  const [version, setVersion] = useState(packageVersion);
+  useEffect(() => {
+    if (!isTauri()) return;
+    void getVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
+
   return (
     <div className="antd-stack">
       <Card>
@@ -65,7 +77,7 @@ export function AboutSettings({ onStorage }: { onStorage: () => void }) {
           <div className="antd-about-copy">
             <div className="antd-about-title">
               <Typography.Title level={3}>{t("灵动岛")}</Typography.Title>
-              <Tag bordered={false}>v0.1.0</Tag>
+              <Tag bordered={false}>v{version}</Tag>
             </div>
             <Typography.Text type="secondary">
               {t("为 Windows 桌面打造的状态提醒与快捷操作入口。")}

@@ -2,7 +2,21 @@
   "name": "dynamic-island",
   "private": true,
   "version": "0.1.0",
+  "description": "A Windows dynamic island for timers, water, media, mail codes, AI quota and audio devices.",
+  "license": "MIT",
+  "author": "dkj",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dkj-duan/dynamic-Island.git"
+  },
+  "homepage": "https://github.com/dkj-duan/dynamic-Island#readme",
+  "bugs": {
+    "url": "https://github.com/dkj-duan/dynamic-Island/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

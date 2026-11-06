@@ -951,6 +951,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
+name = "dynamic-island"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "base64 0.22.1",
+ "futures",
+ "imap",
+ "keyring",
+ "mailparse",
+ "native-tls",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "ureq",
+ "url",
+ "uuid",
+ "webview2-com",
+ "windows",
+ "windows-collections",
+ "windows-core",
+ "windows-future",
+ "windows-sys 0.61.2",
+ "wmi",
+ "zeroize",
+]
+
+[[package]]
 name = "embed-resource"
 version = "3.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3945,41 +3980,6 @@ dependencies = [
  "webview2-com",
  "window-vibrancy",
  "windows",
-]
-
-[[package]]
-name = "tauri-app"
-version = "0.1.0"
-dependencies = [
- "arboard",
- "base64 0.22.1",
- "futures",
- "imap",
- "keyring",
- "mailparse",
- "native-tls",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tempfile",
- "ureq",
- "url",
- "uuid",
- "webview2-com",
- "windows",
- "windows-collections",
- "windows-core",
- "windows-future",
- "windows-sys 0.61.2",
- "wmi",
- "zeroize",
 ]
 
 [[package]]
