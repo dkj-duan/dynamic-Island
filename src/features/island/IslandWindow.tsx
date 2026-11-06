@@ -156,7 +156,6 @@ export function IslandWindow() {
   const currentCopyStatus =
     selectedMail?.code === copyStatus?.code ? copyStatus?.message : "";
   const [appearance, setAppearance] = useState(defaultAppearance);
-  setLanguage(appearance.language);
   const panel = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<number | null>(null);
   const hoverTimeout = useRef<number | null>(null);
@@ -476,6 +475,9 @@ export function IslandWindow() {
               const next = parseAppearance(payload);
               receivedUpdate = true;
               if (active) {
+                // Sync the string table before the render this triggers, so
+                // t() calls already see the new language.
+                setLanguage(next.language);
                 setAppearance(next);
                 // Size changes go through the native window scale; the value
                 // saved at startup was already applied by the Rust setup.
@@ -494,7 +496,10 @@ export function IslandWindow() {
         }
         unlisten = dispose;
         const stored = await loadAppearance();
-        if (active && !receivedUpdate) setAppearance(stored);
+        if (active && !receivedUpdate) {
+          setLanguage(stored.language);
+          setAppearance(stored);
+        }
       } catch (error) {
         console.error("Unable to initialize island settings", error);
       }
@@ -506,6 +511,13 @@ export function IslandWindow() {
     };
   }, []);
   const [error, setError] = useState("");
+  // Failure banners are hints, not persistent states; a fresh error restarts
+  // the window, and clearing it frees the capsule for the next message.
+  useEffect(() => {
+    if (!error) return;
+    const timeout = window.setTimeout(() => setError(""), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
   function cancelAutoCollapse() {
     if (collapseTimeout.current !== null) {
       window.clearTimeout(collapseTimeout.current);
@@ -1668,7 +1680,7 @@ export function IslandWindow() {
                                 setDurationError("");
                               }}
                             />
-                            <span>分</span>
+                            <span>{t("分")}</span>
                           </label>
                           <span className="time-separator">:</span>
                           <label>
@@ -1683,7 +1695,7 @@ export function IslandWindow() {
                                 setDurationError("");
                               }}
                             />
-                            <span>秒</span>
+                            <span>{t("秒")}</span>
                           </label>
                           <button type="submit">{t("开始")}</button>
                           <button
