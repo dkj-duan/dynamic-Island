@@ -1,4 +1,4 @@
-import { Divider, Segmented, Space } from "antd";
+import { Divider, Segmented, Space, Switch } from "antd";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -232,6 +232,23 @@ export function AppearancePage({
               value: option.value,
               label: t(option.label),
             }))}
+          />
+        </div>
+
+        <Divider style={{ margin: "16px 0 12px" }} />
+        <div className="antd-setting-row">
+          <div className="antd-setting-copy">
+            <div className="antd-setting-title">{t("岛上显示歌词")}</div>
+            <span className="antd-setting-desc">
+              {t("关闭时显示歌手；歌词仍可在展开的音乐页查看。")}
+            </span>
+          </div>
+          <Switch
+            checked={appearance.islandLyrics}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, islandLyrics: checked })
+            }
           />
         </div>
       </Section>

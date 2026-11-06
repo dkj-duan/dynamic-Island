@@ -10,6 +10,7 @@ import {
 } from "antd";
 import {
   BgColorsOutlined,
+  BellOutlined,
   DesktopOutlined,
   MoonOutlined,
   SunOutlined,
@@ -27,6 +28,7 @@ import {
 import type { AppearanceSettings } from "../../domain/settings";
 import { AppearancePage } from "./AppearanceSettings";
 import { BehaviorSettings } from "./BehaviorSettings";
+import { ReminderSettings } from "./ReminderSettings";
 import { AboutSettings } from "./AboutSettings";
 import { CountdownSettings } from "./CountdownSettings";
 import { StatusSettings } from "./StatusSettings";
@@ -47,6 +49,7 @@ import appIcon from "../../assets/app-icon.png";
 type Page =
   | "appearance"
   | "behavior"
+  | "reminder"
   | "pomodoro"
   | "status"
   | "water"
@@ -59,8 +62,9 @@ type Page =
 const pageMeta: Record<Page, { title: string }> = {
   appearance: { title: "外观" },
   behavior: { title: "交互" },
+  reminder: { title: "提醒" },
   pomodoro: { title: "番茄钟" },
-  status: { title: "状态提醒" },
+  status: { title: "系统状态" },
   water: { title: "喝水提醒" },
   countdown: { title: "倒计时" },
   mail: { title: "邮箱提醒" },
@@ -82,7 +86,7 @@ interface Props {
 const navGroups: { label: string; ids: Page[]; icon: ReactNode }[] = [
   {
     label: "通用",
-    ids: ["appearance", "behavior"],
+    ids: ["appearance", "behavior", "reminder"],
     icon: <BgColorsOutlined />,
   },
   {
@@ -101,6 +105,7 @@ const navGroups: { label: string; ids: Page[]; icon: ReactNode }[] = [
 const navIcons: Record<Page, ReactNode> = {
   appearance: <BgColorsOutlined />,
   behavior: <ControlOutlined />,
+  reminder: <BellOutlined />,
   pomodoro: <FieldTimeOutlined />,
   water: <ThunderboltOutlined />,
   countdown: <HourglassOutlined />,
@@ -261,6 +266,13 @@ export function SettingsPage({
               )}
               {page === "behavior" && (
                 <BehaviorSettings
+                  appearance={appearance}
+                  onAppearanceChange={onAppearanceChange}
+                  canEdit={canEdit}
+                />
+              )}
+              {page === "reminder" && (
+                <ReminderSettings
                   appearance={appearance}
                   onAppearanceChange={onAppearanceChange}
                   canEdit={canEdit}

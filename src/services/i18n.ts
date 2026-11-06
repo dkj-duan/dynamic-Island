@@ -519,7 +519,8 @@ const en: Record<string, string> = {
     "Remind at a clock time, or count down a fixed duration.",
 
   // —— Settings extras ——
-  状态提醒: "Status alerts",
+  提醒: "Reminders",
+  系统状态: "System status",
   "常驻账户以圆环加进度条显示剩余额度，收起时也能看到。":
     "Pinned accounts show remaining quota as a ring plus bar, even while collapsed.",
   "每两分钟自动查询一次，可随时手动刷新。":
@@ -578,14 +579,14 @@ const en: Record<string, string> = {
   复制: "Copy",
   "已结束 · 按 Esc 关闭": "Finished · Esc to dismiss",
   提醒动效: "Reminder animation",
-  "提醒出现时胶囊的提示方式，可以在下面预览。":
-    "How the capsule reacts to a reminder; preview it below.",
+  "提醒出现时胶囊的提示方式，每张卡片会实时预览。":
+    "How the capsule reacts to a reminder; each card previews it live.",
+  亮度: "Brightness",
   呼吸描边: "Breathing outline",
   光晕扫过: "Light sweep",
   脉冲闪烁: "Pulse flash",
   边框流光: "Border beam",
   仅颜色: "Colour only",
-  重新播放: "Replay",
   提醒时自动展开: "Expand on reminder",
   "验证码、喝水和计时结束时会自动打开面板。":
     "Opens the panel automatically for mail codes, water and finished timers.",
