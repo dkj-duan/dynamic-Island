@@ -450,6 +450,7 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     window.unminimize().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    set_settings_memory_target(&window, false);
     let handle = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(300));
@@ -470,6 +471,7 @@ fn show_settings_window(app: tauri::AppHandle) -> Result<(), String> {
         .ok_or("settings window unavailable")?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
+    set_settings_memory_target(&window, false);
     Ok(())
 }
 
@@ -656,6 +658,35 @@ fn disable_default_context_menu(window: &tauri::WebviewWindow) -> Result<(), Str
         })
         .map_err(|error| error.to_string())
 }
+
+/// Hiding the settings window keeps its renderer alive; dropping WebView2 to
+/// the low-memory target lets Chromium release the caches that a hidden page
+/// no longer needs, and showing it again restores normal behaviour.
+#[cfg(target_os = "windows")]
+fn set_settings_memory_target(window: &tauri::WebviewWindow, low: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+        ICoreWebView2_19,
+    };
+    use windows_core::Interface;
+    let level = if low {
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+    } else {
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+    };
+    let _ = window.with_webview(move |webview| unsafe {
+        let controller = webview.controller();
+        let Ok(core) = controller.CoreWebView2() else {
+            return;
+        };
+        if let Ok(core) = core.cast::<ICoreWebView2_19>() {
+            let _ = core.SetMemoryUsageTargetLevel(level);
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_settings_memory_target(_window: &tauri::WebviewWindow, _low: bool) {}
 
 #[cfg(target_os = "windows")]
 fn remove_native_caption(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -994,6 +1025,7 @@ pub fn run() {
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.show();
             let _ = window.set_focus();
+            set_settings_memory_target(&window, false);
         }
     }));
     builder
@@ -1131,6 +1163,7 @@ pub fn run() {
                                 let _ = window.show();
                                 let _ = window.unminimize();
                                 let _ = window.set_focus();
+                                set_settings_memory_target(&window, false);
                             }
                         }
                         "quit" => app.exit(0),
@@ -1165,10 +1198,12 @@ pub fn run() {
                         let visible = window.is_visible().unwrap_or(false);
                         if visible {
                             let _ = window.hide();
+                            set_settings_memory_target(&window, true);
                         } else {
                             let _ = window.show();
                             let _ = window.unminimize();
                             let _ = window.set_focus();
+                            set_settings_memory_target(&window, false);
                         }
                     }
                 })
@@ -1182,6 +1217,9 @@ pub fn run() {
             {
                 api.prevent_close();
                 let _ = window.hide();
+                if let Some(main) = window.app_handle().get_webview_window("main") {
+                    set_settings_memory_target(&main, true);
+                }
             }
             if window.label() == "island" && matches!(event, WindowEvent::Focused(true)) {
                 #[cfg(target_os = "windows")]
