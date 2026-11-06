@@ -43,7 +43,7 @@ url = "2"
 [target.'cfg(windows)'.dependencies]
 windows-future = "0.3"
 webview2-com = "0.39"
-base64 = "0.22"
+base64 = "0.23"
 keyring = { version = "3", features = ["windows-native"] }
 tauri-plugin-single-instance = "2"
 wmi = "0.18"
