@@ -498,10 +498,21 @@ fn show_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or("settings window unavailable")?;
+    SETTINGS_USER_HIDDEN.store(false, std::sync::atomic::Ordering::SeqCst);
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
     set_settings_memory_target(&window, false);
     Ok(())
+}
+
+/// Boot-only reveal: if the user already closed the window while the page
+/// was loading, respect that close and stay hidden until they ask for it.
+#[tauri::command]
+fn reveal_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    if SETTINGS_USER_HIDDEN.load(std::sync::atomic::Ordering::SeqCst) {
+        return Ok(());
+    }
+    show_settings_window(app)
 }
 
 /// Moves the island to the top of the topmost band. Windows lets other
@@ -671,6 +682,11 @@ static ISLAND_EXPANDED: std::sync::atomic::AtomicBool = std::sync::atomic::Atomi
 
 /// True when Windows launched us from the login autostart entry.
 static AUTOSTART_LAUNCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The user closed the settings window while the page was still loading; the
+/// boot reveal must respect that instead of popping the window back open.
+static SETTINGS_USER_HIDDEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// Physical rectangle currently used as the island hit region. Nothing here
 /// until the frontend reports the panel bounds for the first time.
@@ -1276,6 +1292,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_settings,
             show_settings_window,
+            reveal_settings_window,
             quit_app,
             set_island_expanded,
             set_island_panel_bounds,
@@ -1500,6 +1517,7 @@ pub fn run() {
             {
                 api.prevent_close();
                 let _ = window.hide();
+                SETTINGS_USER_HIDDEN.store(true, std::sync::atomic::Ordering::SeqCst);
                 if let Some(main) = window.app_handle().get_webview_window("main") {
                     set_settings_memory_target(&main, true);
                 }

@@ -114,40 +114,33 @@ fn spawn_worker(_app: tauri::AppHandle, _stop: mpsc::Receiver<()>) {
 #[cfg(target_os = "windows")]
 fn worker(app: tauri::AppHandle, stop: mpsc::Receiver<()>) -> Result<(), String> {
     use tauri::Emitter;
-    use windows::Foundation::TypedEventHandler;
-    use windows::UI::Notifications::Management::UserNotificationListenerAccessStatus;
     let _com = ComGuard::new()?;
-    let listener = current_listener()?;
-    let access = wait_bounded(
-        listener
-            .RequestAccessAsync()
-            .map_err(|error| error.to_string())?,
-        Duration::from_secs(8),
-    )?;
-    if access != UserNotificationListenerAccessStatus::Allowed {
-        return Err("系统未授予通知访问权限".into());
-    }
-    // Everything that exists right now is history: mark it seen silently so
-    // enabling forwarding never replays the Action Center.
-    let mut seen: HashSet<u32> = HashSet::new();
-    for notification in collect_toasts(&listener, Duration::from_secs(5))? {
-        seen.insert(notification.Id().unwrap_or(0));
-    }
-    let (event_tx, event_rx) = mpsc::channel::<u32>();
-    let token = listener
-        .NotificationChanged(&TypedEventHandler::new(
-            move |_,
-                  args: windows::core::Ref<
-                '_,
-                windows::UI::Notifications::UserNotificationChangedEventArgs,
-            >| {
-                if let Ok(args) = args.ok() {
-                    let _ = event_tx.send(args.UserNotificationId().unwrap_or(0));
+    // Right after login the notification platform can answer ERROR_NOT_FOUND
+    // (0x80070490) for every listener call; retry with a bound until it is
+    // up, staying responsive to stop requests while waiting.
+    let mut setup = None;
+    let mut last_error = String::new();
+    for _ in 0..10 {
+        match setup_forwarding() {
+            Ok(prepared) => {
+                setup = Some(prepared);
+                break;
+            }
+            Err(error) => {
+                if error.permanent {
+                    return Err(error.message);
                 }
-                Ok(())
-            },
-        ))
-        .map_err(|error| error.to_string())?;
+                last_error = error.message;
+            }
+        }
+        match stop.recv_timeout(Duration::from_secs(3)) {
+            Ok(()) | Err(RecvTimeoutError::Disconnected) => return Ok(()),
+            Err(RecvTimeoutError::Timeout) => {}
+        }
+    }
+    let Some((listener, mut seen, token, event_rx)) = setup else {
+        return Err(format!("通知平台未就绪: {last_error}"));
+    };
     let result = loop {
         match stop.recv_timeout(Duration::from_millis(500)) {
             Ok(()) | Err(RecvTimeoutError::Disconnected) => break Ok(()),
@@ -179,6 +172,68 @@ fn worker(app: tauri::AppHandle, stop: mpsc::Receiver<()>) -> Result<(), String>
     };
     let _ = listener.RemoveNotificationChanged(token);
     result
+}
+
+/// Why a forwarding setup attempt failed; access denial is a user decision
+/// and must not be retried, everything else (a not-yet-ready platform) is.
+#[cfg(target_os = "windows")]
+struct SetupError {
+    permanent: bool,
+    message: String,
+}
+
+#[cfg(target_os = "windows")]
+fn setup_forwarding() -> Result<
+    (
+        UserNotificationListener,
+        HashSet<u32>,
+        i64,
+        mpsc::Receiver<u32>,
+    ),
+    SetupError,
+> {
+    use windows::Foundation::TypedEventHandler;
+    use windows::UI::Notifications::Management::UserNotificationListenerAccessStatus;
+    let retryable = |message: String| SetupError {
+        permanent: false,
+        message,
+    };
+    let listener = current_listener().map_err(retryable)?;
+    let access = wait_bounded(
+        listener
+            .RequestAccessAsync()
+            .map_err(|error| retryable(error.to_string()))?,
+        Duration::from_secs(8),
+    )
+    .map_err(retryable)?;
+    if access != UserNotificationListenerAccessStatus::Allowed {
+        return Err(SetupError {
+            permanent: true,
+            message: "系统未授予通知访问权限".into(),
+        });
+    }
+    // Everything that exists right now is history: mark it seen silently so
+    // enabling forwarding never replays the Action Center.
+    let mut seen: HashSet<u32> = HashSet::new();
+    for notification in collect_toasts(&listener, Duration::from_secs(5)).map_err(retryable)? {
+        seen.insert(notification.Id().unwrap_or(0));
+    }
+    let (event_tx, event_rx) = mpsc::channel::<u32>();
+    let token = listener
+        .NotificationChanged(&TypedEventHandler::new(
+            move |_,
+                  args: windows::core::Ref<
+                '_,
+                windows::UI::Notifications::UserNotificationChangedEventArgs,
+            >| {
+                if let Ok(args) = args.ok() {
+                    let _ = event_tx.send(args.UserNotificationId().unwrap_or(0));
+                }
+                Ok(())
+            },
+        ))
+        .map_err(|error| retryable(error.to_string()))?;
+    Ok((listener, seen, token, event_rx))
 }
 
 #[cfg(target_os = "windows")]

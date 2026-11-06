@@ -41,7 +41,9 @@ function revealSettingsWindow() {
   if (settingsWindowRevealed) return;
   settingsWindowRevealed = true;
   document.documentElement.classList.add("settings-booted");
-  void invoke("show_settings_window").catch(() => undefined);
+  // The native layer skips the reveal when the user already closed the
+  // window while this page was still loading.
+  void invoke("reveal_settings_window").catch(() => undefined);
 }
 
 /** A login launch stays in the island; only manual launches open settings. */
