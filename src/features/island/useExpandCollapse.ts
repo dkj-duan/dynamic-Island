@@ -80,6 +80,10 @@ export function useExpandCollapse(options: {
   function reminderHoldRemaining() {
     return Math.max(0, reminderHold.current - Date.now());
   }
+  // Whether the pointer has actually reached the panel in this expansion. A
+  // hotkey can open the panel with the pointer anywhere on screen; the
+  // leave-driven collapse only makes sense once the pointer has been there.
+  const engagedRef = useRef(false);
   function scheduleAutoCollapse() {
     cancelAutoCollapse();
     if (!expanded || transitioning) return;
@@ -96,6 +100,8 @@ export function useExpandCollapse(options: {
   });
   // A missed mouseleave at the screen edge would otherwise leave the panel
   // open forever; watching the pointer keeps click mode and hover mode equal.
+  // Until the pointer has touched the panel (hotkey expansions), moving it
+  // elsewhere must not start the collapse countdown.
   useEffect(() => {
     if (!expanded) return;
     const onMove = (event: PointerEvent) => {
@@ -108,12 +114,13 @@ export function useExpandCollapse(options: {
         event.clientY >= rect.top &&
         event.clientY <= rect.bottom;
       if (inside) {
+        engagedRef.current = true;
         reminderHold.current = 0;
         if (collapseTimeout.current !== null) {
           window.clearTimeout(collapseTimeout.current);
           collapseTimeout.current = null;
         }
-      } else if (collapseTimeout.current === null) {
+      } else if (engagedRef.current && collapseTimeout.current === null) {
         scheduleCollapseRef.current();
       }
     };
@@ -143,6 +150,7 @@ export function useExpandCollapse(options: {
     reminderHold.current = 0;
   }
   function handlePanelEnter() {
+    engagedRef.current = true;
     releaseReminderHold();
     cancelAutoCollapse();
     if (expandTrigger !== "hover") return;
@@ -195,7 +203,9 @@ export function useExpandCollapse(options: {
   useEffect(() => {
     if (!expanded || expandTrigger !== "hover") return;
     const id = window.setTimeout(() => {
-      if (!panel.current?.matches(":hover")) scheduleCollapseRef.current?.();
+      if (engagedRef.current && !panel.current?.matches(":hover")) {
+        scheduleCollapseRef.current?.();
+      }
     }, 450);
     return () => window.clearTimeout(id);
   }, [expanded, expandTrigger]);
@@ -203,9 +213,12 @@ export function useExpandCollapse(options: {
   /**
    * Opens or closes the panel. A `passive` expansion is fired by a reminder:
    * the panel shows but clicks pass through it, so the user's pointer and
-   * focus are never disturbed; it collapses on its own timer.
+   * focus are never disturbed; it collapses on its own timer. `engaged`
+   * marks expansions where the pointer already sits on the panel (click,
+   * hover); a hotkey passes false so the leave-driven collapse waits until
+   * the pointer has actually reached the panel.
    */
-  async function toggleExpanded(passive = false) {
+  async function toggleExpanded(passive = false, engaged = !passive) {
     if (transitioning) return;
     setTransitioning(true);
     try {
@@ -222,6 +235,7 @@ export function useExpandCollapse(options: {
           passive: false,
         });
       } else {
+        engagedRef.current = engaged && !passive;
         await invoke("set_island_expanded", { expanded: true, passive });
         await new Promise<void>((resolve) =>
           window.requestAnimationFrame(() =>

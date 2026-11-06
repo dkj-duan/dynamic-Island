@@ -126,8 +126,8 @@ const en: Record<string, string> = {
   "5 秒": "5 s",
   "10 秒": "10 s",
   "15 秒": "15 s",
-  "鼠标移回胶囊会取消收起计时；自动收起不会停止正在进行的倒计时。":
-    "Moving back over the capsule cancels the countdown; a running timer never stops.",
+  "鼠标移回胶囊会取消收起计时；快捷键呼出的面板，等你把鼠标放上去之后再按此设置收起。":
+    "Moving back over the capsule cancels the countdown; a panel opened by hotkey only starts this countdown after the pointer has reached it.",
 
   // —— Status ——
   当前状态: "Current status",

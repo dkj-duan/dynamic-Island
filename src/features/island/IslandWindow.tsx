@@ -255,7 +255,8 @@ export function IslandWindow() {
       } else if (action === "water") {
         void drinkWater(water.cupMl);
       } else if (action === "island") {
-        void toggleExpanded();
+        // The pointer is wherever it was; engagement starts on first touch.
+        void toggleExpanded(false, false);
       }
     };
   });

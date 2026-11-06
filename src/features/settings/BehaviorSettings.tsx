@@ -241,7 +241,7 @@ export function BehaviorSettings({
         <SettingRow
           title={t("鼠标离开后自动收起")}
           description={t(
-            "鼠标移回胶囊会取消收起计时；自动收起不会停止正在进行的倒计时。",
+            "鼠标移回胶囊会取消收起计时；快捷键呼出的面板，等你把鼠标放上去之后再按此设置收起。",
           )}
         >
           <Segmented
