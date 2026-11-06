@@ -1100,6 +1100,19 @@ fn set_island_expanded(
         .set_ignore_cursor_events(passive && expanded)
         .map_err(|e| e.to_string())?;
     #[cfg(target_os = "windows")]
+    if passive && expanded {
+        // The pass-through style includes WS_EX_LAYERED, and a layered window
+        // stops rendering until its alpha attributes are set; keep the hint
+        // visible at full opacity.
+        use windows_sys::Win32::UI::WindowsAndMessaging::{LWA_ALPHA, SetLayeredWindowAttributes};
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        unsafe {
+            if SetLayeredWindowAttributes(hwnd.0, 0, 255, LWA_ALPHA) == 0 {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
     {
         use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
