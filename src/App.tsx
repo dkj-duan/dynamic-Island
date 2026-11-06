@@ -231,7 +231,7 @@ export default function App() {
         />
       }
       status={status}
-      canEdit={ready && !saving}
+      canEdit={ready}
       canSwitchStorage={ready && !saving && !dirty}
       onStorageChanged={reloadFromStorage}
     />
