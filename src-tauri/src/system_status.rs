@@ -20,6 +20,41 @@ pub async fn get_device_status() -> Result<DeviceStatus, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Bluetooth addresses arrive as `AA:BB:CC:DD:EE:FF` in varying case; device
+/// ids embed the same digits as 12 contiguous uppercase hex characters.
+#[cfg(target_os = "windows")]
+fn normalized_mac(address: &str) -> Option<String> {
+    let mac: String = address
+        .chars()
+        .filter(|character| character.is_ascii_hexdigit())
+        .collect::<String>()
+        .to_ascii_uppercase();
+    (mac.len() == 12).then_some(mac)
+}
+
+/// Hands-Free profile nodes carry the 0000111E service UUID and the peer
+/// address in their device id; `id` must already be uppercased.
+#[cfg(target_os = "windows")]
+fn is_handsfree_node(id: &str, mac: &str) -> bool {
+    id.contains("0000111E") && id.contains(mac)
+}
+
+/// Reads GetSystemPowerStatus fields. Bit 7 of the battery flag means "no
+/// battery", 255 means unknown; the AC line only knows 0 (battery) and
+/// 1 (AC), anything else is reported as absent.
+#[cfg(target_os = "windows")]
+fn power_status(
+    ac_line: u8,
+    battery_flag: u8,
+    battery_percent: u8,
+) -> (Option<bool>, Option<u8>, Option<bool>) {
+    (
+        (ac_line <= 1).then_some(ac_line == 1),
+        (battery_percent <= 100 && battery_flag & 128 == 0).then_some(battery_percent),
+        (battery_flag != 255 && battery_flag & 128 == 0).then_some(battery_flag & 8 != 0),
+    )
+}
+
 /// Classic headsets report their battery on the Hands-Free profile node;
 /// `System.Devices.BatteryLife` is not populated for them.
 #[cfg(target_os = "windows")]
@@ -28,9 +63,7 @@ fn bluetooth_hfp_battery(address: &str) -> Option<u8> {
         CM_GETIDLIST_FILTER_ENUMERATOR, CM_Get_DevNode_PropertyW, CM_Get_Device_ID_List_SizeW,
         CM_Get_Device_ID_ListW, CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, CR_SUCCESS,
     };
-    use windows::Win32::Devices::Properties::{
-        DEVPROP_TYPE_BYTE, DEVPROP_TYPE_UINT32, DEVPROPTYPE,
-    };
+    use windows::Win32::Devices::Properties::DEVPROPTYPE;
     use windows::Win32::Foundation::DEVPROPKEY;
     use windows::core::{GUID, PCWSTR};
 
@@ -38,14 +71,7 @@ fn bluetooth_hfp_battery(address: &str) -> Option<u8> {
         fmtid: GUID::from_u128(0x104ea319_6ee2_4701_bd47_8ddbf425bbe5),
         pid: 2,
     };
-    let mac: String = address
-        .chars()
-        .filter(|character| character.is_ascii_hexdigit())
-        .collect::<String>()
-        .to_ascii_uppercase();
-    if mac.len() != 12 {
-        return None;
-    }
+    let mac = normalized_mac(address)?;
     unsafe {
         let filter: Vec<u16> = "BTHENUM".encode_utf16().chain(std::iter::once(0)).collect();
         let mut length = 0u32;
@@ -68,8 +94,7 @@ fn bluetooth_hfp_battery(address: &str) -> Option<u8> {
         }
         for id in list.split(|value| *value == 0) {
             let text = String::from_utf16_lossy(id).to_ascii_uppercase();
-            // Hands-Free profile node: {0000111E-...} and the remote address.
-            if !text.contains("0000111E") || !text.contains(&mac) {
+            if !is_handsfree_node(&text, &mac) {
                 continue;
             }
             let mut devinst = 0u32;
@@ -92,19 +117,33 @@ fn bluetooth_hfp_battery(address: &str) -> Option<u8> {
             {
                 continue;
             }
-            let percent = if property_type == DEVPROP_TYPE_BYTE && value_size >= 1 {
-                Some(value[0])
-            } else if property_type == DEVPROP_TYPE_UINT32 && value_size >= 4 {
-                Some(u32::from_le_bytes([value[0], value[1], value[2], value[3]]) as u8)
-            } else {
-                None
-            };
-            if let Some(percent) = percent.filter(|percent| *percent <= 100) {
+            let written = (value_size as usize).min(value.len());
+            if let Some(percent) = decode_battery_percent(property_type, &value[..written]) {
                 return Some(percent);
             }
         }
     }
     None
+}
+
+/// Decodes the Bluetooth battery property, which vendors report either as a
+/// byte or a 32-bit little-endian integer; values above 100 are not a
+/// percentage and are rejected. A UINT32 wider than a byte is truncated
+/// exactly as before this was extracted.
+#[cfg(target_os = "windows")]
+fn decode_battery_percent(
+    property_type: windows::Win32::Devices::Properties::DEVPROPTYPE,
+    value: &[u8],
+) -> Option<u8> {
+    use windows::Win32::Devices::Properties::{DEVPROP_TYPE_BYTE, DEVPROP_TYPE_UINT32};
+    let percent = if property_type == DEVPROP_TYPE_BYTE && !value.is_empty() {
+        value[0]
+    } else if property_type == DEVPROP_TYPE_UINT32 && value.len() >= 4 {
+        u32::from_le_bytes([value[0], value[1], value[2], value[3]]) as u8
+    } else {
+        return None;
+    };
+    (percent <= 100).then_some(percent)
 }
 
 fn read_devices() -> DeviceStatus {
@@ -264,28 +303,21 @@ fn read_status() -> SystemStatus {
             if initialized {
                 CoUninitialize();
             }
+            let (on_ac, battery, charging) = if power_ok {
+                power_status(
+                    status.ACLineStatus,
+                    status.BatteryFlag,
+                    status.BatteryLifePercent,
+                )
+            } else {
+                (None, None, None)
+            };
             SystemStatus {
                 volume: audio.map(|v| v.0),
                 muted: audio.map(|v| v.1),
-                on_ac: if power_ok && status.ACLineStatus <= 1 {
-                    Some(status.ACLineStatus == 1)
-                } else {
-                    None
-                },
-                battery: if power_ok
-                    && status.BatteryLifePercent <= 100
-                    && status.BatteryFlag & 128 == 0
-                {
-                    Some(status.BatteryLifePercent)
-                } else {
-                    None
-                },
-                charging: if power_ok && status.BatteryFlag != 255 && status.BatteryFlag & 128 == 0
-                {
-                    Some(status.BatteryFlag & 8 != 0)
-                } else {
-                    None
-                },
+                on_ac,
+                battery,
+                charging,
                 output_device: crate::audio::default_device(),
                 input_device: crate::audio::default_input_device(),
             }
@@ -300,5 +332,75 @@ fn read_status() -> SystemStatus {
         charging: None,
         output_device: None,
         input_device: None,
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::{decode_battery_percent, is_handsfree_node, normalized_mac, power_status};
+    use windows::Win32::Devices::Properties::{
+        DEVPROP_TYPE_BYTE, DEVPROP_TYPE_UINT32, DEVPROPTYPE,
+    };
+
+    #[test]
+    fn reads_power_flags_and_rejects_unknown_states() {
+        // On AC and charging at 80%.
+        assert_eq!(power_status(1, 8, 80), (Some(true), Some(80), Some(true)));
+        // On battery, discharging.
+        assert_eq!(power_status(0, 1, 45), (Some(false), Some(45), Some(false)));
+        // No battery: percentage and charging are unknown.
+        assert_eq!(power_status(1, 128, 0), (Some(true), None, None));
+        // Unknown battery state (255).
+        assert_eq!(power_status(1, 255, 100), (Some(true), None, None));
+        // AC line outside 0/1 cannot be interpreted.
+        assert_eq!(power_status(2, 0, 50), (None, Some(50), Some(false)));
+        // A percentage above 100 is not reported.
+        assert_eq!(power_status(1, 0, 101), (Some(true), None, Some(false)));
+    }
+
+    #[test]
+    fn normalizes_addresses_to_twelve_uppercase_hex_digits() {
+        assert_eq!(
+            normalized_mac("AA:BB:CC:DD:EE:FF").as_deref(),
+            Some("AABBCCDDEEFF")
+        );
+        assert_eq!(
+            normalized_mac("aabbccddeeff").as_deref(),
+            Some("AABBCCDDEEFF")
+        );
+        assert_eq!(normalized_mac("(((())))"), None);
+        assert_eq!(normalized_mac("AABBCCDDEEFF0"), None);
+    }
+
+    #[test]
+    fn matches_only_handsfree_nodes_with_the_peer_address() {
+        let node = "BTHENUM\\{0000111E-0000-1000-8000-00805F9B34FB}_VID&0001000C\\8&AABBCCDDEEFF";
+        assert!(is_handsfree_node(node, "AABBCCDDEEFF"));
+        assert!(!is_handsfree_node(
+            "BTHENUM\\{0000110B-0000-1000-8000-00805F9B34FB}\\8&AABBCCDDEEFF",
+            "AABBCCDDEEFF"
+        ));
+        assert!(!is_handsfree_node(
+            "BTHENUM\\{0000111E-0000-1000-8000-00805F9B34FB}\\8&000000000000",
+            "AABBCCDDEEFF"
+        ));
+    }
+
+    #[test]
+    fn decodes_battery_properties_of_both_kinds() {
+        assert_eq!(decode_battery_percent(DEVPROP_TYPE_BYTE, &[80]), Some(80));
+        assert_eq!(
+            decode_battery_percent(DEVPROP_TYPE_UINT32, &[64, 0, 0, 0]),
+            Some(64)
+        );
+        // Not a percentage.
+        assert_eq!(
+            decode_battery_percent(DEVPROP_TYPE_UINT32, &[101, 0, 0, 0]),
+            None
+        );
+        // Unknown property type or truncated value.
+        assert_eq!(decode_battery_percent(DEVPROPTYPE(0), &[80]), None);
+        assert_eq!(decode_battery_percent(DEVPROP_TYPE_UINT32, &[64, 0]), None);
+        assert_eq!(decode_battery_percent(DEVPROP_TYPE_BYTE, &[]), None);
     }
 }
