@@ -38,6 +38,7 @@ import { useAudioDevices } from "./useAudioDevices";
 import { useIslandMedia } from "./useIslandMedia";
 import { useIslandTimer } from "./useIslandTimer";
 import { useIslandWater } from "./useIslandWater";
+import { useExpandCollapse } from "./useExpandCollapse";
 import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
 import { QuotaPage } from "./QuotaPage";
@@ -67,23 +68,6 @@ import waterDrop from "../../assets/water-drop.webp";
 
 /** The media capsule shows one of these next to the track, picked at random. */
 type MediaBadge = "pomodoro" | "water" | "quota";
-
-function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
-  if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-    return Promise.resolve();
-  return new Promise((resolve) => {
-    const finish = () => {
-      window.clearTimeout(timeout);
-      element.removeEventListener("transitionend", onEnd);
-      resolve();
-    };
-    const onEnd = (event: TransitionEvent) => {
-      if (event.target === element && event.propertyName === "height") finish();
-    };
-    const timeout = window.setTimeout(finish, 450);
-    element.addEventListener("transitionend", onEnd);
-  });
-}
 
 export function IslandWindow() {
   const { notice, system, devices } = useSystemNotice();
@@ -121,24 +105,9 @@ export function IslandWindow() {
   const currentCopyStatus =
     selectedMail?.code === copyStatus?.code ? copyStatus?.message : "";
   const [appearance, setAppearance] = useState(defaultAppearance);
-  const panel = useRef<HTMLDivElement>(null);
-  const collapseTimeout = useRef<number | null>(null);
-  const hoverTimeout = useRef<number | null>(null);
-  // A page switch can shrink the panel under a stationary pointer, which the
-  // browser reports as a mouseleave; that synthetic leave must not collapse it.
-  const ignoreLeaveUntil = useRef(0);
-  const dragState = useRef<{
-    x: number;
-    y: number;
-    active: boolean;
-  } | null>(null);
-  const dragMoved = useRef(false);
-  const scheduleCollapseRef = useRef<() => void>(() => {});
-  const [expanded, setExpanded] = useState(false);
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
   useEffect(() => watchDisplayTier(setLargeDisplay), []);
-  const [transitioning, setTransitioning] = useState(false);
   const {
     timer,
     minutes,
@@ -200,10 +169,66 @@ export function IslandWindow() {
   const { media, mediaKey, artwork, mediaPosition, currentLyric } = mediaState;
   const [mediaBadge, setMediaBadge] = useState<MediaBadge>("quota");
   const [activeTab, setActiveTab] = useState<IslandTab>("timer");
+  const [error, setError] = useState("");
+  // Failure banners are hints, not persistent states; a fresh error restarts
+  // the window, and clearing it frees the capsule for the next message.
+  useEffect(() => {
+    if (!error) return;
+    const timeout = window.setTimeout(() => setError(""), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
+  const display = selectIslandDisplay({
+    timer: timer.status,
+    mail: !!(mailHighlight && recentMail.length),
+    notice: !!notice,
+    water: waterReminder,
+    // Paused media stays in the panel but gives the island back. When island
+    // lyrics are off, music only appears through the idle music widget.
+    media: !!(media?.title && media.playing && appearance.islandLyrics),
+  });
+  // Reminder-aware chrome: the capsule pops once when a reminder arrives and
+  // keeps a colour-coded breathing ring until it is acknowledged.
+  const alertKind =
+    display === "finished"
+      ? "timer"
+      : display === "mail"
+        ? "mail"
+        : display === "water"
+          ? "water"
+          : display === "notice"
+            ? "notice"
+            : null;
+  const alertToken = alertKind
+    ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}`
+    : "";
+  const {
+    expanded,
+    panel,
+    notePageSwitch,
+    handleToggleClick,
+    cancelAutoCollapse,
+    scheduleAutoCollapse,
+    releaseReminderHold,
+    handlePanelEnter,
+    handlePanelLeave,
+    beginDrag,
+    moveDrag,
+    endDrag,
+    toggleExpanded,
+  } = useExpandCollapse({
+    expandTrigger: appearance.expandTrigger,
+    autoCollapseSeconds: appearance.autoCollapseSeconds,
+    reminderAutoExpand: appearance.reminderAutoExpand,
+    scale: appearance.scale,
+    openReminderPage,
+    onError: (message) => setError(message),
+    alertToken,
+    alertKind,
+  });
   const deviceState = useAudioDevices(expanded && activeTab === "device");
   function selectPage(tab: IslandTab) {
     setActiveTab(tab);
-    ignoreLeaveUntil.current = Date.now() + 400;
+    notePageSwitch();
     if (tab === "mail") {
       setMailIndex(0);
       setCopyStatus(null);
@@ -280,117 +305,12 @@ export function IslandWindow() {
       unlisten?.();
     };
   }, []);
-  const [error, setError] = useState("");
-  // Failure banners are hints, not persistent states; a fresh error restarts
-  // the window, and clearing it frees the capsule for the next message.
-  useEffect(() => {
-    if (!error) return;
-    const timeout = window.setTimeout(() => setError(""), 6_000);
-    return () => window.clearTimeout(timeout);
-  }, [error]);
-  function cancelAutoCollapse() {
-    if (collapseTimeout.current !== null) {
-      window.clearTimeout(collapseTimeout.current);
-      collapseTimeout.current = null;
-    }
-  }
-  // A panel opened by a reminder gets 20s to be noticed. As soon as the
-  // pointer reaches it the reminder has been seen, so the hold is dropped and
-  // the normal "collapse after leaving" delay applies again.
-  const reminderHold = useRef(0);
-  function reminderHoldRemaining() {
-    return Math.max(0, reminderHold.current - Date.now());
-  }
-  function scheduleAutoCollapse() {
-    cancelAutoCollapse();
-    if (!expanded || transitioning) return;
-    const delay = Math.max(
-      appearance.autoCollapseSeconds * 1000,
-      reminderHoldRemaining(),
-    );
-    collapseTimeout.current = window.setTimeout(() => {
-      collapseTimeout.current = null;
-      if (!panel.current?.matches(":hover")) {
-        void toggleExpanded();
-      }
-    }, delay);
-  }
-  useEffect(() => {
-    scheduleCollapseRef.current = scheduleAutoCollapse;
-  });
-  // A missed mouseleave at the screen edge would otherwise leave the panel
-  // open forever; watching the pointer keeps click mode and hover mode equal.
-  useEffect(() => {
-    if (!expanded) return;
-    const onMove = (event: PointerEvent) => {
-      const element = panel.current;
-      if (!element) return;
-      const rect = element.getBoundingClientRect();
-      const inside =
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top &&
-        event.clientY <= rect.bottom;
-      if (inside) {
-        reminderHold.current = 0;
-        if (collapseTimeout.current !== null) {
-          window.clearTimeout(collapseTimeout.current);
-          collapseTimeout.current = null;
-        }
-      } else if (collapseTimeout.current === null) {
-        scheduleCollapseRef.current();
-      }
-    };
-    window.addEventListener("pointermove", onMove);
-    return () => window.removeEventListener("pointermove", onMove);
-  }, [expanded]);
-  useEffect(() => {
-    const onWindowBlur = () => scheduleCollapseRef.current();
-    const onWindowFocus = () => {
-      if (panel.current?.matches(":hover")) cancelAutoCollapse();
-    };
-    window.addEventListener("blur", onWindowBlur);
-    window.addEventListener("focus", onWindowFocus);
-    return () => {
-      window.removeEventListener("blur", onWindowBlur);
-      window.removeEventListener("focus", onWindowFocus);
-      cancelAutoCollapse();
-    };
-  }, []);
   async function run(command: string) {
     try {
       await invoke(command);
     } catch {
       setError(t("操作失败，请重试"));
     }
-  }
-  function cancelHoverExpand() {
-    if (hoverTimeout.current !== null) {
-      window.clearTimeout(hoverTimeout.current);
-      hoverTimeout.current = null;
-    }
-  }
-  function releaseReminderHold() {
-    reminderHold.current = 0;
-  }
-  function handlePanelEnter() {
-    releaseReminderHold();
-    cancelAutoCollapse();
-    if (appearance.expandTrigger !== "hover") return;
-    if (expanded || transitioning || dragState.current?.active) return;
-    if (hoverTimeout.current !== null) return;
-    // A short dwell keeps the panel from popping up when the pointer just
-    // crosses the top of the screen.
-    hoverTimeout.current = window.setTimeout(() => {
-      hoverTimeout.current = null;
-      openReminderPage();
-      void toggleExpanded();
-    }, 180);
-  }
-  function handlePanelLeave() {
-    cancelHoverExpand();
-    if (Date.now() < ignoreLeaveUntil.current) return;
-    scheduleAutoCollapse();
   }
   // Reminder capsules carry their own destination, so opening the panel from
   // one (by click or by hover) must land on that page instead of the last tab.
@@ -409,100 +329,6 @@ export function IslandWindow() {
       setActiveTab("timer");
     }
   }
-  function beginDrag(event: React.PointerEvent) {
-    if (event.button !== 0) return;
-    const target = event.target as HTMLElement;
-    const control = target.closest("button, input, a, textarea");
-    // Nested controls (copy, tabs, inputs) keep their own behaviour.
-    if (control && control !== event.currentTarget) return;
-    dragMoved.current = false;
-    dragState.current = { x: event.clientX, y: event.clientY, active: false };
-  }
-  function moveDrag(event: React.PointerEvent) {
-    const state = dragState.current;
-    if (!state || state.active) return;
-    if (Math.hypot(event.clientX - state.x, event.clientY - state.y) < 4)
-      return;
-    state.active = true;
-    dragMoved.current = true;
-    cancelHoverExpand();
-    void invoke("start_island_drag")
-      .catch(() => {
-        dragMoved.current = false;
-      })
-      .finally(() => {
-        // Native dragging owns the pointer, so pointerup never reaches the
-        // webview; a stale active flag would keep blocking hover expansion.
-        if (dragState.current === state) dragState.current = null;
-      });
-  }
-  function endDrag() {
-    dragState.current = null;
-  }
-  useEffect(() => cancelHoverExpand, []);
-  useEffect(() => {
-    if (!expanded || appearance.expandTrigger !== "hover") return;
-    const id = window.setTimeout(() => {
-      if (!panel.current?.matches(":hover")) scheduleCollapseRef.current?.();
-    }, 450);
-    return () => window.clearTimeout(id);
-  }, [expanded, appearance.expandTrigger]);
-
-  async function toggleExpanded() {
-    if (transitioning) return;
-    setTransitioning(true);
-    try {
-      if (expanded) {
-        reminderHold.current = 0;
-        const animation = waitForPanelTransition(panel.current);
-        setExpanded(false);
-        await animation;
-        await new Promise<void>((resolve) =>
-          window.requestAnimationFrame(() => resolve()),
-        );
-        await invoke("set_island_expanded", { expanded: false });
-      } else {
-        await invoke("set_island_expanded", { expanded: true });
-        await new Promise<void>((resolve) =>
-          window.requestAnimationFrame(() =>
-            window.requestAnimationFrame(() => resolve()),
-          ),
-        );
-        const animation = waitForPanelTransition(panel.current);
-        setExpanded(true);
-        await animation;
-      }
-    } catch {
-      setExpanded(expanded);
-      setError(t("窗口调整失败，请重试"));
-    } finally {
-      setTransitioning(false);
-    }
-  }
-  const display = selectIslandDisplay({
-    timer: timer.status,
-    mail: !!(mailHighlight && recentMail.length),
-    notice: !!notice,
-    water: waterReminder,
-    // Paused media stays in the panel but gives the island back. When island
-    // lyrics are off, music only appears through the idle music widget.
-    media: !!(media?.title && media.playing && appearance.islandLyrics),
-  });
-  // Reminder-aware chrome: the capsule pops once when a reminder arrives and
-  // keeps a colour-coded breathing ring until it is acknowledged.
-  const alertKind =
-    display === "finished"
-      ? "timer"
-      : display === "mail"
-        ? "mail"
-        : display === "water"
-          ? "water"
-          : display === "notice"
-            ? "notice"
-            : null;
-  const alertToken = alertKind
-    ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}`
-    : "";
   const [popping, setPopping] = useState(false);
   useEffect(() => {
     if (!alertToken) return;
@@ -527,49 +353,6 @@ export function IslandWindow() {
     return () => window.removeEventListener("keydown", onKey);
   }, [alertKind, dismissHighlight, resetTimer, setWaterReminder]);
 
-  // Optional: open the panel by itself when a reminder arrives. System
-  // notices stay transient so volume keys do not keep popping the panel.
-  const reminderActions = useRef({
-    open: openReminderPage,
-    expand: toggleExpanded,
-    expanded,
-    transitioning,
-  });
-  useEffect(() => {
-    reminderActions.current = {
-      open: openReminderPage,
-      expand: toggleExpanded,
-      expanded,
-      transitioning,
-    };
-  });
-  const autoExpandedRef = useRef("");
-  // A fresh reminder of the same kind (two water nudges in a row) must be
-  // able to expand again once the previous one has cleared.
-  useEffect(() => {
-    if (!alertToken) autoExpandedRef.current = "";
-  }, [alertToken]);
-  useEffect(() => {
-    if (!alertToken || !appearance.reminderAutoExpand) return;
-    if (autoExpandedRef.current === alertToken) return;
-    if (!alertKind || alertKind === "notice") return;
-    autoExpandedRef.current = alertToken;
-    const current = reminderActions.current;
-    if (current.expanded || current.transitioning) return;
-    reminderHold.current = Date.now() + 20_000;
-    current.open(false);
-    void current.expand();
-  }, [alertToken, alertKind, appearance.reminderAutoExpand]);
-  // The hold is measured from the moment the panel actually opens; wait for
-  // the expansion transition to finish before arming the collapse timer.
-  useEffect(() => {
-    if (transitioning) return;
-    if (!expanded) {
-      reminderHold.current = 0;
-      return;
-    }
-    if (reminderHoldRemaining() > 0) scheduleCollapseRef.current();
-  }, [expanded, transitioning]);
   const waterPercentToday = waterPercent(todayWater, water.goalMl);
   const waterCupsToday = waterCups(todayWater, water.cupMl);
   const waterToneValue = waterTone(todayWater, water.goalMl);
@@ -672,49 +455,6 @@ export function IslandWindow() {
     }, 6000);
     return () => window.clearInterval(timer);
   }, [display, mediaBadgeKey]);
-  // The window is a large transparent surface; keep its native hit region on
-  // the visible panel so clicks in the empty area reach the apps below. The
-  // region only grows while the layout animates and is tightened once the
-  // frame settles, so the moving panel is never clipped.
-  useEffect(() => {
-    if (!isTauri()) return;
-    const element = panel.current;
-    if (!element) return;
-    let frame = 0;
-    let settle: number | undefined;
-    let disposed = false;
-    const send = (settled: boolean) => {
-      if (disposed) return;
-      const rect = element.getBoundingClientRect();
-      void invoke("set_island_panel_bounds", {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-        settled,
-      }).catch(() => undefined);
-    };
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        send(false);
-        window.clearTimeout(settle);
-        settle = window.setTimeout(() => send(true), 260);
-      });
-    };
-    const observer = new ResizeObserver(schedule);
-    observer.observe(element);
-    const initial = window.setTimeout(() => send(true), 0);
-    window.addEventListener("resize", schedule);
-    return () => {
-      disposed = true;
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-      window.clearTimeout(settle);
-      window.clearTimeout(initial);
-      window.removeEventListener("resize", schedule);
-    };
-  }, [appearance.scale]);
   // Idle capsules shrink to their measured content; a numeric width lets the
   // panel animate smoothly into the expanded layout. Resolution scaling is
   // applied natively (webview zoom), so these widths stay in base CSS pixels.
@@ -814,16 +554,7 @@ export function IslandWindow() {
             onPointerMove={moveDrag}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
-            onClick={() => {
-              // A drag is not a click.
-              if (dragMoved.current) {
-                dragMoved.current = false;
-                return;
-              }
-              cancelHoverExpand();
-              openReminderPage();
-              void toggleExpanded();
-            }}
+            onClick={handleToggleClick}
           >
             {expanded ? null : display === "notice" && notice ? (
               <span className="island-current system-notice" role="status">
