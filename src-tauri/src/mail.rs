@@ -352,19 +352,24 @@ pub fn remove_mail_account(
     id: String,
 ) -> Result<(), String> {
     require_window(&window, "main")?;
-    let db = storage.0.lock().map_err(|e| e.to_string())?;
+    // Delete the database row first: if that fails nothing else was touched,
+    // while deleting the credential first could leave a stored account whose
+    // password no longer exists.
+    {
+        let db = storage.0.lock().map_err(|e| e.to_string())?;
+        db.connection
+            .execute("DELETE FROM mail_accounts WHERE id=?1", [&id])
+            .map_err(|e| e.to_string())?;
+    }
     #[cfg(target_os = "windows")]
     {
         let entry = credential(&id)?;
         if let Err(error) = entry.delete_credential()
             && !matches!(error, keyring::Error::NoEntry)
         {
-            return Err("无法删除邮箱授权码".into());
+            return Err("账户已删除，但授权码清理失败".into());
         }
     }
-    db.connection
-        .execute("DELETE FROM mail_accounts WHERE id=?1", [&id])
-        .map_err(|e| e.to_string())?;
     if let Ok(mut states) = monitor.status.lock() {
         states.remove(&id);
     }
@@ -488,6 +493,11 @@ fn poll_account_inner(app: &tauri::AppHandle, id: &str) -> Result<Vec<MailNotice
                     let db = storage.0.lock().map_err(|e| e.to_string())?;
                     let updated = db.connection.execute("UPDATE mail_accounts SET uid_validity=?1,last_uid=?2 WHERE id=?3 AND uid_validity=?4 AND last_uid=?5", params![validity, newest, id, old_validity, last_uid]).map_err(|e| e.to_string())?;
                     if updated == 0 {
+                        // The account was deleted while this poll was in
+                        // flight; drop the session this poll just cached.
+                        if let Ok(mut sessions) = monitor.sessions.lock() {
+                            sessions.remove(id);
+                        }
                         return Ok(vec![]);
                     }
                     return Ok(notices);
