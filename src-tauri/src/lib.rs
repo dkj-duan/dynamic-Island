@@ -1081,11 +1081,22 @@ fn set_island_panel_bounds(
 }
 
 #[tauri::command]
-fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(), String> {
+fn set_island_expanded(
+    window: tauri::WebviewWindow,
+    expanded: bool,
+    passive: bool,
+) -> Result<(), String> {
     if window.label() != "island" {
         return Err("invalid window".into());
     }
     ISLAND_EXPANDED.store(expanded, std::sync::atomic::Ordering::SeqCst);
+    // A reminder-triggered expansion is only a hint: the panel stays visible
+    // but clicks pass through, so the pointer keeps working in whatever is
+    // underneath and no focus or activation ever moves. Any collapse or
+    // user-initiated expansion restores normal hit testing.
+    window
+        .set_ignore_cursor_events(passive && expanded)
+        .map_err(|e| e.to_string())?;
     #[cfg(target_os = "windows")]
     {
         use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
@@ -1173,7 +1184,7 @@ fn apply_island_scale(window: tauri::WebviewWindow, scale: f64) -> Result<(), St
         .set_position(PhysicalPosition::new(x, old_position.y))
         .map_err(|e| e.to_string())?;
     if !ISLAND_EXPANDED.load(std::sync::atomic::Ordering::SeqCst) {
-        set_island_expanded(window, false)?;
+        set_island_expanded(window, false, false)?;
     }
     Ok(())
 }
@@ -1332,7 +1343,7 @@ pub fn run() {
                 #[cfg(target_os = "windows")]
                 remove_native_caption(&window).map_err(std::io::Error::other)?;
                 disable_default_context_menu(&window).map_err(std::io::Error::other)?;
-                set_island_expanded(window.clone(), false).map_err(std::io::Error::other)?;
+                set_island_expanded(window.clone(), false, false).map_err(std::io::Error::other)?;
             }
             // A tray icon is the safety rope: the settings window can be
             // hidden (close) and this is the only way back.

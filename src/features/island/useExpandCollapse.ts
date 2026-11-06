@@ -200,7 +200,12 @@ export function useExpandCollapse(options: {
     return () => window.clearTimeout(id);
   }, [expanded, expandTrigger]);
 
-  async function toggleExpanded() {
+  /**
+   * Opens or closes the panel. A `passive` expansion is fired by a reminder:
+   * the panel shows but clicks pass through it, so the user's pointer and
+   * focus are never disturbed; it collapses on its own timer.
+   */
+  async function toggleExpanded(passive = false) {
     if (transitioning) return;
     setTransitioning(true);
     try {
@@ -212,9 +217,12 @@ export function useExpandCollapse(options: {
         await new Promise<void>((resolve) =>
           window.requestAnimationFrame(() => resolve()),
         );
-        await invoke("set_island_expanded", { expanded: false });
+        await invoke("set_island_expanded", {
+          expanded: false,
+          passive: false,
+        });
       } else {
-        await invoke("set_island_expanded", { expanded: true });
+        await invoke("set_island_expanded", { expanded: true, passive });
         await new Promise<void>((resolve) =>
           window.requestAnimationFrame(() =>
             window.requestAnimationFrame(() => resolve()),
@@ -262,7 +270,8 @@ export function useExpandCollapse(options: {
     if (current.expanded || current.transitioning) return;
     reminderHold.current = Date.now() + 20_000;
     current.open(false);
-    void current.expand();
+    // Passive: the panel is a hint only, never a focus or pointer grab.
+    void current.expand(true);
   }, [alertToken, alertKind, reminderAutoExpand]);
   // The hold is measured from the moment the panel actually opens; wait for
   // the expansion transition to finish before arming the collapse timer.
