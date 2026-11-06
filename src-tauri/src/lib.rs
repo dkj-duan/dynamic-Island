@@ -1082,6 +1082,56 @@ fn set_island_panel_bounds(
     }
 }
 
+/// While a reminder panel is expanded pass-through, the webview receives no
+/// mouse messages at all, so "the user moved onto the panel" has to be
+/// observed natively: poll the cursor and restore interactivity once it
+/// dwells on the panel, which makes reminder actions (log water, copy a
+/// code) clickable again. A quick sweep across the panel keeps passing
+/// through so the app underneath never loses a click.
+#[cfg(target_os = "windows")]
+fn spawn_passive_hover_watch(window: tauri::WebviewWindow) {
+    std::thread::spawn(move || {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+        let mut dwell = 0u32;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if !ISLAND_EXPANDED.load(std::sync::atomic::Ordering::SeqCst) {
+                // Collapsed, or re-expanded interactively: the command paths
+                // own the pass-through flag again.
+                return;
+            }
+            let rect = *ISLAND_HIT_RECT
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some((left, top, right, bottom)) = rect else {
+                dwell = 0;
+                continue;
+            };
+            let mut point = POINT::default();
+            if unsafe { GetCursorPos(&mut point) } == 0 {
+                continue;
+            }
+            let Ok(origin) = window.outer_position() else {
+                continue;
+            };
+            let x = point.x - origin.x;
+            let y = point.y - origin.y;
+            if x >= left && x <= right && y >= top && y <= bottom {
+                dwell += 1;
+            } else {
+                dwell = 0;
+                continue;
+            }
+            // Roughly 400ms of deliberate hovering; sweeps never reach this.
+            if dwell >= 4 {
+                let _ = window.set_ignore_cursor_events(false);
+                return;
+            }
+        }
+    });
+}
+
 #[tauri::command]
 fn set_island_expanded(
     window: tauri::WebviewWindow,
@@ -1111,6 +1161,7 @@ fn set_island_expanded(
                 return Err(std::io::Error::last_os_error().to_string());
             }
         }
+        spawn_passive_hover_watch(window.clone());
     }
     #[cfg(target_os = "windows")]
     {
