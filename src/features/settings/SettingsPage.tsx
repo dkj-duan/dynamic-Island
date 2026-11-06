@@ -1,16 +1,29 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  CircleHelp,
-  MousePointer2,
-  Palette,
-  Bell,
-  Database,
-  Mail,
-  Bot,
-  Timer,
-  Droplets,
-  Hourglass,
-} from "lucide-react";
+  Badge,
+  Button,
+  Layout,
+  Menu,
+  Segmented,
+  Tooltip,
+  Typography,
+} from "antd";
+import {
+  BgColorsOutlined,
+  DesktopOutlined,
+  MoonOutlined,
+  SunOutlined,
+  TranslationOutlined,
+  ControlOutlined,
+  DatabaseOutlined,
+  FieldTimeOutlined,
+  HourglassOutlined,
+  InfoCircleOutlined,
+  MailOutlined,
+  NotificationOutlined,
+  RobotOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import type { AppearanceSettings } from "../../domain/settings";
 import { AppearancePage } from "./AppearanceSettings";
 import { BehaviorSettings } from "./BehaviorSettings";
@@ -22,7 +35,13 @@ import { MailSettings } from "./MailSettings";
 import { AiSettings } from "./AiSettings";
 import { PomodoroSettings } from "./PomodoroSettings";
 import { WaterSettings } from "./WaterSettings";
+import { SettingsTheme } from "./SettingsTheme";
 import { setLanguage, t } from "../../services/i18n";
+import {
+  resolveTheme,
+  watchSystemTheme,
+  type ResolvedTheme,
+} from "../../services/systemTheme";
 import appIcon from "../../assets/app-icon.png";
 
 type Page =
@@ -60,28 +79,37 @@ interface Props {
   onStorageChanged: () => Promise<void>;
 }
 
-type NavItem = { id: Page; label: string; icon: typeof Palette };
-
-const navItems: NavItem[] = [
-  { id: "appearance", label: "外观", icon: Palette },
-  { id: "behavior", label: "交互", icon: MousePointer2 },
-  { id: "pomodoro", label: "番茄钟", icon: Timer },
-  { id: "status", label: "状态", icon: Bell },
-  { id: "water", label: "喝水", icon: Droplets },
-  { id: "countdown", label: "倒计时", icon: Hourglass },
-  { id: "mail", label: "邮箱", icon: Mail },
-  { id: "ai", label: "AI 额度", icon: Bot },
-  { id: "storage", label: "存储", icon: Database },
-  { id: "about", label: "关于", icon: CircleHelp },
+const navGroups: { label: string; ids: Page[]; icon: ReactNode }[] = [
+  {
+    label: "通用",
+    ids: ["appearance", "behavior"],
+    icon: <BgColorsOutlined />,
+  },
+  {
+    label: "功能",
+    ids: ["pomodoro", "water", "countdown"],
+    icon: <ThunderboltOutlined />,
+  },
+  { label: "服务", ids: ["mail", "ai"], icon: <MailOutlined /> },
+  {
+    label: "系统",
+    ids: ["status", "storage", "about"],
+    icon: <InfoCircleOutlined />,
+  },
 ];
 
-/* Grouped so the sidebar reads: island itself, its tools, its sources, then system. */
-const navGroups: { label: string; ids: Page[] }[] = [
-  { label: "通用", ids: ["appearance", "behavior"] },
-  { label: "功能", ids: ["pomodoro", "water", "countdown"] },
-  { label: "服务", ids: ["mail", "ai"] },
-  { label: "系统", ids: ["status", "storage", "about"] },
-];
+const navIcons: Record<Page, ReactNode> = {
+  appearance: <BgColorsOutlined />,
+  behavior: <ControlOutlined />,
+  pomodoro: <FieldTimeOutlined />,
+  water: <ThunderboltOutlined />,
+  countdown: <HourglassOutlined />,
+  status: <NotificationOutlined />,
+  mail: <MailOutlined />,
+  ai: <RobotOutlined />,
+  storage: <DatabaseOutlined />,
+  about: <InfoCircleOutlined />,
+};
 
 export function SettingsPage({
   appearance,
@@ -93,121 +121,170 @@ export function SettingsPage({
   onStorageChanged,
 }: Props) {
   const [page, setPage] = useState<Page>("appearance");
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light",
+  );
+  useEffect(() => watchSystemTheme(setSystemTheme), []);
+  const dark = resolveTheme(appearance.theme, systemTheme) === "dark";
   setLanguage(appearance.language);
-  const meta = pageMeta[page];
-  const hasError = status.includes("失败");
+
   useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const update = () =>
-      (document.documentElement.dataset.settingsTheme =
-        appearance.theme === "system"
-          ? media.matches
-            ? "dark"
-            : "light"
-          : appearance.theme);
-    update();
-    media.addEventListener("change", update);
+    document.documentElement.dataset.settingsTheme = dark ? "dark" : "light";
     return () => {
-      media.removeEventListener("change", update);
       delete document.documentElement.dataset.settingsTheme;
     };
-  }, [appearance.theme]);
+  }, [dark]);
+
+  const menuItems = useMemo(
+    () =>
+      navGroups.map((group) => ({
+        type: "group" as const,
+        label: t(group.label, appearance.language),
+        children: group.ids.map((id) => ({
+          key: id,
+          icon: navIcons[id],
+          label: t(pageMeta[id].title, appearance.language),
+        })),
+      })),
+    [appearance.language],
+  );
+
+  const meta = pageMeta[page];
+  const hasError = status.includes("失败");
 
   return (
-    <div className="settings-shell">
-      <aside className="settings-sidebar">
-        <div className="settings-brand">
-          <span className="settings-brand-mark" aria-hidden="true">
-            <img src={appIcon} alt="" />
-          </span>
-          <span className="settings-brand-text">
-            <strong>{t("灵动岛")}</strong>
-            <small>{t("设置")}</small>
-          </span>
-        </div>
-
-        <nav className="settings-nav" aria-label={t("设置分区")}>
-          {navGroups.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <span className="nav-group-title">{t(group.label)}</span>
-              {group.ids.map((id) => {
-                const item = navItems.find((nav) => nav.id === id)!;
-                const Icon = item.icon;
-                const label = t(item.label);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    title={label}
-                    aria-label={label}
-                    className={`settings-nav-item ${page === id ? "active" : ""}`}
-                    aria-current={page === id ? "page" : undefined}
-                    onClick={() => setPage(id)}
-                  >
-                    <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <div
-          className={`settings-status ${hasError ? "is-error" : ""}`}
-          role="status"
+    <SettingsTheme dark={dark} language={appearance.language}>
+      <Layout className="antd-settings" data-theme={dark ? "dark" : "light"}>
+        <Layout.Sider
+          width={228}
+          className="antd-sider"
+          theme={dark ? "dark" : "light"}
         >
-          <i aria-hidden="true" />
-          <span>{status}</span>
-        </div>
-      </aside>
-
-      <main className="settings-main">
-        <div className="settings-content">
-          <header className="settings-header">
-            <h1>{t(meta.title)}</h1>
-          </header>
-
-          <div
-            key={page}
-            className="settings-page"
-            data-page={page}
-            role="tabpanel"
-            aria-label={meta.title}
-          >
-            {page === "appearance" && (
-              <AppearancePage
-                appearance={appearance}
-                onAppearanceChange={onAppearanceChange}
-                preview={preview}
-                canEdit={canEdit}
-              />
-            )}
-            {page === "behavior" && (
-              <BehaviorSettings
-                appearance={appearance}
-                onAppearanceChange={onAppearanceChange}
-                canEdit={canEdit}
-              />
-            )}
-            {page === "pomodoro" && <PomodoroSettings />}
-            {page === "status" && <StatusSettings />}
-            {page === "water" && <WaterSettings />}
-            {page === "countdown" && <CountdownSettings />}
-            {page === "storage" && (
-              <StorageSettings
-                canSwitch={canSwitchStorage}
-                onChanged={onStorageChanged}
-              />
-            )}
-            {page === "mail" && <MailSettings />}
-            {page === "ai" && <AiSettings />}
-            {page === "about" && (
-              <AboutSettings onStorage={() => setPage("storage")} />
-            )}
+          <div className="antd-brand">
+            <img src={appIcon} alt="" />
+            <div>
+              <strong>{t("灵动岛")}</strong>
+              <span>{t("设置")}</span>
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
+          <Menu
+            theme={dark ? "dark" : "light"}
+            mode="inline"
+            selectedKeys={[page]}
+            items={menuItems}
+            onClick={({ key }) => setPage(key as Page)}
+            className="antd-menu"
+          />
+          <div className="antd-quick-settings">
+            <Segmented
+              block
+              size="small"
+              value={appearance.theme}
+              onChange={(value) =>
+                onAppearanceChange({
+                  ...appearance,
+                  theme: value as AppearanceSettings["theme"],
+                })
+              }
+              options={[
+                {
+                  value: "system",
+                  label: (
+                    <Tooltip title={t("跟随系统")}>
+                      <DesktopOutlined />
+                    </Tooltip>
+                  ),
+                },
+                {
+                  value: "light",
+                  label: (
+                    <Tooltip title={t("浅色")}>
+                      <SunOutlined />
+                    </Tooltip>
+                  ),
+                },
+                {
+                  value: "dark",
+                  label: (
+                    <Tooltip title={t("深色")}>
+                      <MoonOutlined />
+                    </Tooltip>
+                  ),
+                },
+              ]}
+            />
+            <Tooltip
+              title={
+                appearance.language === "zh-CN"
+                  ? "Switch to English"
+                  : "切换到中文"
+              }
+            >
+              <Button
+                size="small"
+                icon={<TranslationOutlined />}
+                aria-label={t("界面语言")}
+                onClick={() =>
+                  onAppearanceChange({
+                    ...appearance,
+                    language:
+                      appearance.language === "zh-CN" ? "en-US" : "zh-CN",
+                  })
+                }
+              />
+            </Tooltip>
+          </div>
+          <div className="antd-status">
+            <Badge
+              status={hasError ? "error" : "processing"}
+              text={status}
+              style={{ width: "100%" }}
+            />
+          </div>
+        </Layout.Sider>
+
+        <Layout.Content className="antd-content">
+          <div className="antd-page">
+            <Typography.Title level={3} className="antd-page-title">
+              {t(meta.title)}
+            </Typography.Title>
+            <div key={page} className="antd-page-body">
+              {page === "appearance" && (
+                <AppearancePage
+                  appearance={appearance}
+                  onAppearanceChange={onAppearanceChange}
+                  preview={preview}
+                  canEdit={canEdit}
+                />
+              )}
+              {page === "behavior" && (
+                <BehaviorSettings
+                  appearance={appearance}
+                  onAppearanceChange={onAppearanceChange}
+                  canEdit={canEdit}
+                />
+              )}
+              {page === "pomodoro" && <PomodoroSettings />}
+              {page === "status" && <StatusSettings />}
+              {page === "water" && <WaterSettings />}
+              {page === "countdown" && <CountdownSettings />}
+              {page === "storage" && (
+                <StorageSettings
+                  canSwitch={canSwitchStorage}
+                  onChanged={onStorageChanged}
+                />
+              )}
+              {page === "mail" && <MailSettings />}
+              {page === "ai" && <AiSettings />}
+              {page === "about" && (
+                <AboutSettings onStorage={() => setPage("storage")} />
+              )}
+            </div>
+          </div>
+        </Layout.Content>
+      </Layout>
+    </SettingsTheme>
   );
 }

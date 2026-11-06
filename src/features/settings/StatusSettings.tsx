@@ -1,21 +1,23 @@
-import { SettingsCard } from "./SettingsCard";
+import { Button, List, Tag, Typography } from "antd";
+import {
+  BellOutlined,
+  BgColorsOutlined,
+  BulbOutlined,
+  CustomerServiceOutlined,
+  ReloadOutlined,
+  SoundOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import { useEffect, useState } from "react";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
-import {
-  BatteryCharging,
-  Bluetooth,
-  Headphones,
-  RefreshCw,
-  Sun,
-  Volume2,
-} from "lucide-react";
 import type {
   AudioDevice,
   BluetoothStatus,
   SystemNotice,
   SystemStatus,
 } from "../../domain/systemNotices";
+import { Section } from "./ui/Section";
 import { t } from "../../services/i18n";
 
 type DeviceStatus = {
@@ -40,6 +42,7 @@ export function StatusSettings() {
   const [audioMessage, setAudioMessage] = useState("");
   const [revision, setRevision] = useState(0);
   const [previewMessage, setPreviewMessage] = useState("");
+
   useEffect(() => {
     if (!desktop) return;
     let active = true;
@@ -76,6 +79,7 @@ export function StatusSettings() {
     setAudioMessage("");
     setRevision((value) => value + 1);
   }
+
   async function switchDevice(device: AudioDevice) {
     if (!desktop || switching || device.isDefault) return;
     setSwitching(device.id);
@@ -93,6 +97,7 @@ export function StatusSettings() {
       setSwitching("");
     }
   }
+
   async function preview(notice: SystemNotice) {
     try {
       await emitTo("island", "system-notice-preview", notice);
@@ -101,6 +106,7 @@ export function StatusSettings() {
       setPreviewMessage(t("演示发送失败，请确认灵动岛正在运行。"));
     }
   }
+
   const systemText = (format: (value: SystemStatus) => string) =>
     !desktop
       ? t("请在桌面应用中查看")
@@ -117,9 +123,10 @@ export function StatusSettings() {
         : devices.state === "error"
           ? t("读取失败")
           : format(devices.value);
+
   const rows = [
     {
-      icon: Volume2,
+      icon: <SoundOutlined />,
       title: t("音量"),
       description: t("系统音量或静音状态变化"),
       status: systemText((value) =>
@@ -127,7 +134,7 @@ export function StatusSettings() {
           ? t("当前输出设备不可读取")
           : value.muted
             ? t("已静音")
-            : `当前 ${value.volume}%`,
+            : `${t("当前")} ${value.volume}%`,
       ),
       notice: {
         kind: "volume",
@@ -136,13 +143,13 @@ export function StatusSettings() {
       } as SystemNotice,
     },
     {
-      icon: Sun,
+      icon: <BulbOutlined />,
       title: t("屏幕亮度"),
       description: t("需显示器与驱动提供亮度数据"),
       status: deviceText((value) =>
         value.brightness === null
           ? t("当前显示器未提供")
-          : `当前 ${value.brightness}%`,
+          : `${t("当前")} ${value.brightness}%`,
       ),
       notice: {
         kind: "brightness",
@@ -151,7 +158,7 @@ export function StatusSettings() {
       } as SystemNotice,
     },
     {
-      icon: BatteryCharging,
+      icon: <ThunderboltOutlined />,
       title: t("电源与电池"),
       description: t("接通或断开电源时显示电量"),
       status: systemText((value) =>
@@ -166,7 +173,7 @@ export function StatusSettings() {
       } as SystemNotice,
     },
     {
-      icon: Bluetooth,
+      icon: <BellOutlined />,
       title: t("蓝牙设备"),
       description: t("连接或断开时显示名称与电量"),
       status: deviceText((value) =>
@@ -183,134 +190,128 @@ export function StatusSettings() {
       } as SystemNotice,
     },
   ];
+
   return (
-    <div className="settings-stack">
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("当前状态")}</h2>
-          <button
-            className="btn btn-quiet"
+    <div className="antd-stack">
+      <Section
+        title={t("当前状态")}
+        description={t("状态发生变化时，灵动岛会短暂显示对应提示。")}
+        extra={
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
             onClick={refresh}
             disabled={!desktop}
           >
-            <RefreshCw size={13} />
             {t("刷新状态")}
-          </button>
-        </div>
-        <p className="card-desc">
-          {t("状态发生变化时，灵动岛会短暂显示对应提示。")}
-        </p>
-        <div className="settings-list">
-          {rows.map(({ icon: Icon, title, description, status, notice }) => (
-            <div className="settings-list-row" key={title}>
-              <span className="settings-list-icon" aria-hidden="true">
-                <Icon size={15} />
-              </span>
-              <div className="settings-list-copy">
-                <strong>{title}</strong>
-                <small>{description}</small>
+          </Button>
+        }
+      >
+        <List
+          size="small"
+          dataSource={rows}
+          renderItem={(row) => (
+            <List.Item
+              actions={[
+                <Button
+                  key="demo"
+                  size="small"
+                  type="link"
+                  disabled={!desktop}
+                  onClick={() => void preview(row.notice)}
+                >
+                  {t("演示")}
+                </Button>,
+              ]}
+            >
+              <div className="antd-list-row">
+                <span className="antd-list-icon">{row.icon}</span>
+                <div className="antd-list-copy">
+                  <strong>{row.title}</strong>
+                  <small>{row.description}</small>
+                </div>
+                <span className="antd-list-value">{row.status}</span>
               </div>
-              <span className="settings-list-value">{status}</span>
-              <button
-                className="btn btn-quiet"
-                disabled={!desktop}
-                onClick={() => void preview(notice)}
-              >
-                {t("演示")}
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="card-hint" role="status">
+            </List.Item>
+          )}
+        />
+        <Typography.Text type="secondary" className="antd-hint">
           {previewMessage || t("演示使用示例数据，不会修改系统设置。")}
-        </p>
-      </SettingsCard>
+        </Typography.Text>
+      </Section>
 
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("输出设备")}</h2>
-          <div className="settings-list-actions">
-            <button
-              className="btn btn-quiet"
-              disabled={
-                !desktop || audio.state !== "ready" || audio.value.length === 0
-              }
-              onClick={() => {
-                if (audio.state !== "ready") return;
-                void preview({
-                  kind: "audio",
-                  label: t("输出设备"),
-                  value:
-                    audio.value.find((device) => device.isDefault)?.name ??
-                    t("输出设备"),
-                });
-              }}
-            >
-              {t("演示")}
-            </button>
-            <button
-              className="btn btn-quiet"
-              onClick={refresh}
-              disabled={!desktop || switching !== ""}
-            >
-              <RefreshCw size={13} />
-              {t("刷新")}
-            </button>
-          </div>
-        </div>
-        <p className="card-desc">
-          {t("点击设备即可设为默认播放设备；托盘菜单也可以切换。")}
-        </p>
+      <Section
+        title={t("输出设备")}
+        description={t("点击设备即可设为默认播放设备；托盘菜单也可以切换。")}
+        extra={
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={refresh}
+            disabled={!desktop || switching !== ""}
+          >
+            {t("刷新")}
+          </Button>
+        }
+      >
         {!desktop ? (
-          <p className="card-hint">{t("请在桌面应用中查看")}</p>
+          <Typography.Text type="secondary">
+            {t("请在桌面应用中查看")}
+          </Typography.Text>
         ) : audio.state === "loading" ? (
-          <p className="card-hint" role="status">
+          <Typography.Text type="secondary">
             {t("正在读取输出设备…")}
-          </p>
+          </Typography.Text>
         ) : audio.state === "error" ? (
-          <p className="card-hint" role="status">
+          <Typography.Text type="secondary">
             {t("读取输出设备失败")}
-          </p>
+          </Typography.Text>
         ) : audio.value.length === 0 ? (
-          <p className="card-hint" role="status">
+          <Typography.Text type="secondary">
             {t("未找到输出设备")}
-          </p>
+          </Typography.Text>
         ) : (
-          <div className="settings-list">
-            {audio.value.map((device) => (
-              <button
-                key={device.id}
-                type="button"
-                className={`settings-list-row audio-device-row ${device.isDefault ? "is-default" : ""}`}
-                aria-pressed={device.isDefault}
-                disabled={!desktop || switching !== ""}
+          <List
+            size="small"
+            dataSource={audio.value}
+            renderItem={(device) => (
+              <List.Item
+                className={`antd-device-row ${device.isDefault ? "is-default" : ""}`}
                 onClick={() => void switchDevice(device)}
+                actions={[
+                  device.isDefault ? (
+                    <Tag key="tag" color="blue">
+                      {t("默认")}
+                    </Tag>
+                  ) : null,
+                ].filter(Boolean)}
               >
-                <span className="settings-list-icon" aria-hidden="true">
-                  <Headphones size={15} />
-                </span>
-                <span className="settings-list-copy">
-                  <strong>{device.name}</strong>
-                  <small>
-                    {device.isDefault
-                      ? t("当前默认设备")
-                      : t("点击切换为默认输出设备")}
-                  </small>
-                </span>
-                {device.isDefault && (
-                  <span className="audio-device-badge">{t("默认")}</span>
-                )}
-                {switching === device.id && (
-                  <RefreshCw className="audio-device-spinner" size={13} />
-                )}
-              </button>
-            ))}
-          </div>
+                <div className="antd-list-row">
+                  <span className="antd-list-icon">
+                    {device.isDefault ? (
+                      <CustomerServiceOutlined />
+                    ) : (
+                      <BgColorsOutlined />
+                    )}
+                  </span>
+                  <div className="antd-list-copy">
+                    <strong>{device.name}</strong>
+                    <small>
+                      {device.isDefault
+                        ? t("当前默认设备")
+                        : t("点击切换为默认输出设备")}
+                    </small>
+                  </div>
+                  {switching === device.id && <ReloadOutlined spin />}
+                </div>
+              </List.Item>
+            )}
+          />
         )}
-        <p className="card-hint" role="status">
+        <Typography.Text type="secondary" className="antd-hint">
           {audioMessage}
-        </p>
-      </SettingsCard>
+        </Typography.Text>
+      </Section>
     </div>
   );
 }

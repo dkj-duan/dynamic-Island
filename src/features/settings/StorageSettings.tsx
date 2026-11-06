@@ -1,8 +1,9 @@
-import { SettingsCard } from "./SettingsCard";
+import { Button, Descriptions, Space, Typography } from "antd";
+import { FolderOpenOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen } from "lucide-react";
+import { Section } from "./ui/Section";
 import { t } from "../../services/i18n";
 
 export function StorageSettings({
@@ -30,6 +31,7 @@ export function StorageSettings({
       active = false;
     };
   }, [desktop]);
+
   async function chooseDirectory(existing: boolean) {
     try {
       const selected = await open({
@@ -41,9 +43,7 @@ export function StorageSettings({
       setBusy(true);
       const result = await invoke<string>(
         existing ? "use_existing_data_directory" : "set_data_directory",
-        {
-          directory: selected,
-        },
+        { directory: selected },
       );
       setDirectory(result);
       try {
@@ -62,67 +62,63 @@ export function StorageSettings({
       setBusy(false);
     }
   }
+
   return (
-    <div className="settings-stack">
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("数据目录")}</h2>
-          <span className="card-note">SQLite</span>
+    <div className="antd-stack">
+      <Section
+        title={t("数据目录")}
+        description={t(
+          "设置、邮箱账户与 AI 账户保存在本机数据库中，安装目录与数据目录分开。",
+        )}
+      >
+        <div className="antd-path">
+          <Typography.Text code>
+            {desktop ? directory || t("正在读取…") : t("请在桌面应用中查看")}
+          </Typography.Text>
         </div>
-        <p className="card-desc">
-          {t(
-            "设置、邮箱账户与 AI 账户保存在本机数据库中，安装目录与数据目录分开。",
-          )}
-        </p>
-        <div className="storage-path">
-          {desktop ? directory || t("正在读取…") : t("请在桌面应用中查看")}
-        </div>
-        <div className="button-row">
-          <button
-            className="btn btn-quiet"
+        <Space wrap>
+          <Button
+            icon={<FolderOpenOutlined />}
             disabled={!desktop || busy || !canSwitch}
+            loading={busy}
             onClick={() => void chooseDirectory(false)}
           >
-            <FolderOpen size={13} />
             {busy ? t("处理中…") : t("迁移到其他目录")}
-          </button>
-          <button
-            className="btn btn-quiet"
+          </Button>
+          <Button
             disabled={!desktop || busy || !canSwitch}
             onClick={() => void chooseDirectory(true)}
           >
             {t("使用已有数据")}
-          </button>
-        </div>
-        <p className="card-hint">
+          </Button>
+        </Space>
+        <Typography.Paragraph type="secondary" className="antd-hint">
           {t("迁移会复制并校验数据库，不覆盖目标目录中的文件，原目录保留。")}
-        </p>
+        </Typography.Paragraph>
         {message && (
-          <p className="card-hint" role="status">
+          <Typography.Paragraph
+            type="secondary"
+            className="antd-hint"
+            role="status"
+          >
             {message}
-          </p>
+          </Typography.Paragraph>
         )}
-      </SettingsCard>
+      </Section>
 
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("凭据与隐私")}</h2>
-        </div>
-        <dl className="about-rows">
-          <div>
-            <dt>{t("邮箱授权码")}</dt>
-            <dd>{t("Windows 凭据管理器，不写入数据库")}</dd>
-          </div>
-          <div>
-            <dt>{t("AI 密钥")}</dt>
-            <dd>{t("当前 Windows 用户加密后入库，换用户需重新添加")}</dd>
-          </div>
-          <div>
-            <dt>{t("邮件内容")}</dt>
-            <dd>{t("仅内存保留约 5 分钟，不保存正文与验证码")}</dd>
-          </div>
-        </dl>
-      </SettingsCard>
+      <Section title={t("凭据与隐私")}>
+        <Descriptions column={1} size="small" bordered>
+          <Descriptions.Item label={t("邮箱授权码")}>
+            {t("Windows 凭据管理器，不写入数据库")}
+          </Descriptions.Item>
+          <Descriptions.Item label={t("AI 密钥")}>
+            {t("当前 Windows 用户加密后入库，换用户需重新添加")}
+          </Descriptions.Item>
+          <Descriptions.Item label={t("邮件内容")}>
+            {t("仅内存保留约 5 分钟，不保存正文与验证码")}
+          </Descriptions.Item>
+        </Descriptions>
+      </Section>
     </div>
   );
 }

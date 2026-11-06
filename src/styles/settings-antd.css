@@ -1,0 +1,706 @@
+/* —— Ant Design settings shell —— */
+.antd-settings {
+  position: fixed;
+  inset: 0;
+}
+
+.antd-sider {
+  border-right: 1px solid rgb(128 128 128 / 0.16);
+}
+
+.antd-settings .antd-sider {
+  height: 100%;
+  overflow: hidden;
+}
+
+.antd-settings .antd-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.antd-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 10px;
+}
+
+.antd-brand img {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.antd-brand strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.antd-brand span {
+  display: block;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.antd-settings .antd-sider .antd-menu {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-inline-end: 0 !important;
+  background: transparent !important;
+}
+
+.antd-menu .ant-menu-item-group-title {
+  padding: 12px 20px 4px !important;
+  letter-spacing: 0.08em;
+}
+
+.antd-status {
+  flex: none;
+  padding: 10px 18px 14px;
+  border-top: 1px solid rgb(128 128 128 / 0.14);
+}
+
+.antd-status .ant-badge-status-text {
+  font-size: 11px;
+  opacity: 0.72;
+}
+
+.antd-content {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.antd-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 22px 32px 28px;
+}
+
+.antd-page-title {
+  margin: 0 0 14px !important;
+  font-size: 21px !important;
+}
+
+.antd-page-body {
+  animation: antd-page-in 200ms var(--ease-out);
+}
+
+@keyframes antd-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.antd-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.antd-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1060px) {
+  .antd-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section-desc {
+  margin-bottom: 12px !important;
+  font-size: 12px !important;
+}
+
+.antd-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+}
+
+.antd-setting-row + .antd-setting-row {
+  border-top: 1px solid rgb(128 128 128 / 0.14);
+}
+
+.antd-setting-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.antd-setting-title {
+  font-size: 13px;
+}
+
+.antd-setting-desc {
+  font-size: 12px !important;
+}
+
+.antd-setting-control {
+  flex: none;
+}
+
+/* Compact rows for lists rendered with antd List. */
+.antd-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.antd-list-copy {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.antd-list-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.antd-list-copy small {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.antd-list-value {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.antd-list-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgb(128 128 128 / 0.12);
+}
+
+/* Cards whose body hosts a full-bleed hero layout. */
+.antd-plain-card .ant-card-body {
+  position: relative;
+  padding: 0;
+}
+
+/* Icon button that opens the page's settings dialog from the hero card. */
+.antd-hero-settings {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  color: rgb(128 128 128 / 0.9);
+}
+
+/* Reserve the top-right corner so hero content never slides under the gear. */
+.antd-plain-card .settings-water-hero,
+.antd-plain-card .settings-pomodoro-hero {
+  padding-right: 52px;
+}
+
+.antd-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.antd-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.antd-hint {
+  display: block;
+  margin-top: 10px !important;
+  font-size: 12px !important;
+}
+
+.antd-path {
+  margin: 4px 0 12px;
+  word-break: break-all;
+}
+
+.antd-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.antd-feature-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgb(22 119 255 / 0.1);
+  color: #1677ff;
+  font-size: 16px;
+}
+
+.antd-feature strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.antd-feature .ant-typography {
+  font-size: 12px;
+}
+
+.antd-about-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.antd-about-mark {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+
+.antd-about-copy {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.antd-about-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.antd-about-title .ant-typography {
+  margin: 0 !important;
+}
+
+.antd-about-actions {
+  margin-left: auto;
+}
+
+.section-inline-note {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.antd-device-row {
+  cursor: pointer;
+}
+
+.antd-device-row.is-default {
+  background: rgb(22 119 255 / 0.06);
+}
+
+/* White page background: cards carry the separation via border + shadow. */
+.antd-settings[data-theme="light"] .ant-card {
+  border-color: #ececef;
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 8px 24px rgb(16 24 40 / 0.05);
+}
+
+.antd-settings[data-theme="dark"] .ant-card {
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.35);
+}
+
+.antd-settings[data-theme="light"] .antd-sider {
+  background: #ffffff;
+  border-right-color: #ececef;
+}
+
+.antd-settings .ant-card .ant-card-extra {
+  padding-inline-start: 12px;
+}
+
+/* Idle widgets as chips: shown ones carry reorder + remove controls. */
+.antd-widget-group + .antd-widget-group {
+  margin-top: 14px;
+}
+
+/* Heading weight carries the grouping instead of another mute text line. */
+.antd-widget-group-label {
+  margin-bottom: 8px;
+  color: var(--ant-color-text, #1f1f1f);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.antd-settings[data-theme="dark"] .antd-widget-group-label {
+  color: #e6e6ea;
+}
+
+/* Available widgets sit on an inset panel so the two groups read apart. */
+.antd-widget-more {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgb(128 128 128 / 0.07);
+}
+
+.antd-settings[data-theme="dark"] .antd-widget-more {
+  background: rgb(255 255 255 / 0.04);
+}
+
+.antd-widget-more .antd-widget-chip {
+  background: transparent;
+}
+
+.antd-widget-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.antd-widget-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #e5e6ea;
+  border-radius: 999px;
+  background: #fff;
+  color: #3d3d45;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.antd-widget-chip.is-on {
+  padding-right: 4px;
+  border-color: rgb(22 119 255 / 0.35);
+  background: rgb(22 119 255 / 0.06);
+  color: #1677ff;
+}
+
+.antd-widget-chip.is-on:hover {
+  box-shadow: 0 2px 8px rgb(22 119 255 / 0.12);
+}
+
+.antd-widget-chip.is-off {
+  border-style: dashed;
+  color: #77777f;
+}
+
+.antd-widget-chip.is-off:hover:not(:disabled) {
+  border-color: #1677ff;
+  background: rgb(22 119 255 / 0.04);
+  color: #1677ff;
+}
+
+.antd-widget-chip.is-off:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.antd-widget-icon {
+  display: inline-flex;
+  font-size: 13px;
+}
+
+.antd-chip-add {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.antd-chip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: 2px;
+}
+
+.antd-chip-btn {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+.antd-chip-btn:hover:not(:disabled) {
+  background: rgb(22 119 255 / 0.14);
+  opacity: 1;
+}
+
+.antd-chip-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.antd-chip-btn.is-remove:hover:not(:disabled) {
+  background: rgb(255 77 79 / 0.14);
+}
+
+.antd-widget-empty {
+  color: rgb(128 128 128 / 0.9);
+  font-size: 12px;
+}
+
+.antd-settings[data-theme="dark"] .antd-widget-chip {
+  border-color: rgb(255 255 255 / 0.14);
+  background: transparent;
+  color: #d6d6dc;
+}
+
+.antd-settings[data-theme="dark"] .antd-widget-chip.is-on {
+  border-color: rgb(22 119 255 / 0.5);
+  background: rgb(22 119 255 / 0.18);
+  color: #8ab4ff;
+}
+
+.antd-settings[data-theme="dark"]
+  .antd-widget-chip.is-off:hover:not(:disabled) {
+  background: rgb(22 119 255 / 0.12);
+}
+
+.antd-settings[data-theme="dark"] .antd-chip-btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.antd-hero-settings {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  color: rgb(128 128 128 / 0.9);
+}
+
+/* Reserve the top-right corner so hero content never slides under the gear. */
+.antd-plain-card .settings-water-hero,
+.antd-plain-card .settings-pomodoro-hero {
+  padding-right: 52px;
+}
+
+.antd-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.antd-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.antd-hint {
+  display: block;
+  margin-top: 10px !important;
+  font-size: 12px !important;
+}
+
+.antd-path {
+  margin: 4px 0 12px;
+  word-break: break-all;
+}
+
+.antd-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.antd-feature-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgb(22 119 255 / 0.1);
+  color: #1677ff;
+  font-size: 16px;
+}
+
+.antd-feature strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.antd-feature .ant-typography {
+  font-size: 12px;
+}
+
+.antd-about-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.antd-about-mark {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+
+.antd-about-copy {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.antd-about-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.antd-about-title .ant-typography {
+  margin: 0 !important;
+}
+
+.antd-about-actions {
+  margin-left: auto;
+}
+
+.section-inline-note {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.antd-device-row {
+  cursor: pointer;
+}
+
+.antd-device-row.is-default {
+  background: rgb(22 119 255 / 0.06);
+}
+
+/* White page background: cards carry the separation via border + shadow. */
+.antd-settings[data-theme="light"] .ant-card {
+  border-color: #ececef;
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 8px 24px rgb(16 24 40 / 0.05);
+}
+
+.antd-settings[data-theme="dark"] .ant-card {
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.35);
+}
+
+.antd-settings[data-theme="light"] .antd-sider {
+  background: #ffffff;
+  border-right-color: #ececef;
+}
+
+.antd-settings .ant-card .ant-card-extra {
+  padding-inline-start: 12px;
+}
+
+.antd-widget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0 18px;
+  margin-top: 4px;
+}
+
+.antd-widget-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgb(128 128 128 / 0.1);
+}
+
+.antd-widget-move {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0.75;
+}
+
+/* Sider colours follow the resolved theme explicitly so the layout token
+   cannot fall back to a light panel in dark mode. */
+.antd-settings[data-theme="dark"] .antd-sider {
+  background: #18181b;
+  border-right-color: rgb(255 255 255 / 0.08);
+}
+
+.antd-settings[data-theme="dark"] .antd-menu {
+  background: transparent !important;
+}
+
+.antd-settings[data-theme="dark"] .antd-status {
+  border-top-color: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.55);
+}
+
+/* Theme and language live in the sidebar so they are one click away. */
+.antd-quick-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgb(128 128 128 / 0.14);
+}
+
+.antd-quick-settings .ant-segmented {
+  flex: 1;
+  min-width: 0;
+}
+
+.antd-quick-settings .ant-segmented-item-label {
+  display: grid;
+  place-items: center;
+  min-height: 22px;
+  line-height: 22px;
+}
+
+/* Water hero actions: two equal-width buttons, the custom amount opens in a
+   popover so the block keeps a stable two-row shape. */
+.settings-water-hero .settings-water-actions {
+  width: 150px;
+  align-items: stretch;
+}
+
+.settings-water-hero .settings-water-actions > .ant-btn {
+  width: 100%;
+}

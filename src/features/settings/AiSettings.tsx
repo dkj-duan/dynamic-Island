@@ -1,11 +1,28 @@
-import { SettingsCard } from "./SettingsCard";
 import { useState } from "react";
+import {
+  App,
+  Button,
+  Empty,
+  Form,
+  Input,
+  List,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
+import {
+  DeleteOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
-import { RefreshCw } from "lucide-react";
-import { useAiQuota } from "../ai/useAiQuota";
+import { useAiQuota, type AiAccount } from "../ai/useAiQuota";
 import { ProviderIcon } from "../ai/ProviderIcon";
-import { Select } from "./Select";
+import { Section } from "./ui/Section";
 import { t } from "../../services/i18n";
 
 const providers = [
@@ -40,27 +57,38 @@ const providers = [
     hint: "使用国际区 Token Plan 订阅密钥。",
   },
 ] as const;
+
 export function AiSettings() {
+  const { message } = App.useApp();
   const { accounts, results, error, reload } = useAiQuota();
+  const desktop = isTauri();
+  const [addOpen, setAddOpen] = useState(false);
   const [provider, setProvider] = useState<string>(providers[0].id);
   const [name, setName] = useState("");
   const [secret, setSecret] = useState("");
   const [port, setPort] = useState("58627");
-  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const desktop = isTauri();
+
   async function changed() {
     try {
       await emitTo("island", "ai-accounts-changed");
     } catch {
-      setMessage(t("已保存；灵动岛会同步刷新"));
+      /* the island refreshes on its own */
     }
     await reload();
   }
-  async function add(event: React.FormEvent) {
-    event.preventDefault();
+
+  function openAdd() {
+    setProvider(providers[0].id);
+    setName("");
+    setSecret("");
+    setPort("58627");
+    setAddOpen(true);
+  }
+
+  async function add() {
+    if (!desktop || busy) return;
     setBusy(true);
-    setMessage("");
     try {
       await invoke("add_ai_account", {
         provider,
@@ -72,78 +100,144 @@ export function AiSettings() {
               ? `${port}:${secret}`
               : secret,
       });
-      setSecret("");
-      setName("");
-      setMessage(t("账户已保存并开始查询"));
+      setAddOpen(false);
+      message.success(t("账户已保存并开始查询"));
       await changed();
-    } catch (error) {
-      setMessage(String(error));
+    } catch (value) {
+      message.error(String(value));
     } finally {
       setBusy(false);
     }
   }
-  async function action(command: string, id: string) {
+
+  async function pin(account: AiAccount) {
+    if (busy) return;
     setBusy(true);
-    setMessage("");
     try {
-      await invoke(command, { id });
+      await invoke("pin_ai_account", { id: account.id });
       await changed();
-    } catch (error) {
-      setMessage(String(error));
+    } catch (value) {
+      message.error(String(value));
     } finally {
       setBusy(false);
     }
   }
+
+  async function remove(account: AiAccount) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await invoke("remove_ai_account", { id: account.id });
+      message.success(t("账户已删除"));
+      await changed();
+    } catch (value) {
+      message.error(String(value));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const currentHint = providers.find((item) => item.id === provider)?.hint;
+
   return (
-    <div className="settings-stack">
-      <div className="settings-columns">
-        <SettingsCard>
-          <div className="card-head">
-            <h2>{t("账户与额度")}</h2>
-            <button
-              className="btn btn-quiet"
+    <div className="antd-stack">
+      <Section
+        title={t("账户与额度")}
+        description={t(
+          "每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。",
+        )}
+        extra={
+          <Space>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
               disabled={!desktop || busy}
               onClick={() => void reload()}
             >
-              <RefreshCw size={13} />
               {t("刷新")}
-            </button>
-          </div>
-          <p className="card-desc">
-            {t("每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。")}
-          </p>
-          {!desktop && (
-            <p className="empty-state">{t("请在桌面应用中配置账户。")}</p>
-          )}
-          {desktop && accounts.length === 0 && (
-            <p className="empty-state">{t("尚未添加账户。")}</p>
-          )}
-          {error && (
-            <p className="form-note is-error" role="alert">
-              {error}
-            </p>
-          )}
-          {accounts.length > 0 && (
-            <div className="settings-list">
-              {accounts.map((account) => (
-                <div className="settings-list-row" key={account.id}>
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              disabled={!desktop || busy}
+              onClick={openAdd}
+            >
+              {t("添加账户")}
+            </Button>
+          </Space>
+        }
+      >
+        {error && <Typography.Text type="danger">{error}</Typography.Text>}
+        {!desktop ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={t("请在桌面应用中配置账户")}
+          />
+        ) : accounts.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={t("还没有 AI 账户")}
+          >
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+              {t("添加账户")}
+            </Button>
+          </Empty>
+        ) : (
+          <List
+            dataSource={accounts}
+            renderItem={(account) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="pin"
+                    size="small"
+                    disabled={busy || account.pinned}
+                    onClick={() => void pin(account)}
+                  >
+                    {account.pinned ? t("已常驻") : t("常驻")}
+                  </Button>,
+                  <Popconfirm
+                    key="delete"
+                    title={t("删除账户？")}
+                    description={`${account.name} ${t("的密钥会一并删除，之后需要重新添加才能查询。")}`}
+                    okText={t("删除账户")}
+                    cancelText={t("取消")}
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => void remove(account)}
+                  >
+                    <Button
+                      size="small"
+                      danger
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      disabled={busy}
+                      aria-label={`${t("删除")} ${account.name}`}
+                    />
+                  </Popconfirm>,
+                ]}
+              >
+                <div className="antd-list-row">
                   <ProviderIcon provider={account.provider} size="normal" />
-                  <div className="settings-list-copy">
+                  <div className="antd-list-copy">
                     <strong>
                       {account.name}
                       {account.pinned && (
-                        <span className="tag">{t("常驻")}</span>
+                        <Tag color="blue" style={{ marginLeft: 8 }}>
+                          {t("常驻")}
+                        </Tag>
                       )}
                     </strong>
                     <small>
-                      {(() => {
-                        const found = providers.find(
-                          (p) => p.id === account.provider,
-                        );
-                        return found ? t(found.label) : account.provider;
-                      })()}
+                      {providers.find((item) => item.id === account.provider)
+                        ? t(
+                            providers.find(
+                              (item) => item.id === account.provider,
+                            )!.label,
+                          )
+                        : account.provider}
                     </small>
-                    <span className="settings-list-value">
+                    <span className="antd-list-value">
                       {results[account.id]?.quota?.items
                         .map((item) => `${item.label} ${item.value}`)
                         .join(" · ") ??
@@ -151,144 +245,92 @@ export function AiSettings() {
                         t("正在查询…")}
                     </span>
                   </div>
-                  <div className="settings-list-actions">
-                    <button
-                      className="btn btn-quiet"
-                      disabled={busy || account.pinned}
-                      onClick={() => void action("pin_ai_account", account.id)}
-                    >
-                      {account.pinned ? t("已常驻") : t("常驻")}
-                    </button>
-                    <button
-                      className="btn btn-quiet"
-                      disabled={busy}
-                      onClick={() =>
-                        void action("remove_ai_account", account.id)
-                      }
-                    >
-                      {t("删除")}
-                    </button>
-                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </SettingsCard>
+              </List.Item>
+            )}
+          />
+        )}
+      </Section>
 
-        <SettingsCard>
-          <div className="card-head">
-            <h2>{t("添加账户")}</h2>
-          </div>
-          <form className="form" onSubmit={(event) => void add(event)}>
-            <div className="field">
-              <span>{t("服务")}</span>
-              <Select
-                ariaLabel={t("AI 服务")}
-                value={provider}
-                disabled={!desktop || busy}
-                options={providers.map((p) => ({
-                  value: p.id,
-                  label: t(p.label),
-                }))}
-                onChange={(next) => {
-                  setProvider(next);
-                  setSecret("");
-                }}
-              />
-            </div>
-            <label className="field">
-              <span>{t("账户名称")}</span>
-              <input
-                value={name}
-                maxLength={40}
-                disabled={!desktop || busy}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("例如：个人账户")}
-                required
-              />
-            </label>
-            {provider === "kimi-local" && (
-              <label className="field">
-                <span>{t("本地服务端口")}</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={5}
-                  value={port}
-                  disabled={!desktop || busy}
-                  onChange={(event) =>
-                    setPort(event.target.value.replace(/\D/g, ""))
-                  }
-                  required
-                />
-              </label>
-            )}
-            {provider !== "codex-local" && (
-              <label className="field">
-                <span>
-                  {provider === "kimi-local"
-                    ? t("本地访问令牌")
-                    : t("查询密钥")}
-                </span>
-                <input
-                  type="password"
-                  value={secret}
-                  autoComplete="off"
-                  disabled={!desktop || busy}
-                  onChange={(event) => setSecret(event.target.value)}
-                  placeholder={t("输入该服务的密钥")}
-                  required
-                />
-              </label>
-            )}
-            <p className="form-note">
-              {(() => {
-                const hint = providers.find((p) => p.id === provider)?.hint;
-                return hint ? t(hint) : "";
-              })()}
-              {provider !== "codex-local" &&
-                t(
-                  " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。",
-                )}
-            </p>
-            <div className="form-footer">
-              <span role="status">{message}</span>
-              <button
-                className="btn btn-primary"
-                disabled={
-                  !desktop ||
-                  busy ||
-                  !name.trim() ||
-                  (provider !== "codex-local" && !secret)
+      <Section title={t("灵动岛上的额度显示")}>
+        <Typography.Paragraph type="secondary">
+          {t("常驻账户以圆环加进度条显示剩余额度，收起时也能看到。")}
+          <br />
+          {t("每两分钟自动查询一次，可随时手动刷新。")}
+        </Typography.Paragraph>
+      </Section>
+
+      <Modal
+        open={addOpen}
+        title={t("添加 AI 账户")}
+        okText={t("添加账户")}
+        cancelText={t("取消")}
+        confirmLoading={busy}
+        onCancel={() => setAddOpen(false)}
+        onOk={() => void add()}
+        okButtonProps={{
+          disabled:
+            !desktop || !name.trim() || (provider !== "codex-local" && !secret),
+        }}
+        destroyOnHidden
+      >
+        <Form layout="vertical" requiredMark={false}>
+          <Form.Item label={t("服务")}>
+            <Select
+              value={provider}
+              onChange={(value) => {
+                setProvider(value);
+                setSecret("");
+              }}
+              options={providers.map((item) => ({
+                value: item.id,
+                label: t(item.label),
+              }))}
+            />
+          </Form.Item>
+          <Form.Item label={t("账户名称")}>
+            <Input
+              value={name}
+              maxLength={40}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("例如：个人账户")}
+            />
+          </Form.Item>
+          {provider === "kimi-local" && (
+            <Form.Item label={t("本地服务端口")}>
+              <Input
+                inputMode="numeric"
+                maxLength={5}
+                value={port}
+                onChange={(event) =>
+                  setPort(event.target.value.replace(/\D/g, ""))
                 }
-              >
-                {t("添加账户")}
-              </button>
-            </div>
-          </form>
-        </SettingsCard>
-      </div>
-
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("灵动岛上的额度显示")}</h2>
-        </div>
-        <dl className="about-rows">
-          <div>
-            <dt>{t("显示方式")}</dt>
-            <dd>{t("常驻账户以圆环加进度条显示剩余额度，收起时也能看到。")}</dd>
-          </div>
-          <div>
-            <dt>{t("刷新频率")}</dt>
-            <dd>{t("每两分钟自动查询一次，可随时手动刷新。")}</dd>
-          </div>
-          <div>
-            <dt>{t("常驻切换")}</dt>
-            <dd>{t("点「常驻」把某个账户固定在灵动岛上，切换立即生效。")}</dd>
-          </div>
-        </dl>
-      </SettingsCard>
+              />
+            </Form.Item>
+          )}
+          {provider !== "codex-local" && (
+            <Form.Item
+              label={
+                provider === "kimi-local" ? t("本地访问令牌") : t("查询密钥")
+              }
+            >
+              <Input.Password
+                value={secret}
+                autoComplete="off"
+                onChange={(event) => setSecret(event.target.value)}
+                placeholder={t("输入该服务的密钥")}
+              />
+            </Form.Item>
+          )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {currentHint ? t(currentHint) : ""}
+            {provider !== "codex-local" &&
+              t(
+                " 密钥由当前 Windows 用户加密后存入数据库，换电脑或 Windows 用户后需重新添加。",
+              )}
+          </Typography.Text>
+        </Form>
+      </Modal>
     </div>
   );
 }

@@ -8,7 +8,6 @@ export const defaultLanguage: Language = "zh-CN";
 
 export const languageOptions: { value: Language; label: string }[] = [
   { value: "zh-CN", label: "简体中文" },
-  { value: "en-US", label: "English" },
 ];
 
 const en: Record<string, string> = {
@@ -489,6 +488,96 @@ const en: Record<string, string> = {
   媒体控制失败: "Media control failed",
   当前播放器暂不支持调整进度: "This player does not support seeking",
   剩余: "left",
+  // —— Dialogs and list management ——
+  关闭弹窗: "Close dialog",
+  删除账户: "Delete account",
+  "删除账户？": "Delete this account?",
+  "的密钥会一并删除，之后需要重新添加才能查询。":
+    "and its key will be deleted; add it again to resume querying.",
+  账户已删除: "Account deleted",
+  "移除邮箱？": "Remove this mailbox?",
+  "的授权码也会从凭据管理器删除。":
+    "and its app password will be removed from Credential Manager.",
+  "删除倒计时？": "Delete this countdown?",
+  "会从列表和空闲胶囊中移除。":
+    "will be removed from the list and the idle capsule.",
+  "还没有 AI 账户": "No AI accounts yet",
+  "添加账户后，这里会显示余额或周期额度。":
+    "Add an account to see balances or cycle quotas here.",
+  还没有邮箱账户: "No mailboxes yet",
+  "添加后会在这里显示每 5 秒更新的检查状态。":
+    "Once added, its check status appears here and refreshes every 5 seconds.",
+  请在桌面应用中添加邮箱: "Add mailboxes in the desktop app",
+  "浏览器预览不会保存邮箱和授权码。":
+    "The browser preview does not save mailboxes or app passwords.",
+  "浏览器预览不会保存账户和密钥。":
+    "The browser preview does not save accounts or keys.",
+  还没有倒计时: "No countdowns yet",
+  "添加下班时间或固定时长，选中后显示在空闲胶囊里。":
+    "Add a clock time or a fixed duration, then pick one for the idle capsule.",
+  "添加 AI 账户": "Add AI account",
+  "选择服务并填写账户信息，密钥只保存在本机。":
+    "Pick a service and fill in the account; the key stays on this PC.",
+  "使用 IMAP 和授权码登录，仅支持 SSL/TLS；验证通过后开始检查新邮件。":
+    "Sign in with IMAP and an app password over SSL/TLS; new mail is checked after verification.",
+  "目标时间到点提醒，或从开始起倒数的固定时长。":
+    "Remind at a clock time, or count down a fixed duration.",
+
+  // —— Settings extras ——
+  状态提醒: "Status alerts",
+  "常驻账户以圆环加进度条显示剩余额度，收起时也能看到。":
+    "Pinned accounts show remaining quota as a ring plus bar, even while collapsed.",
+  "每两分钟自动查询一次，可随时手动刷新。":
+    "Queried every two minutes; refresh manually any time.",
+  灵动岛上的额度显示: "Quota on the island",
+  请在桌面应用中配置账户: "Configure accounts in the desktop app",
+  灵动岛上的邮件提醒: "Mail alerts on the island",
+  "收到新邮件时，胶囊直接显示验证码或主题；展开面板可一键复制。":
+    "New mail shows its code or subject on the capsule; expand to copy it.",
+  "不保存邮件正文，提醒只在内存保留约 5 分钟。":
+    "Mail bodies are never saved; alerts stay in memory for about five minutes.",
+  "可添加多个邮箱，最近一封新邮件优先显示。":
+    "Add several mailboxes; the newest mail is shown first.",
+  "需在服务商开启 IMAP 并使用授权码；授权码存放在 Windows 凭据管理器，换 Windows 用户后需要重新添加。":
+    "Enable IMAP at your provider and use an app password; it is stored in Windows Credential Manager and must be re-added for another Windows user.",
+  "只看近 30 天": "Last 30 days only",
+  "选择番茄进度在胶囊里显示今日个数、专注分钟或本轮轮次。":
+    "Choose whether the pomodoro widget shows today's count, focus minutes or the cycle.",
+  主要功能: "Main features",
+  已删除: "Deleted",
+  收起计时: "Collapse timer",
+  "演示 · 音量": "Demo · Volume",
+  "演示 · 亮度": "Demo · Brightness",
+  "演示 · 充电中": "Demo · Charging",
+  "演示 · 蓝牙耳机": "Demo · Bluetooth headset",
+  "重置今日饮水？": "Reset today's water?",
+  当前: "Now",
+  计时器与番茄钟: "Timer & pomodoro",
+  音乐控制: "Music control",
+  邮箱验证码: "Mail codes",
+  喝水打卡: "Water log",
+  系统状态提醒: "System status alerts",
+  "一键开始专注或休息，结束时灵动岛持续提醒。":
+    "Start a focus or break with one click; the island keeps reminding when it ends.",
+  "显示曲名、歌手与同步歌词，可直接切歌和暂停。":
+    "Shows title, artist and synced lyrics, with direct controls.",
+  "新邮件验证码直接显示在岛上，一键复制。":
+    "New mail codes appear on the island and copy with one click.",
+  "Codex、DeepSeek 等账户的余额与订阅额度常驻显示。":
+    "Balances and subscription quotas for Codex, DeepSeek and more stay visible.",
+  "记录每日饮水量，进度以圆环显示在灵动岛。":
+    "Log daily water intake; progress shows as a ring on the island.",
+  "音量、亮度、电源与蓝牙变化即时提示。":
+    "Volume, brightness, power and Bluetooth changes are announced instantly.",
+  饮水设置: "Water settings",
+  番茄钟设置: "Pomodoro settings",
+  已记录: "Logged",
+  有记录的天数: "Active days",
+  移除: "Remove",
+  "还没有选择组件，空闲时只显示灵动岛名称。":
+    "No widgets picked yet; the idle island only shows its name.",
+  已显示: "Shown",
+  可添加: "Available",
 };
 
 let current: Language = defaultLanguage;

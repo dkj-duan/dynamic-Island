@@ -1,9 +1,29 @@
-import { SettingsCard } from "./SettingsCard";
-import { TimeSelect } from "./TimeSelect";
 import { useEffect, useState } from "react";
+import {
+  App,
+  Button,
+  Col,
+  Empty,
+  Form,
+  Input,
+  List,
+  Modal,
+  Popconfirm,
+  Row,
+  Segmented,
+  Select,
+  Tag,
+  Typography,
+} from "antd";
+import {
+  ClockCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  HourglassOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import { isTauri } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
-import { Clock3, Hourglass, Plus } from "lucide-react";
 import {
   MAX_COUNTDOWNS,
   defaultCountdowns,
@@ -16,6 +36,7 @@ import {
   loadCountdowns,
   saveCountdowns,
 } from "../../services/countdownRepository";
+import { Section } from "./ui/Section";
 import { t } from "../../services/i18n";
 
 type Draft = {
@@ -26,6 +47,16 @@ type Draft = {
   minutes: string;
   seconds: string;
 };
+
+const hourOptions = Array.from({ length: 24 }, (_, hour) => ({
+  value: String(hour).padStart(2, "0"),
+  label: String(hour).padStart(2, "0"),
+}));
+
+const minuteOptions = Array.from({ length: 60 }, (_, minute) => ({
+  value: String(minute).padStart(2, "0"),
+  label: String(minute).padStart(2, "0"),
+}));
 
 function draftFor(item?: CountdownItem): Draft {
   if (!item) {
@@ -66,12 +97,11 @@ function newId(): string {
 }
 
 export function CountdownSettings() {
+  const { message } = App.useApp();
   const desktop = isTauri();
   const [settings, setSettings] =
     useState<CountdownSettingsValue>(defaultCountdowns);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -86,45 +116,33 @@ export function CountdownSettings() {
 
   async function persist(next: CountdownSettingsValue) {
     setBusy(true);
-    setError("");
     try {
       await saveCountdowns(next);
       setSettings(next);
-      setStatus(t("已保存"));
       if (isTauri()) {
         void emitTo("island", "countdowns-changed").catch(() => {});
       }
+      return true;
     } catch (value) {
-      setError(typeof value === "string" ? value : t("保存失败，请重试"));
+      message.error(typeof value === "string" ? value : t("保存失败，请重试"));
+      return false;
     } finally {
       setBusy(false);
     }
-  }
-
-  function startAdd() {
-    setDraft(draftFor());
-    setError("");
-    setStatus("");
-  }
-
-  function startEdit(item: CountdownItem) {
-    setDraft(draftFor(item));
-    setError("");
-    setStatus("");
   }
 
   async function submit() {
     if (!draft) return;
     const label = draft.label.trim();
     if (!label) {
-      setError(t("请输入名称"));
+      message.error(t("请输入名称"));
       return;
     }
     let item: CountdownItem;
     const id = draft.id ?? newId();
     if (draft.kind === "target") {
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.targetTime)) {
-        setError(t("请输入有效时间，例如 18:00"));
+        message.error(t("请输入有效时间，例如 18:00"));
         return;
       }
       item = {
@@ -143,7 +161,7 @@ export function CountdownSettings() {
         seconds > 59 ||
         (minutes === 0 && seconds === 0)
       ) {
-        setError(t("请输入有效时长（秒数为 0–59）"));
+        message.error(t("请输入有效时长（秒数为 0–59）"));
         return;
       }
       item = {
@@ -159,227 +177,270 @@ export function CountdownSettings() {
       ? settings.items.map((entry) => (entry.id === id ? item : entry))
       : [...settings.items, item];
     if (items.length > MAX_COUNTDOWNS) {
-      setError(t("最多添加 8 个倒计时"));
+      message.error(t("最多添加 8 个倒计时"));
       return;
     }
-    await persist({
+    const saved = await persist({
       ...settings,
       items,
       islandId: settings.islandId ?? (items.length === 1 ? id : null),
     });
-    setDraft(null);
+    if (saved) {
+      setDraft(null);
+      message.success(t("已保存"));
+    }
   }
 
   async function remove(item: CountdownItem) {
-    if (!window.confirm(t("确定删除这个倒计时？"))) return;
-    await persist({
+    if (busy) return;
+    const saved = await persist({
       ...settings,
       items: settings.items.filter((entry) => entry.id !== item.id),
       islandId: settings.islandId === item.id ? null : settings.islandId,
     });
-    setDraft((current) => (current?.id === item.id ? null : current));
+    if (saved) message.success(t("已删除"));
   }
 
   const islandItem = settings.items.find(
     (item) => item.id === settings.islandId,
   );
+  const [draftHour = "00", draftMinute = "00"] = (
+    draft?.targetTime ?? "00:00"
+  ).split(":");
 
   return (
-    <div className="settings-stack">
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("倒计时")}</h2>
-          <button
-            className="btn btn-primary"
-            onClick={startAdd}
+    <div className="antd-stack">
+      <Section
+        title={t("倒计时")}
+        description={t("用于下班、午休或任意时长；空闲胶囊只显示选中的一条。")}
+        extra={
+          <Button
+            type="primary"
+            size="small"
+            icon={<PlusOutlined />}
             disabled={
               !desktop || busy || settings.items.length >= MAX_COUNTDOWNS
             }
+            onClick={() => setDraft(draftFor())}
           >
-            <Plus size={13} />
             {t("添加倒计时")}
-          </button>
-        </div>
-        <p className="card-desc">
-          {t("用于下班、午休或任意时长；空闲胶囊只显示选中的一条。")}
-        </p>
-        <p className="card-hint">
-          {islandItem
-            ? `${t("空闲胶囊显示")} ${islandItem.label}`
-            : t("空闲胶囊不显示倒计时")}
+          </Button>
+        }
+      >
+        <div className="antd-setting-row">
+          <div className="antd-setting-copy">
+            <div className="antd-setting-title">
+              {islandItem
+                ? `${t("空闲胶囊显示")} ${islandItem.label}`
+                : t("空闲胶囊不显示倒计时")}
+            </div>
+          </div>
           {islandItem && (
-            <button
-              className="btn btn-quiet"
+            <Button
+              size="small"
               disabled={!desktop || busy}
               onClick={() => void persist({ ...settings, islandId: null })}
             >
               {t("取消显示")}
-            </button>
+            </Button>
           )}
-        </p>
+        </div>
         {settings.items.length === 0 ? (
-          <p className="form-note">
-            {t("还没有倒计时。添加下班时间或固定时长，选中后显示在空闲胶囊。")}
-          </p>
-        ) : (
-          <div className="settings-list">
-            {settings.items.map((item) => (
-              <div className="settings-list-row" key={item.id}>
-                <span className="settings-list-icon" aria-hidden="true">
-                  {item.kind === "target" ? (
-                    <Clock3 size={15} />
-                  ) : (
-                    <Hourglass size={15} />
-                  )}
-                </span>
-                <div className="settings-list-copy">
-                  <strong>{item.label}</strong>
-                  <small>
-                    {item.kind === "target"
-                      ? `${t("目标时间")} ${item.targetTime}`
-                      : `${t("时长")} ${formatDurationSeconds(item.durationSeconds ?? 0)}`}
-                  </small>
-                </div>
-                <label className="countdown-island-radio">
-                  <input
-                    type="radio"
-                    name="countdown-island"
-                    checked={settings.islandId === item.id}
-                    disabled={!desktop || busy}
-                    onChange={() =>
-                      void persist({ ...settings, islandId: item.id })
-                    }
-                  />
-                  <span>{t("显示在岛上")}</span>
-                </label>
-                <button
-                  className="btn btn-quiet"
-                  disabled={!desktop || busy}
-                  onClick={() => startEdit(item)}
-                >
-                  {t("编辑")}
-                </button>
-                <button
-                  className="btn btn-quiet btn-danger"
-                  disabled={!desktop || busy}
-                  onClick={() => void remove(item)}
-                >
-                  {t("删除")}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {draft && (
-          <form
-            className="countdown-editor"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submit();
-            }}
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={t("还没有倒计时")}
           >
-            <div className="card-head">
-              <h3>{draft.id ? t("编辑倒计时") : t("添加倒计时")}</h3>
-            </div>
-            <label className="field">
-              <span>{t("名称")}</span>
-              <input
+            {desktop && settings.items.length < MAX_COUNTDOWNS && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setDraft(draftFor())}
+              >
+                {t("添加倒计时")}
+              </Button>
+            )}
+          </Empty>
+        ) : (
+          <List
+            dataSource={settings.items}
+            renderItem={(item) => (
+              <List.Item
+                actions={[
+                  islandItem?.id === item.id ? (
+                    <Tag key="island" color="blue">
+                      {t("显示在岛上")}
+                    </Tag>
+                  ) : (
+                    <Button
+                      key="show"
+                      size="small"
+                      type="link"
+                      disabled={!desktop || busy}
+                      onClick={() =>
+                        void persist({ ...settings, islandId: item.id })
+                      }
+                    >
+                      {t("显示在岛上")}
+                    </Button>
+                  ),
+                  <Button
+                    key="edit"
+                    size="small"
+                    type="text"
+                    icon={<EditOutlined />}
+                    disabled={!desktop || busy}
+                    aria-label={`${t("编辑")} ${item.label}`}
+                    onClick={() => setDraft(draftFor(item))}
+                  />,
+                  <Popconfirm
+                    key="delete"
+                    title={t("删除倒计时？")}
+                    description={`${item.label} ${t("会从列表和空闲胶囊中移除。")}`}
+                    okText={t("删除")}
+                    cancelText={t("取消")}
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => void remove(item)}
+                  >
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      disabled={!desktop || busy}
+                      aria-label={`${t("删除")} ${item.label}`}
+                    />
+                  </Popconfirm>,
+                ]}
+              >
+                <div className="antd-list-row">
+                  <span className="antd-list-icon">
+                    {item.kind === "target" ? (
+                      <ClockCircleOutlined />
+                    ) : (
+                      <HourglassOutlined />
+                    )}
+                  </span>
+                  <div className="antd-list-copy">
+                    <strong>{item.label}</strong>
+                    <small>
+                      {item.kind === "target"
+                        ? `${t("目标时间")} ${item.targetTime}`
+                        : `${t("时长")} ${formatDurationSeconds(item.durationSeconds ?? 0)}`}
+                    </small>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
+        )}
+      </Section>
+
+      <Modal
+        open={!!draft}
+        title={draft?.id ? t("编辑倒计时") : t("添加倒计时")}
+        okText={t("保存")}
+        cancelText={t("取消")}
+        confirmLoading={busy}
+        onCancel={() => setDraft(null)}
+        onOk={() => void submit()}
+        destroyOnHidden
+      >
+        {draft && (
+          <Form layout="vertical" requiredMark={false}>
+            <Form.Item label={t("名称")}>
+              <Input
                 value={draft.label}
                 maxLength={24}
-                disabled={!desktop || busy}
                 placeholder={t("例如：下班、午休")}
                 onChange={(event) =>
                   setDraft({ ...draft, label: event.target.value })
                 }
                 autoFocus
               />
-            </label>
-            <div
-              className="segmented"
-              role="group"
-              aria-label={t("倒计时类型")}
-            >
-              {(["target", "duration"] as const).map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={!desktop || busy}
-                  aria-pressed={draft.kind === kind}
-                  className={draft.kind === kind ? "active" : ""}
-                  onClick={() => setDraft({ ...draft, kind })}
-                >
-                  {kind === "target" ? t("目标时间") : t("时长")}
-                </button>
-              ))}
-            </div>
+            </Form.Item>
+            <Form.Item label={t("倒计时类型")}>
+              <Segmented
+                value={draft.kind}
+                onChange={(kind) =>
+                  setDraft({ ...draft, kind: kind as CountdownKind })
+                }
+                options={[
+                  { value: "target", label: t("目标时间") },
+                  { value: "duration", label: t("时长") },
+                ]}
+              />
+            </Form.Item>
             {draft.kind === "target" ? (
-              <div className="field">
-                <span>{t("目标时间")}</span>
-                <TimeSelect
-                  value={draft.targetTime}
-                  disabled={!desktop || busy}
-                  onChange={(value) =>
-                    setDraft({ ...draft, targetTime: value })
-                  }
-                />
-              </div>
+              <Row gutter={8}>
+                <Col span={12}>
+                  <Form.Item label={t("小时")}>
+                    <Select
+                      value={draftHour}
+                      options={hourOptions}
+                      onChange={(hour) =>
+                        setDraft({
+                          ...draft,
+                          targetTime: `${hour}:${draftMinute}`,
+                        })
+                      }
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label={t("分钟")}>
+                    <Select
+                      value={draftMinute}
+                      options={minuteOptions}
+                      onChange={(minute) =>
+                        setDraft({
+                          ...draft,
+                          targetTime: `${draftHour}:${minute}`,
+                        })
+                      }
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
             ) : (
-              <div className="field-row">
-                <label className="field">
-                  <span>{t("分钟")}</span>
-                  <input
-                    inputMode="numeric"
-                    maxLength={3}
-                    value={draft.minutes}
-                    disabled={!desktop || busy}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        minutes: event.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>{t("秒")}</span>
-                  <input
-                    inputMode="numeric"
-                    maxLength={2}
-                    value={draft.seconds}
-                    disabled={!desktop || busy}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        seconds: event.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                  />
-                </label>
-              </div>
+              <Row gutter={8}>
+                <Col span={12}>
+                  <Form.Item label={t("分钟")}>
+                    <Input
+                      inputMode="numeric"
+                      maxLength={3}
+                      value={draft.minutes}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          minutes: event.target.value.replace(/\D/g, ""),
+                        })
+                      }
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label={t("秒")}>
+                    <Input
+                      inputMode="numeric"
+                      maxLength={2}
+                      value={draft.seconds}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          seconds: event.target.value.replace(/\D/g, ""),
+                        })
+                      }
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
             )}
-            <div className="btn-row">
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={!desktop || busy}
-              >
-                {t("保存")}
-              </button>
-              <button
-                className="btn btn-quiet"
-                type="button"
-                disabled={busy}
-                onClick={() => setDraft(null)}
-              >
-                {t("取消")}
-              </button>
-            </div>
-          </form>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t("目标时间到点提醒，或从开始起倒数的固定时长。")}
+            </Typography.Text>
+          </Form>
         )}
-        <p className="card-hint" role="status">
-          {error || status}
-        </p>
-      </SettingsCard>
+      </Modal>
     </div>
   );
 }

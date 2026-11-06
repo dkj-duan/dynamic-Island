@@ -1,46 +1,49 @@
-import { SettingsCard } from "./SettingsCard";
-import type { ReactNode } from "react";
+import { Divider, Segmented, Space } from "antd";
 import {
-  BatteryMedium,
-  CalendarCheck,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Clock3,
-  Droplets,
-  Flame,
-  Headphones,
-  Hourglass,
-  Music2,
-  Palette,
-  Timer,
-  Volume2,
-  Bot,
-} from "lucide-react";
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  BellOutlined,
+  CalendarOutlined,
+  ClockCircleOutlined,
+  CloseOutlined,
+  CustomerServiceOutlined,
+  FieldTimeOutlined,
+  FireOutlined,
+  HourglassOutlined,
+  PlusOutlined,
+  PoweroffOutlined,
+  RobotOutlined,
+  SoundOutlined,
+  ThunderboltOutlined,
+  WifiOutlined,
+} from "@ant-design/icons";
+import type { ReactNode } from "react";
+import { Section } from "./ui/Section";
 import {
   MAX_IDLE_WIDGETS,
   type AppearanceSettings,
   type IdleWidgetId,
   type PomodoroIdleView,
 } from "../../domain/settings";
-import { languageOptions, t } from "../../services/i18n";
+import { t } from "../../services/i18n";
+
 const idleWidgetOptions: {
   id: IdleWidgetId;
   label: string;
-  icon: typeof Palette;
+  icon: ReactNode;
 }[] = [
-  { id: "clock", label: "时钟", icon: Clock3 },
-  { id: "quota", label: "常驻额度", icon: Bot },
-  { id: "water", label: "喝水进度", icon: Droplets },
-  { id: "pomodoro", label: "番茄进度", icon: Timer },
-  { id: "music", label: "正在播放", icon: Music2 },
-  { id: "battery", label: "电池与充电", icon: BatteryMedium },
-  { id: "focus", label: "今日专注", icon: Flame },
-  { id: "streak", label: "连续专注", icon: CalendarCheck },
-  { id: "volume", label: "音量与静音", icon: Volume2 },
-  { id: "bluetooth", label: "蓝牙耳机电量", icon: Headphones },
-  { id: "waterTimer", label: "喝水倒计时", icon: Hourglass },
-  { id: "countdown", label: "倒计时", icon: Hourglass },
+  { id: "clock", label: "时钟", icon: <ClockCircleOutlined /> },
+  { id: "quota", label: "常驻额度", icon: <RobotOutlined /> },
+  { id: "water", label: "喝水进度", icon: <ThunderboltOutlined /> },
+  { id: "pomodoro", label: "番茄进度", icon: <FieldTimeOutlined /> },
+  { id: "music", label: "正在播放", icon: <CustomerServiceOutlined /> },
+  { id: "battery", label: "电池与充电", icon: <PoweroffOutlined /> },
+  { id: "focus", label: "今日专注", icon: <FireOutlined /> },
+  { id: "streak", label: "连续专注", icon: <CalendarOutlined /> },
+  { id: "volume", label: "音量与静音", icon: <SoundOutlined /> },
+  { id: "bluetooth", label: "蓝牙耳机电量", icon: <WifiOutlined /> },
+  { id: "waterTimer", label: "喝水倒计时", icon: <BellOutlined /> },
+  { id: "countdown", label: "倒计时", icon: <HourglassOutlined /> },
 ];
 
 const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [
@@ -49,23 +52,12 @@ const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [
   { value: "cycle", label: "本轮轮次" },
 ];
 
-/** Multiplier on top of the resolution-based island scale; validated 0.8–1.2. */
-const islandSizeOptions: { value: number; label: string }[] = [
+const islandSizeOptions = [
   { value: 0.8, label: "特小" },
   { value: 0.9, label: "小" },
   { value: 1, label: "适中" },
   { value: 1.1, label: "大" },
   { value: 1.2, label: "特大" },
-];
-
-const themeOptions = [
-  {
-    value: "system" as const,
-    label: "跟随系统",
-    hint: "随 Windows 深浅色切换",
-  },
-  { value: "light" as const, label: "浅色", hint: "明亮低对比" },
-  { value: "dark" as const, label: "深色", hint: "夜间使用" },
 ];
 
 export function AppearancePage({
@@ -79,19 +71,14 @@ export function AppearancePage({
   preview: ReactNode;
   canEdit: boolean;
 }) {
-  const idleWidgetOrder = [
-    ...appearance.idleWidgets,
-    ...idleWidgetOptions
-      .map((option) => option.id)
-      .filter((id) => !appearance.idleWidgets.includes(id)),
-  ];
-
-  const idleWidgetLimitReached =
-    appearance.idleWidgets.length >= MAX_IDLE_WIDGETS;
+  const available = idleWidgetOptions.filter(
+    (option) => !appearance.idleWidgets.includes(option.id),
+  );
+  const limitReached = appearance.idleWidgets.length >= MAX_IDLE_WIDGETS;
 
   function toggleIdleWidget(id: IdleWidgetId) {
     const enabled = appearance.idleWidgets.includes(id);
-    if (!enabled && idleWidgetLimitReached) return;
+    if (!enabled && limitReached) return;
     const widgets = enabled
       ? appearance.idleWidgets.filter((item) => item !== id)
       : [...appearance.idleWidgets, id];
@@ -108,198 +95,146 @@ export function AppearancePage({
   }
 
   return (
-    <div className="settings-stack">
-      <SettingsCard className="preview-card">
-        <div className="card-head">
-          <h2>{t("桌面预览")}</h2>
-        </div>
+    <div className="antd-stack">
+      <Section
+        title={t("桌面预览")}
+        extra={
+          <Space size={8}>
+            <span className="section-inline-note">{t("灵动岛大小")}</span>
+            <Segmented
+              size="small"
+              value={appearance.scale}
+              disabled={!canEdit}
+              onChange={(value) =>
+                onAppearanceChange({ ...appearance, scale: value as number })
+              }
+              options={islandSizeOptions.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
+            />
+          </Space>
+        }
+      >
         <div className="preview-stage">{preview}</div>
-      </SettingsCard>
+      </Section>
 
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("界面主题")}</h2>
-          <span className="card-note">{t("仅影响设置窗口")}</span>
-        </div>
-        <div
-          className="theme-options"
-          role="radiogroup"
-          aria-label={t("界面主题")}
-        >
-          {themeOptions.map((option) => {
-            const active = appearance.theme === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                disabled={!canEdit}
-                className={`theme-option ${active ? "active" : ""}`}
-                onClick={() =>
-                  onAppearanceChange({
-                    ...appearance,
-                    theme: option.value,
-                  })
-                }
-              >
-                <span
-                  className={`theme-option-preview theme-option-preview-${option.value}`}
-                  aria-hidden="true"
-                />
-                <span className="theme-option-copy">
-                  <strong>{t(option.label)}</strong>
-                  <small>{t(option.hint)}</small>
-                </span>
-                <span className="theme-option-check" aria-hidden="true">
-                  {active && <Check size={13} strokeWidth={2.6} />}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="setting-row">
-          <span className="setting-row-copy">
-            <strong>{t("界面语言")}</strong>
+      <Section
+        title={t("胶囊")}
+        description={t("最多同时显示 6 个，没有数据的组件自动隐藏。")}
+        extra={
+          <span className="section-inline-note">
+            {appearance.idleWidgets.length} / {MAX_IDLE_WIDGETS}
           </span>
-          <div className="segmented" role="group" aria-label={t("界面语言")}>
-            {languageOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                disabled={!canEdit}
-                aria-pressed={appearance.language === option.value}
-                className={appearance.language === option.value ? "active" : ""}
-                onClick={() =>
-                  onAppearanceChange({
-                    ...appearance,
-                    language: option.value,
-                  })
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </SettingsCard>
-
-      <SettingsCard>
-        <div className="card-head">
-          <h2>{t("胶囊")}</h2>
-        </div>
-        <div className="setting-row">
-          <span className="setting-row-copy">
-            <strong>{t("灵动岛大小")}</strong>
-          </span>
-          <div className="segmented" role="group" aria-label={t("灵动岛大小")}>
-            {islandSizeOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                disabled={!canEdit}
-                aria-pressed={appearance.scale === option.value}
-                className={appearance.scale === option.value ? "active" : ""}
-                onClick={() =>
-                  onAppearanceChange({
-                    ...appearance,
-                    scale: option.value,
-                  })
-                }
-              >
-                {t(option.label)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="idle-widget-block">
-          <div className="setting-row-copy">
-            <strong>{t("闲时内容")}</strong>
-          </div>
-          <ul className="idle-widget-list">
-            {idleWidgetOrder.map((id) => {
+        }
+      >
+        <div className="antd-widget-group">
+          <div className="antd-widget-group-label">{t("已显示")}</div>
+          <div className="antd-widget-chips">
+            {appearance.idleWidgets.map((id, index) => {
               const option = idleWidgetOptions.find((item) => item.id === id)!;
-              const Icon = option.icon;
-              const index = appearance.idleWidgets.indexOf(id);
-              const enabled = index >= 0;
               return (
-                <li
-                  key={id}
-                  className={`idle-widget-row ${enabled ? "" : "is-off"}`}
-                >
-                  <label className="idle-widget-toggle">
-                    <input
-                      type="checkbox"
-                      disabled={
-                        !canEdit || (!enabled && idleWidgetLimitReached)
-                      }
-                      checked={enabled}
-                      onChange={() => toggleIdleWidget(id)}
-                    />
-                    <Icon size={15} aria-hidden="true" />
-                    <span>{t(option.label)}</span>
-                  </label>
-                  <span className="idle-widget-actions">
+                <div className="antd-widget-chip is-on" key={id}>
+                  <span className="antd-widget-icon" aria-hidden="true">
+                    {option.icon}
+                  </span>
+                  <span className="antd-widget-label">{t(option.label)}</span>
+                  <span className="antd-chip-actions">
                     <button
                       type="button"
+                      className="antd-chip-btn"
                       aria-label={t("上移")}
-                      disabled={!canEdit || !enabled || index === 0}
+                      title={t("上移")}
+                      disabled={!canEdit || index === 0}
                       onClick={() => moveIdleWidget(id, -1)}
                     >
-                      <ChevronUp size={14} aria-hidden="true" />
+                      <ArrowUpOutlined />
                     </button>
                     <button
                       type="button"
+                      className="antd-chip-btn"
                       aria-label={t("下移")}
+                      title={t("下移")}
                       disabled={
-                        !canEdit ||
-                        !enabled ||
-                        index === appearance.idleWidgets.length - 1
+                        !canEdit || index === appearance.idleWidgets.length - 1
                       }
                       onClick={() => moveIdleWidget(id, 1)}
                     >
-                      <ChevronDown size={14} aria-hidden="true" />
+                      <ArrowDownOutlined />
+                    </button>
+                    <button
+                      type="button"
+                      className="antd-chip-btn is-remove"
+                      aria-label={t("移除")}
+                      title={t("移除")}
+                      disabled={!canEdit}
+                      onClick={() => toggleIdleWidget(id)}
+                    >
+                      <CloseOutlined />
                     </button>
                   </span>
-                </li>
+                </div>
               );
             })}
-          </ul>
-          <p className="form-note">
-            {t("最多同时显示 6 个，没有数据的组件自动隐藏。")}
-          </p>
-          <div className="setting-row">
-            <span className="setting-row-copy">
-              <strong>{t("番茄组件显示")}</strong>
-            </span>
-            <div
-              className="segmented"
-              role="group"
-              aria-label={t("番茄组件显示")}
-            >
-              {pomodoroViewOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  disabled={!canEdit}
-                  aria-pressed={appearance.pomodoroView === option.value}
-                  className={
-                    appearance.pomodoroView === option.value ? "active" : ""
-                  }
-                  onClick={() =>
-                    onAppearanceChange({
-                      ...appearance,
-                      pomodoroView: option.value,
-                    })
-                  }
-                >
-                  {t(option.label)}
-                </button>
-              ))}
-            </div>
+            {appearance.idleWidgets.length === 0 && (
+              <span className="antd-widget-empty">
+                {t("还没有选择组件，空闲时只显示灵动岛名称。")}
+              </span>
+            )}
           </div>
         </div>
-      </SettingsCard>
+
+        {available.length > 0 && (
+          <div className="antd-widget-group">
+            <div className="antd-widget-group-label">{t("可添加")}</div>
+            <div className="antd-widget-more">
+              <div className="antd-widget-chips">
+                {available.map((option) => (
+                  <button
+                    type="button"
+                    key={option.id}
+                    className="antd-widget-chip is-off"
+                    disabled={!canEdit || limitReached}
+                    title={`${t("添加")} ${t(option.label)}`}
+                    onClick={() => toggleIdleWidget(option.id)}
+                  >
+                    <span className="antd-widget-icon" aria-hidden="true">
+                      {option.icon}
+                    </span>
+                    <span className="antd-widget-label">{t(option.label)}</span>
+                    <PlusOutlined className="antd-chip-add" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Divider style={{ margin: "16px 0 12px" }} />
+        <div className="antd-setting-row">
+          <div className="antd-setting-copy">
+            <div className="antd-setting-title">{t("番茄组件显示")}</div>
+            <span className="antd-setting-desc">
+              {t("选择番茄进度在胶囊里显示今日个数、专注分钟或本轮轮次。")}
+            </span>
+          </div>
+          <Segmented
+            size="small"
+            value={appearance.pomodoroView}
+            disabled={!canEdit}
+            onChange={(value) =>
+              onAppearanceChange({
+                ...appearance,
+                pomodoroView: value as PomodoroIdleView,
+              })
+            }
+            options={pomodoroViewOptions.map((option) => ({
+              value: option.value,
+              label: t(option.label),
+            }))}
+          />
+        </div>
+      </Section>
     </div>
   );
 }

@@ -752,6 +752,72 @@ fn apply_caption_colors(window: &tauri::WebviewWindow, dark: bool) {
     }
 }
 
+/// Windows' own light/dark preference for apps, so "follow system" is real
+/// instead of trusting WebView2's media query.
+#[cfg(windows)]
+fn apps_use_light_theme() -> Option<bool> {
+    use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
+    let separator = char::from(92u8).to_string();
+    let mut subkey: Vec<u16> = [
+        "Software",
+        "Microsoft",
+        "Windows",
+        "CurrentVersion",
+        "Themes",
+        "Personalize",
+    ]
+    .join(&separator)
+    .encode_utf16()
+    .collect();
+    subkey.push(0);
+    let mut value: Vec<u16> = "AppsUseLightTheme".encode_utf16().collect();
+    value.push(0);
+    let value: Vec<u16> = "AppsUseLightTheme ".encode_utf16().collect();
+    let mut data: u32 = 1;
+    let mut size = std::mem::size_of::<u32>() as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            subkey.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_DWORD,
+            std::ptr::null_mut(),
+            &mut data as *mut u32 as *mut core::ffi::c_void,
+            &mut size,
+        )
+    };
+    if status != 0 {
+        return None;
+    }
+    Some(data != 0)
+}
+
+#[cfg(not(windows))]
+fn apps_use_light_theme() -> Option<bool> {
+    None
+}
+
+#[cfg(all(test, windows))]
+mod theme_tests {
+    use super::apps_use_light_theme;
+
+    #[test]
+    fn reads_the_windows_app_theme() {
+        // Windows creates this value for every user profile.
+        assert!(apps_use_light_theme().is_some());
+    }
+}
+
+/// Resolved system theme: "light" unless Windows reports dark.
+#[tauri::command]
+fn get_system_theme() -> String {
+    match apps_use_light_theme() {
+        Some(false) => "dark",
+        _ => "light",
+    }
+    .to_string()
+}
+
 /// Follows the settings window chrome to the chosen light/dark theme.
 #[tauri::command]
 fn set_window_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
@@ -923,6 +989,7 @@ pub fn run() {
             start_island_drag,
             reset_island_position,
             set_window_theme,
+            get_system_theme,
             get_audio_devices,
             set_audio_device,
             get_media_state,

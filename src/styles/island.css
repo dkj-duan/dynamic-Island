@@ -87,7 +87,7 @@ html.island-window #root {
 }
 
 .is-expanded[data-page="timer"] .island-panel {
-  --panel-h: 182px;
+  --panel-h: 202px;
 }
 
 .is-expanded[data-page="mail"] .island-panel {

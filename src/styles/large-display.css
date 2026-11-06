@@ -51,7 +51,7 @@
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="timer"] .island-panel {
-  --panel-h: 194px;
+  --panel-h: 214px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="water"] .island-panel {

@@ -18,6 +18,11 @@ import {
 import { loadWaterSettings } from "./services/waterRepository";
 import { setLanguage, t } from "./services/i18n";
 import {
+  resolveTheme,
+  watchSystemTheme,
+  type ResolvedTheme,
+} from "./services/systemTheme";
+import {
   displayWidth,
   settingsZoomForWidth,
   watchDisplayTier,
@@ -52,22 +57,14 @@ export default function App() {
       );
     });
   }, []);
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>("light");
+  useEffect(() => watchSystemTheme(setSystemTheme), []);
   useEffect(() => {
     if (!hasDesktopStorage) return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const theme =
-        appearance.theme === "system"
-          ? media.matches
-            ? "dark"
-            : "light"
-          : appearance.theme;
-      void invoke("set_window_theme", { theme }).catch(() => undefined);
-    };
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [appearance.theme]);
+    void invoke("set_window_theme", {
+      theme: resolveTheme(appearance.theme, systemTheme),
+    }).catch(() => undefined);
+  }, [appearance.theme, systemTheme]);
   const revision = useRef(0);
   const dailyStats = useDailyStats(30);
   const [waterGoal, setWaterGoal] = useState(2000);
@@ -119,6 +116,9 @@ export default function App() {
         if (!active) return;
         setAppearance(value);
         setReady(true);
+        // Apply the stored language before writing the status text so the
+        // first message already uses it.
+        setLanguage(value.language);
         setStatus(
           hasDesktopStorage ? t("设置已读取") : t("浏览器预览：设置不会保存"),
         );

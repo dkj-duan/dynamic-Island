@@ -207,7 +207,7 @@ html.settings-booted .settings-shell {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 32px clamp(24px, 4vw, 48px) 40px;
+  padding: 24px clamp(24px, 4vw, 48px) 24px;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
@@ -239,7 +239,7 @@ html.settings-booted .settings-shell {
 }
 
 .settings-header {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .settings-header h1 {
@@ -276,7 +276,7 @@ html.settings-booted .settings-shell {
 
 .settings-stack {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .settings-columns {
@@ -288,7 +288,7 @@ html.settings-booted .settings-shell {
 
 /* —— Cards —— */
 .settings-card {
-  padding: 20px 22px;
+  padding: 16px 20px;
   background: var(--settings-surface);
   border: 1px solid var(--settings-border-soft);
   border-radius: var(--radius-md);
@@ -348,7 +348,7 @@ html.settings-booted .settings-shell {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 0;
+  padding: 10px 0;
   cursor: default;
 }
 
@@ -529,6 +529,28 @@ html.settings-booted .settings-shell {
   cursor: not-allowed;
 }
 
+/* Compact segmented control: used inside a card head. */
+.card-head .segmented {
+  margin-top: 0;
+}
+
+.segmented.is-compact {
+  padding: 2px;
+}
+
+.segmented.is-compact button {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.preview-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
 /* —— Preview —— */
 .preview-card {
   padding-bottom: 14px;
@@ -539,8 +561,8 @@ html.settings-booted .settings-shell {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 132px;
-  margin-top: 12px;
+  height: 96px;
+  margin-top: 8px;
   overflow: hidden;
   border: 1px solid var(--settings-border);
   border-radius: var(--radius-sm);
@@ -563,8 +585,8 @@ html.settings-booted .settings-shell {
 .theme-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .theme-option {
@@ -896,6 +918,52 @@ html.settings-booted .settings-shell {
   font-weight: 500;
 }
 
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* Empty list placeholder with its primary action. */
+.empty-block {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 26px 20px;
+  border: 1px dashed var(--settings-border);
+  border-radius: var(--radius-md);
+  background: var(--settings-surface-2);
+  text-align: center;
+}
+
+.empty-block-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 2px;
+  border: 1px solid var(--settings-border-soft);
+  border-radius: 50%;
+  background: var(--settings-surface);
+  color: var(--settings-muted);
+}
+
+.empty-block strong {
+  color: var(--settings-text-strong);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.empty-block p {
+  max-width: 360px;
+  margin: 0 0 4px;
+  color: var(--settings-muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
 .empty-state {
   margin: 10px 0 0;
   padding: 16px;
@@ -1116,15 +1184,25 @@ html.settings-booted .settings-shell {
 .idle-widget-block {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
+}
+
+/* Breathing room when the block sits directly under the card title. */
+.card-head + .idle-widget-block {
+  margin-top: 6px;
+}
+
+/* A divider only when the block follows another setting row. */
+.setting-row + .idle-widget-block {
+  padding-top: 10px;
   border-top: 1px solid var(--settings-border-soft);
 }
 
 .idle-widget-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
+  /* Four columns while the card is wide enough, stacking on narrow windows. */
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1134,8 +1212,8 @@ html.settings-booted .settings-shell {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 10px;
+  gap: 8px;
+  padding: 4px 9px;
   border: 1px solid var(--settings-border-soft);
   border-radius: 10px;
   background: var(--settings-input-bg);
@@ -1148,7 +1226,8 @@ html.settings-booted .settings-shell {
 .idle-widget-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
   color: var(--settings-text);
   font-size: 12px;
   cursor: pointer;
@@ -1166,6 +1245,12 @@ html.settings-booted .settings-shell {
   color: var(--settings-muted);
 }
 
+.idle-widget-toggle span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .idle-widget-actions {
   display: flex;
   gap: 4px;
@@ -1174,8 +1259,8 @@ html.settings-booted .settings-shell {
 .idle-widget-actions button {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 1px solid var(--settings-border-soft);
   border-radius: 6px;
@@ -1387,26 +1472,6 @@ html.settings-booted .settings-shell {
   gap: 6px;
 }
 
-.settings-water-custom input {
-  width: 90px;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--settings-input-border);
-  border-radius: 8px;
-  background: var(--settings-input-bg);
-  color: var(--settings-text);
-  font-variant-numeric: tabular-nums;
-  outline: none;
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
-}
-
-.settings-water-custom input:focus {
-  border-color: var(--settings-focus);
-  box-shadow: 0 0 0 2px rgb(120 120 140 / 0.18);
-}
-
 .settings-water-custom span {
   color: var(--settings-muted);
   font-size: 12px;
@@ -1443,22 +1508,6 @@ html.settings-booted .settings-shell {
 .settings-danger-row span {
   color: var(--settings-muted);
   font-size: 11px;
-}
-
-.settings-danger-actions {
-  display: flex;
-  flex: none;
-  gap: 8px;
-}
-
-.btn-danger {
-  border: 1px solid rgb(219 142 120 / 0.45);
-  background: rgb(219 142 120 / 0.14);
-  color: var(--settings-danger);
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: rgb(219 142 120 / 0.24);
 }
 
 .settings-stats-strip {
