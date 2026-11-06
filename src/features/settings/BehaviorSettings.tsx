@@ -1,10 +1,109 @@
-import { App, Button, Segmented, Switch, Typography } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { App, Button, Segmented, Space, Switch, Typography } from "antd";
+import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AppearanceSettings, ExpandedShape } from "../../domain/settings";
+import type {
+  AppearanceSettings,
+  ExpandedShape,
+  HotkeySetting,
+} from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
+
+/** Maps a captured key to the normalized form Rust parses, or null to wait. */
+function capturedKey(event: KeyboardEvent): string | null {
+  const key = event.key;
+  if (/^[a-z]$/i.test(key)) return key.toUpperCase();
+  if (/^[0-9]$/.test(key)) return key;
+  if (/^F(?:1[0-9]?|2[0-4]|[1-9])$/.test(key)) return key;
+  if (key === " ") return "Space";
+  return null;
+}
+
+function HotkeyRow({
+  title,
+  fallback,
+  setting,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  fallback: HotkeySetting;
+  setting: HotkeySetting | null;
+  disabled: boolean;
+  onChange: (next: HotkeySetting | null) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      setRecording(false);
+      return;
+    }
+    const key = capturedKey(event);
+    if (key === null) return;
+    const modifiers: string[] = [];
+    if (event.ctrlKey) modifiers.push("Ctrl");
+    if (event.shiftKey) modifiers.push("Shift");
+    if (event.altKey) modifiers.push("Alt");
+    if (event.metaKey) modifiers.push("Win");
+    // A bare letter, digit or Space would swallow normal typing system-wide.
+    if ((/^[A-Z0-9]$/.test(key) || key === "Space") && modifiers.length === 0) {
+      return;
+    }
+    onChange({
+      combo: [...modifiers, key].join("+"),
+      double: setting?.double ?? false,
+    });
+    setRecording(false);
+  }
+  return (
+    <SettingRow
+      title={title}
+      description={
+        setting
+          ? `${setting.combo}${setting.double ? t(" · 双击触发") : ""}`
+          : t("已关闭")
+      }
+    >
+      <Space size={8}>
+        <Switch
+          size="small"
+          disabled={disabled}
+          checked={!!setting}
+          onChange={(checked) => onChange(checked ? fallback : null)}
+        />
+        {recording ? (
+          <Button
+            size="small"
+            type="primary"
+            autoFocus
+            onKeyDown={handleKeyDown}
+            onBlur={() => setRecording(false)}
+          >
+            {t("按下组合键，Esc 取消")}
+          </Button>
+        ) : (
+          <Button
+            size="small"
+            disabled={disabled || !setting}
+            onClick={() => setRecording(true)}
+          >
+            {setting?.combo ?? t("录制")}
+          </Button>
+        )}
+        <Switch
+          size="small"
+          disabled={disabled || !setting}
+          checked={setting?.double ?? false}
+          checkedChildren={t("双击")}
+          onChange={(double) => setting && onChange({ ...setting, double })}
+        />
+      </Space>
+    </SettingRow>
+  );
+}
 
 export function BehaviorSettings({
   appearance,
@@ -190,36 +289,33 @@ export function BehaviorSettings({
           "在任何应用里都生效；被其他程序占用的组合键会在下方列出。",
         )}
       >
-        <SettingRow title={t("开始 / 暂停专注")} description={t("Ctrl+Alt+P")}>
-          <Switch
-            checked={appearance.hotkeyFocus}
-            disabled={!canEdit}
-            onChange={(checked) =>
-              onAppearanceChange({ ...appearance, hotkeyFocus: checked })
-            }
-          />
-        </SettingRow>
-        <SettingRow title={t("记一杯水")} description={t("Ctrl+Alt+W")}>
-          <Switch
-            checked={appearance.hotkeyWater}
-            disabled={!canEdit}
-            onChange={(checked) =>
-              onAppearanceChange({ ...appearance, hotkeyWater: checked })
-            }
-          />
-        </SettingRow>
-        <SettingRow
+        <HotkeyRow
+          title={t("开始 / 暂停专注")}
+          fallback={{ combo: "Ctrl+Alt+P", double: false }}
+          disabled={!canEdit}
+          setting={appearance.hotkeyFocus}
+          onChange={(hotkeyFocus) =>
+            onAppearanceChange({ ...appearance, hotkeyFocus })
+          }
+        />
+        <HotkeyRow
+          title={t("记一杯水")}
+          fallback={{ combo: "Ctrl+Alt+W", double: false }}
+          disabled={!canEdit}
+          setting={appearance.hotkeyWater}
+          onChange={(hotkeyWater) =>
+            onAppearanceChange({ ...appearance, hotkeyWater })
+          }
+        />
+        <HotkeyRow
           title={t("展开 / 收起灵动岛")}
-          description={t("Ctrl+Alt+E")}
-        >
-          <Switch
-            checked={appearance.hotkeyIsland}
-            disabled={!canEdit}
-            onChange={(checked) =>
-              onAppearanceChange({ ...appearance, hotkeyIsland: checked })
-            }
-          />
-        </SettingRow>
+          fallback={{ combo: "Ctrl+Alt+E", double: false }}
+          disabled={!canEdit}
+          setting={appearance.hotkeyIsland}
+          onChange={(hotkeyIsland) =>
+            onAppearanceChange({ ...appearance, hotkeyIsland })
+          }
+        />
         {hotkeyFailures.length > 0 && (
           <Typography.Text type="warning" className="antd-hint">
             {t("注册失败，可能被其他程序占用：")}

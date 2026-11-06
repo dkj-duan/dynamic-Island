@@ -54,6 +54,12 @@ export const expandedShapes = [
 ] as const;
 export type ExpandedShape = (typeof expandedShapes)[number];
 
+/** A recorded global hotkey; `null` disables the action. */
+export type HotkeySetting = { combo: string; double: boolean };
+/** The keys a recording accepts, normalized the way Rust parses them. */
+export const hotkeyKeyPattern =
+  /^(?:[A-Z0-9]|F(?:1[0-9]?|2[0-4]|[1-9])|Space)$/;
+
 export interface AppearanceSettings {
   expandedShape: ExpandedShape;
   theme: "system" | "light" | "dark";
@@ -75,11 +81,11 @@ export interface AppearanceSettings {
   /** Open the panel by itself when a reminder arrives. */
   reminderAutoExpand: boolean;
   /** Global shortcut that starts, pauses or resumes a focus session. */
-  hotkeyFocus: boolean;
+  hotkeyFocus: HotkeySetting | null;
   /** Global shortcut that logs one cup of water. */
-  hotkeyWater: boolean;
+  hotkeyWater: HotkeySetting | null;
   /** Global shortcut that expands or collapses the island. */
-  hotkeyIsland: boolean;
+  hotkeyIsland: HotkeySetting | null;
   /** Forward desktop toast notifications to the island capsule. */
   forwardNotifications: boolean;
 }
@@ -96,11 +102,47 @@ export const defaultAppearance: AppearanceSettings = {
   islandLyrics: false,
   reminderStyle: "breathe",
   reminderAutoExpand: false,
-  hotkeyFocus: true,
-  hotkeyWater: true,
-  hotkeyIsland: true,
+  hotkeyFocus: { combo: "Ctrl+Alt+P", double: false },
+  hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
+  hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
   forwardNotifications: false,
 };
+
+function parseHotkey(value: unknown): HotkeySetting | null {
+  if (value === null) return null;
+  if (typeof value !== "object" || value === null) {
+    throw new Error("快捷键设置无效");
+  }
+  const item = value as Record<string, unknown>;
+  if (
+    typeof item.combo !== "string" ||
+    item.combo.length === 0 ||
+    item.combo.length > 32 ||
+    !comboShapeValid(item.combo) ||
+    typeof item.double !== "boolean"
+  ) {
+    throw new Error("快捷键设置无效");
+  }
+  return { combo: item.combo, double: item.double };
+}
+
+/** The combo must be modifiers plus exactly one non-modifier key. */
+function comboShapeValid(combo: string): boolean {
+  const parts = combo.split("+").map((part) => part.trim());
+  if (parts.length < 1 || parts.length > 5) return false;
+  const key = parts[parts.length - 1];
+  if (!hotkeyKeyPattern.test(key)) return false;
+  const modifiers = parts.slice(0, -1).map((part) => part.toLowerCase());
+  if (
+    modifiers.length !== new Set(modifiers).size ||
+    !modifiers.every((part) => ["ctrl", "shift", "alt", "win"].includes(part))
+  ) {
+    return false;
+  }
+  // A bare letter, digit or Space would swallow normal typing system-wide.
+  if (/^[A-Z0-9]$/.test(key) || key === "Space") return modifiers.length >= 1;
+  return true;
+}
 
 function parseIdleWidgets(value: unknown, version: number): IdleWidgetId[] {
   if (!Array.isArray(value)) throw new Error("闲时内容无效");
@@ -204,17 +246,12 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   let hotkeyIsland = defaultAppearance.hotkeyIsland;
   let forwardNotifications = defaultAppearance.forwardNotifications;
   if (item.version >= 13) {
-    if (
-      typeof item.hotkeyFocus !== "boolean" ||
-      typeof item.hotkeyWater !== "boolean" ||
-      typeof item.hotkeyIsland !== "boolean" ||
-      typeof item.forwardNotifications !== "boolean"
-    ) {
-      throw new Error("快捷键或通知转发设置无效");
+    hotkeyFocus = parseHotkey(item.hotkeyFocus);
+    hotkeyWater = parseHotkey(item.hotkeyWater);
+    hotkeyIsland = parseHotkey(item.hotkeyIsland);
+    if (typeof item.forwardNotifications !== "boolean") {
+      throw new Error("通知转发设置无效");
     }
-    hotkeyFocus = item.hotkeyFocus;
-    hotkeyWater = item.hotkeyWater;
-    hotkeyIsland = item.hotkeyIsland;
     forwardNotifications = item.forwardNotifications;
   }
   return {

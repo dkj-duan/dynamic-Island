@@ -620,6 +620,11 @@ const en: Record<string, string> = {
   全局快捷键: "Global hotkeys",
   "在任何应用里都生效；被其他程序占用的组合键会在下方列出。":
     "Work in any app; combos already held by other programs are listed below.",
+  "按下组合键，Esc 取消": "Press a combo, Esc to cancel",
+  录制: "Record",
+  双击: "2×",
+  " · 双击触发": " · double press",
+  已关闭: "Off",
   "开始 / 暂停专注": "Start / pause focus",
   记一杯水: "Log a cup of water",
   "展开 / 收起灵动岛": "Expand / collapse the island",

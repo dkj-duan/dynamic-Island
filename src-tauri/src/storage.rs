@@ -249,7 +249,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
     let idle_widgets_valid = match version {
-        Some(8..=12) => value
+        Some(8..=13) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -271,7 +271,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "bluetooth"
                                     | "waterTimer"
                                     | "countdown"
-                            ) || (id == "mascot" && matches!(version, Some(11 | 12))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=13))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -301,21 +301,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=12) => value
+        Some(7..=13) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=12) => matches!(
+        Some(8..=13) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=12) => {
+        Some(10..=13) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -335,12 +335,25 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = version != Some(12)
+    let shape_valid = !matches!(version, Some(12 | 13))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
+    let hotkeys_valid = match version {
+        Some(13) => {
+            value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
+                && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
+                && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
+                && value
+                    .get("forwardNotifications")
+                    .and_then(|v| v.as_bool())
+                    .is_some()
+        }
+        _ => true,
+    };
     if !shape_valid
+        || !hotkeys_valid
         || !idle_widgets_valid
         || !lyrics_valid
         || !pomodoro_view_valid
@@ -361,6 +374,64 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         return Err("设置格式无效，未保存".into());
     }
     Ok(())
+}
+
+/// `null` disables a hotkey; otherwise modifiers plus exactly one key.
+fn hotkey_setting_valid(value: &serde_json::Value) -> bool {
+    if value.is_null() {
+        return true;
+    }
+    let Some(combo) = value.get("combo").and_then(|v| v.as_str()) else {
+        return false;
+    };
+    if combo.is_empty() || combo.len() > 32 || !hotkey_combo_valid(combo) {
+        return false;
+    }
+    value.get("double").and_then(|v| v.as_bool()).is_some()
+}
+
+/// Mirrors the frontend rules: Ctrl/Shift/Alt/Win at most once each, then one
+/// key. Bare letters, digits and Space would swallow normal typing.
+fn hotkey_combo_valid(combo: &str) -> bool {
+    let parts: Vec<&str> = combo.split('+').map(str::trim).collect();
+    let Some((key, modifier_parts)) = parts.split_last() else {
+        return false;
+    };
+    if key.is_empty() || modifier_parts.len() > 4 {
+        return false;
+    }
+    let mut seen = [false; 4];
+    for part in modifier_parts {
+        let index = match part.to_ascii_lowercase().as_str() {
+            "ctrl" => 0,
+            "shift" => 1,
+            "alt" => 2,
+            "win" => 3,
+            _ => return false,
+        };
+        if seen[index] {
+            return false;
+        }
+        seen[index] = true;
+    }
+    let function_key = key.len() >= 2
+        && key.starts_with('F')
+        && key[1..]
+            .parse::<u8>()
+            .is_ok_and(|number| (1..=24).contains(&number));
+    if function_key {
+        return true;
+    }
+    if *key == "Space" {
+        return !modifier_parts.is_empty();
+    }
+    let mut chars = key.chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) if c.is_ascii_uppercase() || c.is_ascii_digit() => {
+            !modifier_parts.is_empty()
+        }
+        _ => false,
+    }
 }
 
 const POSITION_KEY: &str = "island_position";
@@ -1517,5 +1588,97 @@ mod tests {
         let empty = reset_water_for_day(&db.connection, "2026-11-06").unwrap();
         assert_eq!(empty.water_ml, 0);
         assert_eq!(empty.pomodoros, 0);
+    }
+
+    #[test]
+    fn validates_version_thirteen_hotkeys() {
+        let base = serde_json::json!({
+            "version": 13,
+            "theme": "dark",
+            "scale": 1.0,
+            "showClock": true,
+            "autoCollapseSeconds": 3,
+            "expandTrigger": "click",
+            "language": "zh-CN",
+            "idleWidgets": ["clock"],
+            "islandLyrics": false,
+            "pomodoroView": "count",
+            "reminderStyle": "breathe",
+            "reminderAutoExpand": false,
+            "expandedShape": "classic",
+            "forwardNotifications": false,
+        });
+        let with_hotkeys = |focus: serde_json::Value| {
+            let mut value = base.clone();
+            value["hotkeyFocus"] = focus;
+            value["hotkeyWater"] = serde_json::json!(null);
+            value["hotkeyIsland"] = serde_json::json!({"combo": "F9", "double": true});
+            value
+        };
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Ctrl+Alt+P", "double": false})
+            ))
+            .is_ok()
+        );
+        assert!(validate_appearance(&with_hotkeys(serde_json::json!(null))).is_ok());
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "F9", "double": false})
+            ))
+            .is_ok()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Ctrl+Shift+Space", "double": false})
+            ))
+            .is_ok()
+        );
+        // Disabled actions must still carry the switch fields.
+        assert!(validate_appearance(&with_hotkeys(serde_json::json!(true))).is_err());
+        assert!(
+            validate_appearance(&with_hotkeys(serde_json::json!({"combo": "Ctrl+Alt+P"}))).is_err()
+        );
+        // A bare letter would swallow normal typing.
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "P", "double": false})
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Ctrl+P+Q", "double": false})
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Ctrl+Alt+Ctrl", "double": false})
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Ctrl+F25", "double": false})
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "", "double": false})
+            ))
+            .is_err()
+        );
+        // Version 13 also requires the forwarding switch.
+        let mut missing_forward = base.clone();
+        missing_forward["hotkeyFocus"] = serde_json::json!(null);
+        missing_forward["hotkeyWater"] = serde_json::json!(null);
+        missing_forward["hotkeyIsland"] = serde_json::json!(null);
+        missing_forward
+            .as_object_mut()
+            .unwrap()
+            .remove("forwardNotifications");
+        assert!(validate_appearance(&missing_forward).is_err());
     }
 }

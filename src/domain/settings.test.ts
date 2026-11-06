@@ -18,9 +18,9 @@ describe("parseAppearance", () => {
       islandLyrics: false,
       reminderStyle: "breathe",
       reminderAutoExpand: false,
-      hotkeyFocus: true,
-      hotkeyWater: true,
-      hotkeyIsland: true,
+      hotkeyFocus: { combo: "Ctrl+Alt+P", double: false },
+      hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
+      hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
       forwardNotifications: false,
     });
   });
@@ -305,24 +305,54 @@ describe("parseAppearance", () => {
       reminderAutoExpand: false,
       expandedShape: "classic",
     };
-    // Version 12 data keeps the defaults for the new switches.
+    // Version 12 data keeps the default bindings for the new actions.
     const migrated = parseAppearance(base);
-    expect(migrated.hotkeyFocus).toBe(true);
-    expect(migrated.hotkeyWater).toBe(true);
-    expect(migrated.hotkeyIsland).toBe(true);
+    expect(migrated.hotkeyFocus).toEqual({
+      combo: "Ctrl+Alt+P",
+      double: false,
+    });
+    expect(migrated.hotkeyWater).toEqual({
+      combo: "Ctrl+Alt+W",
+      double: false,
+    });
+    expect(migrated.hotkeyIsland).toEqual({
+      combo: "Ctrl+Alt+E",
+      double: false,
+    });
     expect(migrated.forwardNotifications).toBe(false);
     const updated = parseAppearance({
       ...base,
       version: 13,
-      hotkeyFocus: false,
-      hotkeyWater: true,
-      hotkeyIsland: false,
+      hotkeyFocus: null,
+      hotkeyWater: { combo: "F9", double: true },
+      hotkeyIsland: { combo: "Ctrl+Shift+Space", double: false },
       forwardNotifications: true,
     });
-    expect(updated.hotkeyFocus).toBe(false);
-    expect(updated.hotkeyWater).toBe(true);
-    expect(updated.hotkeyIsland).toBe(false);
+    expect(updated.hotkeyFocus).toBeNull();
+    expect(updated.hotkeyWater).toEqual({ combo: "F9", double: true });
+    expect(updated.hotkeyIsland).toEqual({
+      combo: "Ctrl+Shift+Space",
+      double: false,
+    });
     expect(updated.forwardNotifications).toBe(true);
+    // Combos must be modifiers plus exactly one key.
+    for (const combo of [
+      "",
+      "Ctrl",
+      "Ctrl+Alt",
+      "Ctrl+P+Q",
+      "J",
+      "Ctrl+F25",
+      "Ctrl+Alt+Ctrl",
+    ]) {
+      expect(() =>
+        parseAppearance({
+          ...base,
+          version: 13,
+          hotkeyWater: { combo, double: false },
+        }),
+      ).toThrow();
+    }
     expect(() =>
       parseAppearance({ ...base, version: 13, hotkeyFocus: "yes" }),
     ).toThrow();
