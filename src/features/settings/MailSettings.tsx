@@ -171,7 +171,6 @@ export function MailSettings() {
             </span>
             <Button
               type="primary"
-              size="small"
               icon={<PlusOutlined />}
               disabled={!desktop || busy}
               onClick={openAdd}
@@ -191,7 +190,7 @@ export function MailSettings() {
                     key="delete"
                     title={t("移除邮箱？")}
                     description={`${account.email} ${t("的授权码也会从凭据管理器删除。")}`}
-                    okText={t("移除邮箱")}
+                    okText={t("删除")}
                     cancelText={t("取消")}
                     okButtonProps={{ danger: true }}
                     onConfirm={() => void remove(account)}
@@ -199,10 +198,10 @@ export function MailSettings() {
                     <Button
                       danger
                       type="text"
-                      size="small"
                       icon={<DeleteOutlined />}
                       disabled={busy}
                       aria-label={`${t("移除 ")}${account.email}`}
+                      title={`${t("删除")} ${account.email}`}
                     />
                   </Popconfirm>,
                 ]}

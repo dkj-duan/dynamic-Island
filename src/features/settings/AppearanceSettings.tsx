@@ -102,7 +102,6 @@ export function AppearancePage({
           <Space size={8}>
             <span className="section-inline-note">{t("灵动岛大小")}</span>
             <Segmented
-              size="small"
               value={appearance.scale}
               disabled={!canEdit}
               onChange={(value) =>
@@ -219,7 +218,6 @@ export function AppearancePage({
             </span>
           </div>
           <Segmented
-            size="small"
             value={appearance.pomodoroView}
             disabled={!canEdit}
             onChange={(value) =>

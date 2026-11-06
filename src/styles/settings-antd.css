@@ -85,6 +85,27 @@
   font-size: 21px !important;
 }
 
+.antd-settings .ant-card-head-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* The segmented track needs to read as a surface on the white card; the
+   selected thumb gets a hairline so it never blends into the header. */
+.antd-settings .ant-segmented-item-selected,
+.antd-settings .ant-segmented-thumb {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.1),
+    0 0 0 1px rgb(0 0 0 / 0.04);
+}
+
+.antd-settings[data-theme="dark"] .ant-segmented-item-selected,
+.antd-settings[data-theme="dark"] .ant-segmented-thumb {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.45),
+    0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
 .antd-page-body {
   animation: antd-page-in 200ms var(--ease-out);
 }
@@ -143,6 +164,7 @@
 
 .antd-setting-title {
   font-size: 13px;
+  font-weight: 500;
 }
 
 .antd-setting-desc {

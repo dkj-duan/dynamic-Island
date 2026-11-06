@@ -198,7 +198,6 @@ export function StatusSettings() {
         description={t("状态发生变化时，灵动岛会短暂显示对应提示。")}
         extra={
           <Button
-            size="small"
             icon={<ReloadOutlined />}
             onClick={refresh}
             disabled={!desktop}
@@ -208,14 +207,12 @@ export function StatusSettings() {
         }
       >
         <List
-          size="small"
           dataSource={rows}
           renderItem={(row) => (
             <List.Item
               actions={[
                 <Button
                   key="demo"
-                  size="small"
                   type="link"
                   disabled={!desktop}
                   onClick={() => void preview(row.notice)}
@@ -245,7 +242,6 @@ export function StatusSettings() {
         description={t("点击设备即可设为默认播放设备；托盘菜单也可以切换。")}
         extra={
           <Button
-            size="small"
             icon={<ReloadOutlined />}
             onClick={refresh}
             disabled={!desktop || switching !== ""}
@@ -272,7 +268,6 @@ export function StatusSettings() {
           </Typography.Text>
         ) : (
           <List
-            size="small"
             dataSource={audio.value}
             renderItem={(device) => (
               <List.Item

@@ -216,7 +216,6 @@ export function CountdownSettings() {
         extra={
           <Button
             type="primary"
-            size="small"
             icon={<PlusOutlined />}
             disabled={
               !desktop || busy || settings.items.length >= MAX_COUNTDOWNS
@@ -237,7 +236,6 @@ export function CountdownSettings() {
           </div>
           {islandItem && (
             <Button
-              size="small"
               disabled={!desktop || busy}
               onClick={() => void persist({ ...settings, islandId: null })}
             >
@@ -273,7 +271,6 @@ export function CountdownSettings() {
                   ) : (
                     <Button
                       key="show"
-                      size="small"
                       type="link"
                       disabled={!desktop || busy}
                       onClick={() =>
@@ -285,11 +282,11 @@ export function CountdownSettings() {
                   ),
                   <Button
                     key="edit"
-                    size="small"
                     type="text"
                     icon={<EditOutlined />}
                     disabled={!desktop || busy}
                     aria-label={`${t("编辑")} ${item.label}`}
+                    title={`${t("编辑")} ${item.label}`}
                     onClick={() => setDraft(draftFor(item))}
                   />,
                   <Popconfirm
@@ -302,12 +299,12 @@ export function CountdownSettings() {
                     onConfirm={() => void remove(item)}
                   >
                     <Button
-                      size="small"
                       type="text"
                       danger
                       icon={<DeleteOutlined />}
                       disabled={!desktop || busy}
                       aria-label={`${t("删除")} ${item.label}`}
+                      title={`${t("删除")} ${item.label}`}
                     />
                   </Popconfirm>,
                 ]}

@@ -28,7 +28,6 @@ const baseTheme = {
       groupTitleFontSize: 11,
     },
     Button: {
-      controlHeight: 30,
       fontWeight: 500,
     },
     Input: {
@@ -36,6 +35,12 @@ const baseTheme = {
     },
     Select: {
       controlHeight: 32,
+    },
+    Switch: {
+      trackHeight: 24,
+      trackMinWidth: 44,
+      handleSize: 20,
+      trackPadding: 2,
     },
   },
 } satisfies ThemeConfig;
@@ -52,6 +57,15 @@ const lightTheme: ThemeConfig = {
   components: {
     ...baseTheme.components,
     Layout: { siderBg: "#ffffff", bodyBg: "#ffffff" },
+    Segmented: {
+      trackBg: "#f2f2f5",
+      trackPadding: 3,
+      itemColor: "#5f5f68",
+      itemHoverBg: "#e9e9ef",
+      itemHoverColor: "#1f1f24",
+      itemSelectedBg: "#ffffff",
+      itemSelectedColor: "#1f1f24",
+    },
   },
 };
 
@@ -67,6 +81,15 @@ const darkTheme: ThemeConfig = {
   components: {
     ...baseTheme.components,
     Layout: { siderBg: "#18181b", bodyBg: "#141414" },
+    Segmented: {
+      trackBg: "#242429",
+      trackPadding: 3,
+      itemColor: "#a5a5b0",
+      itemHoverBg: "#303038",
+      itemHoverColor: "#f0f0f4",
+      itemSelectedBg: "#3a3a43",
+      itemSelectedColor: "#f5f5f8",
+    },
   },
 };
 

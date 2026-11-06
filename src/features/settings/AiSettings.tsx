@@ -149,7 +149,6 @@ export function AiSettings() {
         extra={
           <Space>
             <Button
-              size="small"
               icon={<ReloadOutlined />}
               disabled={!desktop || busy}
               onClick={() => void reload()}
@@ -158,7 +157,6 @@ export function AiSettings() {
             </Button>
             <Button
               type="primary"
-              size="small"
               icon={<PlusOutlined />}
               disabled={!desktop || busy}
               onClick={openAdd}
@@ -191,7 +189,6 @@ export function AiSettings() {
                 actions={[
                   <Button
                     key="pin"
-                    size="small"
                     disabled={busy || account.pinned}
                     onClick={() => void pin(account)}
                   >
@@ -201,18 +198,18 @@ export function AiSettings() {
                     key="delete"
                     title={t("删除账户？")}
                     description={`${account.name} ${t("的密钥会一并删除，之后需要重新添加才能查询。")}`}
-                    okText={t("删除账户")}
+                    okText={t("删除")}
                     cancelText={t("取消")}
                     okButtonProps={{ danger: true }}
                     onConfirm={() => void remove(account)}
                   >
                     <Button
-                      size="small"
                       danger
                       type="text"
                       icon={<DeleteOutlined />}
                       disabled={busy}
                       aria-label={`${t("删除")} ${account.name}`}
+                      title={`${t("删除")} ${account.name}`}
                     />
                   </Popconfirm>,
                 ]}
