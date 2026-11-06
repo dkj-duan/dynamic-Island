@@ -40,7 +40,8 @@ export function useSystemNotice() {
         (next.kind === current.kind &&
           (next.kind === "volume" ||
             next.kind === "brightness" ||
-            next.kind === "audio"))
+            next.kind === "audio" ||
+            next.kind === "notification"))
       ) {
         window.clearTimeout(dismissal);
         current = next;
@@ -50,7 +51,8 @@ export function useSystemNotice() {
         if (
           next.kind === "volume" ||
           next.kind === "brightness" ||
-          next.kind === "audio"
+          next.kind === "audio" ||
+          next.kind === "notification"
         ) {
           const existing = pending.findIndex((item) => item.kind === next.kind);
           if (existing >= 0) pending.splice(existing, 1);
@@ -63,6 +65,26 @@ export function useSystemNotice() {
       "system-notice-preview",
       ({ payload }) => {
         if (active) show(payload);
+      },
+      { target: "island" },
+    )
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch((error) =>
+        console.error("Unable to listen for notice previews", error),
+      );
+    // Forwarded desktop toasts arrive as their own transient kind.
+    void listen<{ app: string; text: string }>(
+      "app-notification",
+      ({ payload }) => {
+        if (active)
+          show({
+            kind: "notification",
+            label: payload.app,
+            value: payload.text,
+          });
       },
       { target: "island" },
     )

@@ -22,7 +22,8 @@ export type BluetoothStatus = {
   battery: number | null;
 };
 export type SystemNotice = {
-  kind: "volume" | "power" | "brightness" | "bluetooth" | "audio";
+  kind:
+    "volume" | "power" | "brightness" | "bluetooth" | "audio" | "notification";
   label: string;
   value: string;
 };

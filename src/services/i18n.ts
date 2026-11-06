@@ -617,6 +617,25 @@ const en: Record<string, string> = {
   "验证码、喝水和计时结束时会自动打开面板。":
     "Opens the panel automatically for mail codes, water and finished timers.",
   胶囊交互: "Capsule behaviour",
+  全局快捷键: "Global hotkeys",
+  "在任何应用里都生效；被其他程序占用的组合键会在下方列出。":
+    "Work in any app; combos already held by other programs are listed below.",
+  "开始 / 暂停专注": "Start / pause focus",
+  记一杯水: "Log a cup of water",
+  "展开 / 收起灵动岛": "Expand / collapse the island",
+  "注册失败，可能被其他程序占用：":
+    "Registration failed, possibly held by another program: ",
+  应用通知转发: "Notification forwarding",
+  "把系统通知转发到灵动岛胶囊，内容只在本地显示；需要在系统设置中授予通知访问权限。":
+    "Forward desktop notifications to the island capsule; content stays local. Grant notification access in system settings first.",
+  转发系统通知: "Forward notifications",
+  通知访问权限: "Notification access",
+  "正在读取权限状态…": "Reading the access state…",
+  "已授权，新通知会显示在岛上。":
+    "Granted; new notifications appear on the island.",
+  "未授权，请在系统设置中允许应用访问通知。":
+    "Not granted; allow notification access in system settings.",
+  打开系统设置: "Open system settings",
 };
 
 let current: Language = defaultLanguage;

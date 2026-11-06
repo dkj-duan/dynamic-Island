@@ -7,12 +7,14 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WindowEvent};
 
 mod ai_quota;
 mod audio;
+mod hotkeys;
 mod lyrics;
 mod mail;
 #[cfg(target_os = "windows")]
 mod netease_log;
 #[cfg(target_os = "windows")]
 mod netease_timeline;
+mod notifications;
 mod storage;
 mod system_status;
 
@@ -1213,6 +1215,10 @@ pub fn run() {
             quit_app,
             set_island_expanded,
             set_island_panel_bounds,
+            hotkeys::apply_hotkeys,
+            notifications::get_notification_access,
+            notifications::set_notification_forwarding,
+            notifications::open_notification_settings,
             is_autostart_launch,
             get_autostart,
             set_autostart,

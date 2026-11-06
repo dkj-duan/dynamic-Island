@@ -225,6 +225,60 @@ export function IslandWindow() {
     alertToken,
     alertKind,
   });
+  // Global hotkeys re-apply whenever the switches change; combos another
+  // program already holds come back as failures and are surfaced in settings.
+  useEffect(() => {
+    void invoke("apply_hotkeys", {
+      config: {
+        focus: appearance.hotkeyFocus,
+        water: appearance.hotkeyWater,
+        island: appearance.hotkeyIsland,
+      },
+    }).catch(() => {});
+  }, [appearance.hotkeyFocus, appearance.hotkeyWater, appearance.hotkeyIsland]);
+  // Notification forwarding follows the settings switch; the island applies
+  // the runtime flag on every change, including startup.
+  useEffect(() => {
+    void invoke("set_notification_forwarding", {
+      enabled: appearance.forwardNotifications,
+    }).catch(() => {});
+  }, [appearance.forwardNotifications]);
+  // Hotkey actions must read the latest state, so the dispatch lives in a
+  // per-render ref while the listener registers only once.
+  const hotkeyDispatch = useRef<(action: string) => void>(() => {});
+  useEffect(() => {
+    hotkeyDispatch.current = (action: string) => {
+      if (action === "focus") {
+        if (timer.status === "idle") beginFocus(pomodoro.focusMinutes * 60_000);
+        else if (timer.status === "finished") resetTimer();
+        else pauseOrResumeTimer();
+      } else if (action === "water") {
+        void drinkWater(water.cupMl);
+      } else if (action === "island") {
+        void toggleExpanded();
+      }
+    };
+  });
+  useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<string>(
+      "global-hotkey",
+      ({ payload }) => {
+        if (active) hotkeyDispatch.current(payload);
+      },
+      { target: "island" },
+    )
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
   const deviceState = useAudioDevices(expanded && activeTab === "device");
   function selectPage(tab: IslandTab) {
     setActiveTab(tab);

@@ -1,5 +1,5 @@
-import { App, Button, Segmented, Switch } from "antd";
-import { useEffect, useState } from "react";
+import { App, Button, Segmented, Switch, Typography } from "antd";
+import { useCallback, useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { AppearanceSettings, ExpandedShape } from "../../domain/settings";
@@ -18,7 +18,42 @@ export function BehaviorSettings({
   const [positionReset, setPositionReset] = useState(false);
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [autostartBusy, setAutostartBusy] = useState(false);
+  const [hotkeyFailures, setHotkeyFailures] = useState<string[]>([]);
+  const [notificationAccess, setNotificationAccess] = useState<
+    "allowed" | "denied" | "unspecified" | null
+  >(null);
   const { message } = App.useApp();
+  const refreshNotificationAccess = useCallback(() => {
+    if (!isTauri()) return;
+    void invoke<"allowed" | "denied" | "unspecified">("get_notification_access")
+      .then((value) => setNotificationAccess(value))
+      .catch(() => setNotificationAccess(null));
+  }, []);
+  useEffect(() => {
+    refreshNotificationAccess();
+  }, [refreshNotificationAccess]);
+  // Applying here too shows which combos another program already holds; the
+  // island applies the same configuration for its own runtime.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    void invoke<string[]>("apply_hotkeys", {
+      config: {
+        focus: appearance.hotkeyFocus,
+        water: appearance.hotkeyWater,
+        island: appearance.hotkeyIsland,
+      },
+    })
+      .then((failures) => {
+        if (active) setHotkeyFailures(failures ?? []);
+      })
+      .catch(() => {
+        if (active) setHotkeyFailures([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [appearance.hotkeyFocus, appearance.hotkeyWater, appearance.hotkeyIsland]);
   useEffect(() => {
     if (!isTauri()) return;
     let active = true;
@@ -146,6 +181,92 @@ export function BehaviorSettings({
           >
             {positionReset ? t("已恢复") : t("恢复默认位置")}
           </Button>
+        </SettingRow>
+      </Section>
+
+      <Section
+        title={t("全局快捷键")}
+        description={t(
+          "在任何应用里都生效；被其他程序占用的组合键会在下方列出。",
+        )}
+      >
+        <SettingRow title={t("开始 / 暂停专注")} description={t("Ctrl+Alt+P")}>
+          <Switch
+            checked={appearance.hotkeyFocus}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, hotkeyFocus: checked })
+            }
+          />
+        </SettingRow>
+        <SettingRow title={t("记一杯水")} description={t("Ctrl+Alt+W")}>
+          <Switch
+            checked={appearance.hotkeyWater}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, hotkeyWater: checked })
+            }
+          />
+        </SettingRow>
+        <SettingRow
+          title={t("展开 / 收起灵动岛")}
+          description={t("Ctrl+Alt+E")}
+        >
+          <Switch
+            checked={appearance.hotkeyIsland}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, hotkeyIsland: checked })
+            }
+          />
+        </SettingRow>
+        {hotkeyFailures.length > 0 && (
+          <Typography.Text type="warning" className="antd-hint">
+            {t("注册失败，可能被其他程序占用：")}
+            {hotkeyFailures.join("、")}
+          </Typography.Text>
+        )}
+      </Section>
+
+      <Section
+        title={t("应用通知转发")}
+        description={t(
+          "把系统通知转发到灵动岛胶囊，内容只在本地显示；需要在系统设置中授予通知访问权限。",
+        )}
+      >
+        <SettingRow title={t("转发系统通知")}>
+          <Switch
+            checked={appearance.forwardNotifications}
+            disabled={!canEdit}
+            onChange={(checked) => {
+              onAppearanceChange({
+                ...appearance,
+                forwardNotifications: checked,
+              });
+              refreshNotificationAccess();
+            }}
+          />
+        </SettingRow>
+        <SettingRow
+          title={t("通知访问权限")}
+          description={
+            notificationAccess === null
+              ? t("正在读取权限状态…")
+              : notificationAccess === "allowed"
+                ? t("已授权，新通知会显示在岛上。")
+                : t("未授权，请在系统设置中允许应用访问通知。")
+          }
+        >
+          {notificationAccess !== "allowed" && (
+            <Button
+              disabled={!isTauri()}
+              onClick={() =>
+                void invoke("open_notification_settings").catch(() => undefined)
+              }
+            >
+              {t("打开系统设置")}
+            </Button>
+          )}
         </SettingRow>
       </Section>
 

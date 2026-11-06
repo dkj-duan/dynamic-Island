@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  BellRing,
   Bluetooth,
   Bot,
   Droplet,
@@ -16,7 +17,8 @@ import type { IslandTab } from "./islandPages";
 export function NoticeIcon({
   kind,
 }: {
-  kind: "volume" | "power" | "brightness" | "bluetooth" | "audio";
+  kind:
+    "volume" | "power" | "brightness" | "bluetooth" | "audio" | "notification";
 }) {
   const Icon =
     kind === "volume"
@@ -27,7 +29,9 @@ export function NoticeIcon({
           ? Sun
           : kind === "audio"
             ? Headphones
-            : Bluetooth;
+            : kind === "notification"
+              ? BellRing
+              : Bluetooth;
   return <Icon size={15} aria-hidden="true" />;
 }
 
