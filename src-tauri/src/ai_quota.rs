@@ -119,7 +119,10 @@ fn crypt(input: &[u8], id: &str, protect: bool) -> Result<Vec<u8>, String> {
             )
         }
     };
-    if ok == 0 {
+    if ok == 0 || output.pbData.is_null() || output.cbData == 0 {
+        if !output.pbData.is_null() {
+            unsafe { LocalFree(output.pbData.cast()) };
+        }
         return Err("密钥加密或解密失败，请检查当前 Windows 用户".into());
     }
     let result =
