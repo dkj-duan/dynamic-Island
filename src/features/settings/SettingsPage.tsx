@@ -38,7 +38,7 @@ import { AiSettings } from "./AiSettings";
 import { PomodoroSettings } from "./PomodoroSettings";
 import { WaterSettings } from "./WaterSettings";
 import { SettingsTheme } from "./SettingsTheme";
-import { setLanguage, t } from "../../services/i18n";
+import { t } from "../../services/i18n";
 import {
   resolveTheme,
   watchSystemTheme,
@@ -73,11 +73,17 @@ const pageMeta: Record<Page, { title: string }> = {
   about: { title: "关于" },
 };
 
+/** What the status badge in the sidebar currently reports. */
+export interface SettingsStatus {
+  text: string;
+  error: boolean;
+}
+
 interface Props {
   appearance: AppearanceSettings;
   onAppearanceChange: (value: AppearanceSettings) => void;
   preview: ReactNode;
-  status: string;
+  status: SettingsStatus;
   canEdit: boolean;
   canSwitchStorage: boolean;
   onStorageChanged: () => Promise<void>;
@@ -133,7 +139,6 @@ export function SettingsPage({
   );
   useEffect(() => watchSystemTheme(setSystemTheme), []);
   const dark = resolveTheme(appearance.theme, systemTheme) === "dark";
-  setLanguage(appearance.language);
 
   useEffect(() => {
     document.documentElement.dataset.settingsTheme = dark ? "dark" : "light";
@@ -157,7 +162,7 @@ export function SettingsPage({
   );
 
   const meta = pageMeta[page];
-  const hasError = status.includes("失败");
+  const hasError = status.error;
 
   return (
     <SettingsTheme dark={dark} language={appearance.language}>
@@ -244,7 +249,7 @@ export function SettingsPage({
           <div className="antd-status">
             <Badge
               status={hasError ? "error" : "processing"}
-              text={status}
+              text={status.text}
               style={{ width: "100%" }}
             />
           </div>

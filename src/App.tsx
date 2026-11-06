@@ -5,7 +5,10 @@ import {
   IslandPreview,
   type PreviewQuota,
 } from "./features/island/IslandPreview";
-import { SettingsPage } from "./features/settings/SettingsPage";
+import {
+  SettingsPage,
+  type SettingsStatus,
+} from "./features/settings/SettingsPage";
 import { defaultAppearance } from "./domain/settings";
 import { statForDay } from "./domain/dailyStats";
 import { waterPercent } from "./domain/water";
@@ -53,13 +56,16 @@ async function revealSettingsWhenAllowed() {
 
 export default function App() {
   const [appearance, setAppearance] = useState(defaultAppearance);
-  const [status, setStatus] = useState(() => t("正在读取设置…"));
+  const [status, setStatus] = useState<SettingsStatus>(() => ({
+    text: t("正在读取设置…"),
+    error: false,
+  }));
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  // Language feeds the shared string table; the theme drives the native
-  // title bar so it follows the light/dark setting (including "system").
-  setLanguage(appearance.language);
+  // The theme drives the native title bar so it follows the light/dark
+  // setting (including "system"); the language is synced inside the handlers
+  // below before they trigger the render that reads the string table.
   useEffect(() => {
     return watchDisplayTier(() => {
       document.documentElement.style.zoom = String(
@@ -129,16 +135,20 @@ export default function App() {
         // Apply the stored language before writing the status text so the
         // first message already uses it.
         setLanguage(value.language);
-        setStatus(
-          hasDesktopStorage ? t("设置已读取") : t("浏览器预览：设置不会保存"),
-        );
+        setStatus({
+          text: hasDesktopStorage
+            ? t("设置已读取")
+            : t("浏览器预览：设置不会保存"),
+          error: false,
+        });
         void revealSettingsWhenAllowed();
       })
       .catch(() => {
         if (active) {
-          setStatus(
-            t("设置读取失败，已暂停保存以保护原有数据。请检查配置文件。"),
-          );
+          setStatus({
+            text: t("设置读取失败，已暂停保存以保护原有数据。请检查配置文件。"),
+            error: true,
+          });
           void revealSettingsWhenAllowed();
         }
       });
@@ -155,10 +165,10 @@ export default function App() {
         await saveAppearance(appearance);
         if (revision.current === currentRevision) {
           setDirty(false);
-          setStatus(t("已自动保存并同步"));
+          setStatus({ text: t("已自动保存并同步"), error: false });
         }
       } catch {
-        setStatus(t("自动保存失败，请重试"));
+        setStatus({ text: t("自动保存失败，请重试"), error: true });
       } finally {
         setSaving(false);
       }
@@ -170,17 +180,20 @@ export default function App() {
       ...value,
       showClock: value.idleWidgets.includes("clock"),
     };
+    // Sync the string table before the render this triggers, so t() calls
+    // already see the new language.
+    setLanguage(normalized.language);
     setAppearance(normalized);
     setDirty(true);
     revision.current += 1;
-    setStatus(t("正在同步…"));
+    setStatus({ text: t("正在同步…"), error: false });
     try {
       await emitTo("island", "appearance-changed", {
         version: 12,
         ...normalized,
       });
     } catch {
-      setStatus(t("预览已更新，灵动岛将在保存后同步"));
+      setStatus({ text: t("预览已更新，灵动岛将在保存后同步"), error: false });
     }
   }
   const appearanceRef = useRef(appearance);
@@ -214,9 +227,10 @@ export default function App() {
   async function reloadFromStorage() {
     const value = await loadAppearance();
     revision.current += 1;
+    setLanguage(value.language);
     setAppearance(value);
     setDirty(false);
-    setStatus(t("已切换数据目录"));
+    setStatus({ text: t("已切换数据目录"), error: false });
     await Promise.all([
       emitTo("island", "appearance-changed", { version: 12, ...value }),
       emitTo("island", "mail-accounts-changed"),
