@@ -135,7 +135,7 @@ html.island-window #root {
 }
 
 .is-expanded[data-page="device"] .island-panel {
-  --panel-h: 188px;
+  --panel-h: 182px;
 }
 
 /* The banner floats in its own lane, so the page grows instead of shrinking. */
@@ -2422,6 +2422,8 @@ html.island-window #root {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Keep the pager clear of the last device row, like the other pages. */
+  padding-bottom: 12px;
 }
 
 .device-groups {

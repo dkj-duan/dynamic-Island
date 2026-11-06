@@ -132,13 +132,14 @@ export function DevicePage({ deviceState }: Props) {
           onSelect={select}
         />
       </div>
-      <span
-        className={`device-hint ${feedback?.error ? "is-error" : ""}`}
-        role="status"
-      >
-        {feedback?.text ??
-          (failed ? t("读取设备失败，请重试") : t("点击设备即可切换默认设备"))}
-      </span>
+      {(feedback || failed) && (
+        <span
+          className={`device-hint ${feedback?.error ? "is-error" : ""}`}
+          role="status"
+        >
+          {feedback?.text ?? t("读取设备失败，请重试")}
+        </span>
+      )}
     </div>
   );
 }

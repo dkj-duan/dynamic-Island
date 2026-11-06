@@ -25,50 +25,50 @@ describe("device page layout", () => {
       columns: 1,
       rows: 2,
       rowHeight: 26,
-      panelHeight: 162,
+      panelHeight: 156,
     });
     expect(deviceLayout(devices(2, 1))).toMatchObject({
       columns: 1,
       rows: 3,
       rowHeight: 26,
-      panelHeight: 188,
+      panelHeight: 182,
     });
   });
   it("shrinks rows before folding into columns", () => {
     expect(deviceLayout(devices(5, 4))).toMatchObject({
       columns: 1,
       rows: 9,
-      rowHeight: 18,
-      panelHeight: 272,
+      rowHeight: 16,
+      panelHeight: 248,
     });
   });
   it("folds longer lists into two columns", () => {
     expect(deviceLayout(devices(5, 5))).toMatchObject({
       columns: 2,
       rows: 6,
-      rowHeight: 26,
-      panelHeight: 266,
+      rowHeight: 25,
+      panelHeight: 254,
     });
     expect(deviceLayout(devices(10, 10))).toMatchObject({
       columns: 2,
       rows: 10,
-      rowHeight: 16,
-      panelHeight: 270,
+      rowHeight: 15,
+      panelHeight: 254,
     });
   });
   it("adds columns for unreasonable endpoint counts", () => {
     expect(deviceLayout(devices(20, 20))).toMatchObject({
       columns: 4,
       rows: 10,
-      rowHeight: 16,
-      panelHeight: 270,
+      rowHeight: 15,
+      panelHeight: 254,
     });
   });
   it("counts an empty group as one row", () => {
     expect(deviceLayout(devices(0, 8))).toMatchObject({
       columns: 1,
       rows: 9,
-      rowHeight: 18,
+      rowHeight: 16,
     });
   });
 });

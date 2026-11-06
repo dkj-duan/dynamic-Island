@@ -9,10 +9,13 @@ export type DeviceLayout = {
 };
 
 // Panel height reserved for padding, the header, the pager, both group
-// headings and the hint line; rows take whatever is left.
-const CHROME_HEIGHT = 106;
+// headings and the gap above the pager; rows take whatever is left.
+const CHROME_HEIGHT = 100;
 const ROW_SLACK = 4;
 const MAX_PANEL_HEIGHT = 272;
+// The feedback line only exists while a switch or read is reported, so its
+// space is reserved in the row budget but only added to the panel when shown.
+export const DEVICE_HINT_HEIGHT = 18;
 
 /**
  * The island never shows a scrollbar, so a long device list folds into
@@ -33,7 +36,8 @@ export function deviceLayout(devices: AudioDevice[] | null): DeviceLayout {
     rows = groups.reduce((sum, count) => sum + Math.ceil(count / columns), 0);
   }
 
-  const available = MAX_PANEL_HEIGHT - CHROME_HEIGHT - ROW_SLACK;
+  const available =
+    MAX_PANEL_HEIGHT - CHROME_HEIGHT - DEVICE_HINT_HEIGHT - ROW_SLACK;
   const rowHeight = Math.max(13, Math.min(26, Math.floor(available / rows)));
   const fontSize =
     rowHeight >= 24 ? 12 : rowHeight >= 20 ? 11.5 : rowHeight >= 16 ? 11 : 10.5;

@@ -225,7 +225,6 @@ const en: Record<string, string> = {
   输入设备: "Input device",
   "点击设备即可设为默认播放或录音设备；托盘菜单也可以切换输出。":
     "Click a device to make it the default for playback or recording; the tray menu can switch outputs too.",
-  点击设备即可切换默认设备: "Click a device to make it the default",
   "正在读取音频设备…": "Reading audio devices…",
   读取音频设备失败: "Could not read audio devices",
   "读取设备失败，请重试": "Could not read devices — try again",

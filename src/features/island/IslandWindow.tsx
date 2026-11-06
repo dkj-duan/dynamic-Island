@@ -57,7 +57,7 @@ import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
 import { MusicPage } from "./MusicPage";
 import { DevicePage } from "./DevicePage";
-import { deviceLayout } from "./deviceLayout";
+import { DEVICE_HINT_HEIGHT, deviceLayout } from "./deviceLayout";
 import { formatMediaTime } from "./islandFormat";
 import { ISLAND_PAGES, type IslandTab } from "./islandPages";
 import { IslandPageIcon, MediaWave, NoticeIcon } from "./IslandParts";
@@ -1061,7 +1061,12 @@ export function IslandWindow() {
         : 232;
   // The banner lane adds 34px; the layout cap keeps the tallest panel inside
   // the 320px island viewport instead of clipping the pager.
-  const devicePanelHeight = deviceLayout(deviceState.devices).panelHeight;
+  const deviceHasHint =
+    deviceState.devices !== null &&
+    (!!deviceState.feedback || deviceState.failed);
+  const devicePanelHeight =
+    deviceLayout(deviceState.devices).panelHeight +
+    (deviceHasHint ? DEVICE_HINT_HEIGHT : 0);
   // A transient banner floats over the panel bottom; make room for it.
   const panelHasBanner = expanded && display === "notice" && !!notice;
   function toggleIslandLyrics() {
