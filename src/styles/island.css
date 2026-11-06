@@ -1305,8 +1305,8 @@ html.island-window #root {
 
 .idle-widget-tomato {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
 }
 
@@ -2060,6 +2060,24 @@ html.island-window #root {
   stroke-width: 12;
 }
 
+/* A soft duplicate of the arc under the crisp one; it hides the aliasing of a
+   fractional webview scale and gives the gauge a little depth. */
+.quota-ring-glow {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  opacity: 0.3;
+  filter: blur(3px);
+  transition: stroke-dasharray var(--motion-slow) var(--ease-out);
+  animation:
+    quota-ring-draw 820ms var(--ease-out) both,
+    quota-ring-breathe 2.8s ease-in-out 820ms infinite;
+}
+
+.quota-rings.is-single .quota-ring-glow {
+  stroke-width: 12;
+}
+
 .quota-ring-track {
   stroke: var(--island-ring-track);
 }
@@ -2067,6 +2085,42 @@ html.island-window #root {
 .quota-ring-progress {
   stroke-linecap: round;
   transition: stroke-dasharray var(--motion-slow) var(--ease-out);
+  animation: quota-ring-draw 820ms var(--ease-out) both;
+}
+
+@keyframes quota-ring-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes quota-ring-breathe {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.46;
+  }
+}
+
+/* The gauge eases in when the account or page appears. */
+.quota-hero .quota-rings {
+  animation: quota-ring-in 460ms var(--ease-out) both;
+}
+
+@keyframes quota-ring-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .quota-ring-0 {
@@ -2110,6 +2164,13 @@ html.island-window #root {
   stroke-width: 9;
 }
 
+.quota-rings-compact .quota-ring-glow {
+  stroke-width: 9;
+  filter: blur(1.6px);
+  opacity: 0.28;
+  animation: quota-ring-draw 820ms var(--ease-out) both;
+}
+
 .provider-icon {
   display: inline-grid;
   place-items: center;
@@ -2131,15 +2192,15 @@ html.island-window #root {
 }
 
 .provider-icon-tiny {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
 }
 
 .provider-icon-tiny img,
 .provider-icon-tiny svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 .provider-icon-normal {
@@ -2737,6 +2798,11 @@ html.island-window #root {
   padding: 0 10px;
 }
 
+.island.idle-widgets .quota-rings-compact {
+  width: 27px;
+  height: 27px;
+}
+
 .idle-widget {
   display: flex;
   align-items: center;
@@ -2765,8 +2831,8 @@ html.island-window #root {
 .idle-widget-drop,
 .idle-widget-img {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
 }
 
@@ -2839,6 +2905,9 @@ html.island-window #root {
   .media-mark-slot,
   .island-alert-ring,
   .island-alert-ring::after,
+  .quota-ring-progress,
+  .quota-ring-glow,
+  .quota-hero .quota-rings,
   .idle-widget-cover {
     animation: none;
   }

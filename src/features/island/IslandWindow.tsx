@@ -1233,6 +1233,49 @@ export function IslandWindow() {
     }, 6000);
     return () => window.clearInterval(timer);
   }, [display, mediaBadgeKey]);
+  // The window is a large transparent surface; keep its native hit region on
+  // the visible panel so clicks in the empty area reach the apps below. The
+  // region only grows while the layout animates and is tightened once the
+  // frame settles, so the moving panel is never clipped.
+  useEffect(() => {
+    if (!isTauri()) return;
+    const element = panel.current;
+    if (!element) return;
+    let frame = 0;
+    let settle: number | undefined;
+    let disposed = false;
+    const send = (settled: boolean) => {
+      if (disposed) return;
+      const rect = element.getBoundingClientRect();
+      void invoke("set_island_panel_bounds", {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        settled,
+      }).catch(() => undefined);
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        send(false);
+        window.clearTimeout(settle);
+        settle = window.setTimeout(() => send(true), 260);
+      });
+    };
+    const observer = new ResizeObserver(schedule);
+    observer.observe(element);
+    const initial = window.setTimeout(() => send(true), 0);
+    window.addEventListener("resize", schedule);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
+      window.clearTimeout(initial);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [appearance.scale]);
   // Idle capsules shrink to their measured content; a numeric width lets the
   // panel animate smoothly into the expanded layout. Resolution scaling is
   // applied natively (webview zoom), so these widths stay in base CSS pixels.

@@ -579,6 +579,13 @@ const en: Record<string, string> = {
   复制: "Copy",
   "已结束 · 按 Esc 关闭": "Finished · Esc to dismiss",
   提醒动效: "Reminder animation",
+  启动: "Startup",
+  开机自启动: "Start with Windows",
+  "登录 Windows 后自动启动；开机启动只显示岛上小窗，不打开设置页。":
+    "Starts automatically after you sign in; a login launch only shows the island, not the settings window.",
+  已开启开机自启动: "Autostart enabled",
+  已关闭开机自启动: "Autostart disabled",
+  开机自启动设置失败: "Could not change autostart",
   "提醒出现时胶囊的提示方式，每张卡片会实时预览。":
     "How the capsule reacts to a reminder; each card previews it live.",
   亮度: "Brightness",

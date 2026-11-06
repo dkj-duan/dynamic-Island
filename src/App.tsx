@@ -41,6 +41,16 @@ function revealSettingsWindow() {
   void invoke("show_settings_window").catch(() => undefined);
 }
 
+/** A login launch stays in the island; only manual launches open settings. */
+async function revealSettingsWhenAllowed() {
+  try {
+    if (await invoke<boolean>("is_autostart_launch")) return;
+  } catch {
+    // Browser preview or an older build: keep the normal reveal.
+  }
+  revealSettingsWindow();
+}
+
 export default function App() {
   const [appearance, setAppearance] = useState(defaultAppearance);
   const [status, setStatus] = useState(() => t("正在读取设置…"));
@@ -122,14 +132,14 @@ export default function App() {
         setStatus(
           hasDesktopStorage ? t("设置已读取") : t("浏览器预览：设置不会保存"),
         );
-        revealSettingsWindow();
+        void revealSettingsWhenAllowed();
       })
       .catch(() => {
         if (active) {
           setStatus(
             t("设置读取失败，已暂停保存以保护原有数据。请检查配置文件。"),
           );
-          revealSettingsWindow();
+          void revealSettingsWhenAllowed();
         }
       });
     return () => {

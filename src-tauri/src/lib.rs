@@ -1,9 +1,9 @@
 use serde::Serialize;
 #[cfg(not(target_os = "windows"))]
 use tauri::LogicalSize;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconEvent;
-use tauri::{Manager, PhysicalPosition, PhysicalSize, WindowEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WindowEvent};
 
 mod ai_quota;
 mod audio;
@@ -461,6 +461,33 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether this process was started by the login autostart entry.
+#[tauri::command]
+fn is_autostart_launch() -> bool {
+    AUTOSTART_LAUNCH.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[tauri::command]
+fn get_autostart(app: tauri::AppHandle) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    if enabled {
+        manager.enable()
+    } else {
+        manager.disable()
+    }
+    .map_err(|e| e.to_string())?;
+    refresh_tray_menu(&app);
+    let _ = app.emit_to("main", "autostart-changed", enabled);
+    Ok(())
+}
+
 /// Called by the settings page once it has rendered its first real content.
 /// The window is created hidden so startup resizes happen off screen; this
 /// reveals it at its final size, so the user never sees it jump.
@@ -501,10 +528,33 @@ fn raise_island(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
+fn autostart_enabled<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+fn refresh_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let Ok(menu) = build_tray_menu(app) else {
+        return;
+    };
+    if let Some(tray) = app.tray_by_id("app-tray") {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
 /// Tray menu with a live output-device submenu (checkmark = current default).
 fn build_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
     let show = MenuItem::with_id(app, "show", "显示设置", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "开机自启动",
+        true,
+        autostart_enabled(app),
+        None::<&str>,
+    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
     let devices = Submenu::with_id(app, "audio", "输出设备", true)?;
     match audio::list() {
         Ok(list) if !list.is_empty() => {
@@ -526,7 +576,7 @@ fn build_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Resul
             devices.append(&empty)?;
         }
     }
-    Menu::with_items(app, &[&show, &devices, &quit])
+    Menu::with_items(app, &[&show, &devices, &separator, &autostart, &quit])
 }
 
 /// Rebuilds the tray menu when the device list or default device changes.
@@ -608,6 +658,15 @@ static ISLAND_AUTO_SCALE: std::sync::Mutex<f64> = std::sync::Mutex::new(1.0);
 /// Whether the island panel is currently expanded; the collapsed native
 /// hit-region is only refreshed while it is not.
 static ISLAND_EXPANDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// True when Windows launched us from the login autostart entry.
+static AUTOSTART_LAUNCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Physical rectangle currently used as the island hit region. Nothing here
+/// until the frontend reports the panel bounds for the first time.
+#[cfg(target_os = "windows")]
+static ISLAND_HIT_RECT: std::sync::Mutex<Option<(i32, i32, i32, i32)>> =
+    std::sync::Mutex::new(None);
 
 fn locked_scale(mutex: &std::sync::Mutex<f64>) -> f64 {
     *mutex
@@ -928,6 +987,91 @@ fn start_island_drag(window: tauri::WebviewWindow) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
 }
 
+/// Keeps the native hit region on the rendered panel. The transparent parts
+/// of the island window are much larger than the panel, and without a region
+/// they swallow clicks meant for the apps below (especially while expanded).
+/// While a layout transition is running the region only grows, so the moving
+/// panel is never clipped; the settled bounds then tighten it again.
+#[tauri::command]
+fn set_island_panel_bounds(
+    window: tauri::WebviewWindow,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    settled: bool,
+) -> Result<(), String> {
+    if window.label() != "island"
+        || !x.is_finite()
+        || !y.is_finite()
+        || !width.is_finite()
+        || !height.is_finite()
+        || width <= 0.0
+        || height <= 0.0
+    {
+        return Err("invalid panel bounds".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
+        // The arrival pop scales the panel up by 6%; keep a small margin so
+        // it is not clipped by the region during that beat.
+        let pad = 12.0 * scale;
+        let size = window.outer_size().map_err(|e| e.to_string())?;
+        let left = (x * scale - pad).floor().clamp(0.0, size.width as f64) as i32;
+        let top = (y * scale - pad).floor().clamp(0.0, size.height as f64) as i32;
+        let right = ((x + width) * scale + pad)
+            .ceil()
+            .clamp(0.0, size.width as f64) as i32;
+        let bottom = ((y + height) * scale + pad)
+            .ceil()
+            .clamp(0.0, size.height as f64) as i32;
+        if right <= left || bottom <= top {
+            return Ok(());
+        }
+        let mut current = ISLAND_HIT_RECT
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let next = if settled {
+            (left, top, right, bottom)
+        } else if let Some((old_left, old_top, old_right, old_bottom)) = *current {
+            // A shrinking panel still fits the old region; leave it alone so
+            // the transition never clips the content.
+            if left >= old_left && top >= old_top && right <= old_right && bottom <= old_bottom {
+                return Ok(());
+            }
+            (
+                old_left.min(left),
+                old_top.min(top),
+                old_right.max(right),
+                old_bottom.max(bottom),
+            )
+        } else {
+            (left, top, right, bottom)
+        };
+        let region = unsafe { CreateRectRgn(next.0, next.1, next.2, next.3) };
+        if region.is_null() {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        let result = unsafe { SetWindowRgn(hwnd.0, region, 1) };
+        if result == 0 {
+            unsafe {
+                DeleteObject(region);
+            }
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        *current = Some(next);
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (x, y, width, height, settled);
+        Ok(())
+    }
+}
+
 #[tauri::command]
 fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(), String> {
     if window.label() != "island" {
@@ -938,31 +1082,40 @@ fn set_island_expanded(window: tauri::WebviewWindow, expanded: bool) -> Result<(
     {
         use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
-        // The rendered capsule is scaled by the monitor DPI and the island
-        // webview zoom, so the hit-region must use the same combined factor.
-        let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
-        let size = window.outer_size().map_err(|e| e.to_string())?;
-        let inset = (10.0 * scale).round() as i32;
-        let height = (64.0 * scale).round() as i32;
-        // Keep WebView dimensions fixed; the region also excludes the empty
-        // transparent area from hit testing when the island is collapsed.
-        let region = if expanded {
-            std::ptr::null_mut()
-        } else {
-            let region = unsafe { CreateRectRgn(inset, 0, size.width as i32 - inset, height) };
-            if region.is_null() {
+        // Once the page has reported the panel bounds it owns the region;
+        // changing it here would briefly clip the panel mid-transition.
+        let reported = ISLAND_HIT_RECT
+            .lock()
+            .map(|bounds| bounds.is_some())
+            .unwrap_or(false);
+        if !reported {
+            // The rendered capsule is scaled by the monitor DPI and the
+            // island webview zoom, so the region must use the same factor.
+            let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
+            let size = window.outer_size().map_err(|e| e.to_string())?;
+            let inset = (10.0 * scale).round() as i32;
+            let height = (64.0 * scale).round() as i32;
+            // Keep WebView dimensions fixed; the region also excludes the
+            // empty transparent area from hit testing before the first
+            // bounds report arrives.
+            let region = if expanded {
+                std::ptr::null_mut()
+            } else {
+                let region = unsafe { CreateRectRgn(inset, 0, size.width as i32 - inset, height) };
+                if region.is_null() {
+                    return Err(std::io::Error::last_os_error().to_string());
+                }
+                region
+            };
+            let result = unsafe { SetWindowRgn(hwnd.0, region, 1) };
+            if result == 0 {
+                if !region.is_null() {
+                    unsafe {
+                        DeleteObject(region);
+                    }
+                }
                 return Err(std::io::Error::last_os_error().to_string());
             }
-            region
-        };
-        let result = unsafe { SetWindowRgn(hwnd.0, region, 1) };
-        if result == 0 {
-            if !region.is_null() {
-                unsafe {
-                    DeleteObject(region);
-                }
-            }
-            return Err(std::io::Error::last_os_error().to_string());
         }
         // Reopening the panel must also put it back above every other window.
         raise_island(&window)?;
@@ -1019,7 +1172,12 @@ fn apply_island_scale(window: tauri::WebviewWindow, scale: f64) -> Result<(), St
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let autostart_launch = std::env::args().any(|arg| arg == "--autostart");
+    AUTOSTART_LAUNCH.store(autostart_launch, std::sync::atomic::Ordering::SeqCst);
+    let builder = tauri::Builder::default().plugin(tauri_plugin_autostart::init(
+        tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+        Some(vec!["--autostart"]),
+    ));
     #[cfg(target_os = "windows")]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
         if let Some(window) = app.get_webview_window("main") {
@@ -1035,6 +1193,10 @@ pub fn run() {
             show_settings_window,
             quit_app,
             set_island_expanded,
+            set_island_panel_bounds,
+            is_autostart_launch,
+            get_autostart,
+            set_autostart,
             apply_island_scale,
             start_island_drag,
             reset_island_position,
@@ -1098,10 +1260,24 @@ pub fn run() {
                 window.center()?;
             }
             // The settings window is created hidden and revealed by the page
-            // once it has rendered. If the frontend never comes up (broken
-            // dev server, failed bundle), fall back to showing it anyway so
-            // the app cannot start up invisible.
-            if let Some(window) = app.get_webview_window("main") {
+            // A login launch stays in the island: the settings window must
+            // not pop up, and the hidden renderer is dropped to low memory.
+            if AUTOSTART_LAUNCH.load(std::sync::atomic::Ordering::SeqCst) {
+                if app.get_webview_window("main").is_some() {
+                    let handle = app.handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(1200));
+                        if let Some(window) = handle.get_webview_window("main")
+                            && !window.is_visible().unwrap_or(false)
+                        {
+                            set_settings_memory_target(&window, true);
+                        }
+                    });
+                }
+            } else if let Some(window) = app.get_webview_window("main") {
+                // If the frontend never comes up (broken dev server, failed
+                // bundle), fall back to showing it so the app is not
+                // invisible on a normal launch.
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(5));
                     if !window.is_visible().unwrap_or(true) {
@@ -1164,6 +1340,20 @@ pub fn run() {
                                 let _ = window.unminimize();
                                 let _ = window.set_focus();
                                 set_settings_memory_target(&window, false);
+                            }
+                        }
+                        "autostart" => {
+                            use tauri_plugin_autostart::ManagerExt;
+                            let manager = app.autolaunch();
+                            let enabled = manager.is_enabled().unwrap_or(false);
+                            let result = if enabled {
+                                manager.disable()
+                            } else {
+                                manager.enable()
+                            };
+                            if result.is_ok() {
+                                refresh_tray_menu(app);
+                                let _ = app.emit_to("main", "autostart-changed", !enabled);
                             }
                         }
                         "quit" => app.exit(0),

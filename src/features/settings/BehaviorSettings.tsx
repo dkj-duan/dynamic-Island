@@ -1,6 +1,7 @@
-import { Button, Segmented } from "antd";
-import { useState } from "react";
+import { App, Button, Segmented, Switch } from "antd";
+import { useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { AppearanceSettings } from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
@@ -15,6 +16,56 @@ export function BehaviorSettings({
   canEdit: boolean;
 }) {
   const [positionReset, setPositionReset] = useState(false);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [autostartBusy, setAutostartBusy] = useState(false);
+  const { message } = App.useApp();
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    void invoke<boolean>("get_autostart")
+      .then((value) => {
+        if (active) setAutostart(value);
+      })
+      .catch(() => {
+        if (active) setAutostart(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  // The tray menu has its own toggle; keep this switch in step with it.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<boolean>("autostart-changed", ({ payload }) => {
+      if (active) setAutostart(!!payload);
+    })
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+  async function toggleAutostart(enabled: boolean) {
+    setAutostartBusy(true);
+    try {
+      await invoke("set_autostart", { enabled });
+      setAutostart(enabled);
+      message.success(t(enabled ? "已开启开机自启动" : "已关闭开机自启动"));
+    } catch {
+      message.error(t("开机自启动设置失败"));
+      void invoke<boolean>("get_autostart")
+        .then(setAutostart)
+        .catch(() => undefined);
+    } finally {
+      setAutostartBusy(false);
+    }
+  }
   return (
     <div className="antd-stack">
       <Section
@@ -79,6 +130,22 @@ export function BehaviorSettings({
           >
             {positionReset ? t("已恢复") : t("恢复默认位置")}
           </Button>
+        </SettingRow>
+      </Section>
+
+      <Section
+        title={t("启动")}
+        description={t(
+          "登录 Windows 后自动启动；开机启动只显示岛上小窗，不打开设置页。",
+        )}
+      >
+        <SettingRow title={t("开机自启动")}>
+          <Switch
+            checked={!!autostart}
+            disabled={!canEdit || autostartBusy || autostart === null}
+            loading={autostartBusy}
+            onChange={(checked) => void toggleAutostart(checked)}
+          />
         </SettingRow>
       </Section>
     </div>

@@ -154,5 +154,17 @@
 }
 
 :root[data-large-display="true"] .quota-ring-center strong {
+  font-size: 15px;
+}
+
+:root[data-large-display="true"] .reminder-style-name {
   font-size: 13px;
+}
+
+:root[data-large-display="true"] .reminder-style-stage {
+  font-size: 12px;
+}
+
+:root[data-large-display="true"] .reminder-style-stage strong {
+  font-size: 12.5px;
 }
