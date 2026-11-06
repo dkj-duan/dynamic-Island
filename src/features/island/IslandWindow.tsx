@@ -1,23 +1,9 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Music2,
-  Pause,
-  Play,
   Power,
   Settings2,
-  SkipBack,
-  SkipForward,
   Timer,
-  Volume2,
-  PlugZap,
-  Sun,
-  Bluetooth,
   Mail,
   Captions,
   CaptionsOff,
@@ -26,10 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Bot,
   Hourglass,
-  Headphones,
-  Droplet,
   RefreshCw,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -66,12 +49,18 @@ import {
 import "../../styles/index.css";
 import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
+import { useIslandMedia } from "./useIslandMedia";
+import { WaterPage } from "./WaterPage";
+import { QuotaPage } from "./QuotaPage";
+import { MailPage } from "./MailPage";
+import { MusicPage } from "./MusicPage";
+import { formatMediaTime } from "./islandFormat";
+import { ISLAND_PAGES, type IslandTab } from "./islandPages";
+import { IslandPageIcon, MediaWave, NoticeIcon } from "./IslandParts";
 import { useMail } from "../mail/useMail";
-import { lyricAt, parseLyrics } from "../../domain/lyrics";
 import { useAiQuota } from "../ai/useAiQuota";
 import { QuotaRings } from "../ai/QuotaRings";
-import { ProviderIcon } from "../ai/ProviderIcon";
-import { aiProviderName, quotaRings } from "../../domain/aiQuota";
+import { quotaRings } from "../../domain/aiQuota";
 import {
   completeFocus,
   defaultPomodoroSettings,
@@ -103,134 +92,12 @@ import {
 } from "../../services/waterRepository";
 import { useDailyStats } from "../stats/useDailyStats";
 import { focusStreak } from "../../domain/dailyStats";
-import { WaterGlass } from "../water/WaterGlass";
 import { setLanguage, t } from "../../services/i18n";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
 import waterDrop from "../../assets/water-drop.webp";
 
-type MediaState = {
-  title: string;
-  artist: string;
-  playing: boolean;
-  positionSeconds: number | null;
-  durationSeconds: number | null;
-  canSeek: boolean;
-};
-
-const ISLAND_PAGES = [
-  { id: "timer", label: "计时器" },
-  { id: "music", label: "音乐" },
-  { id: "mail", label: "邮件" },
-  { id: "water", label: "喝水" },
-  { id: "ai", label: "AI 额度" },
-] as const;
-
-type IslandTab = (typeof ISLAND_PAGES)[number]["id"];
-
 /** The media capsule shows one of these next to the track, picked at random. */
 type MediaBadge = "pomodoro" | "water" | "quota";
-
-/** Quota reset stamps: same shape everywhere, date then 24h time. */
-function formatResetMoment(seconds: number, language: string) {
-  const date = new Date(seconds * 1000);
-  if (Number.isNaN(date.getTime())) return "";
-  const time = date.toLocaleTimeString(language, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  if (language === "en-US") {
-    return `${date.toLocaleDateString("en-US", { month: "short" })} ${date.getDate()} ${time}`;
-  }
-  return `${date.getMonth() + 1}/${date.getDate()} ${time}`;
-}
-
-function formatMediaTime(seconds: number) {
-  const total = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-function NoticeIcon({
-  kind,
-}: {
-  kind: "volume" | "power" | "brightness" | "bluetooth" | "audio";
-}) {
-  const Icon =
-    kind === "volume"
-      ? Volume2
-      : kind === "power"
-        ? PlugZap
-        : kind === "brightness"
-          ? Sun
-          : kind === "audio"
-            ? Headphones
-            : Bluetooth;
-  return <Icon size={15} aria-hidden="true" />;
-}
-
-/** Shared empty page state: tinted glyph, title and a bounded hint line. */
-function IslandEmpty({
-  tone,
-  icon,
-  title,
-  hint,
-}: {
-  tone: "music" | "mail" | "ai";
-  icon: ReactNode;
-  title: string;
-  hint: string;
-}) {
-  return (
-    <div className={`island-empty is-${tone}`}>
-      <span className="island-empty-icon" aria-hidden="true">
-        {icon}
-      </span>
-      <strong>{title}</strong>
-      <span className="island-empty-hint">{hint}</span>
-    </div>
-  );
-}
-
-/** Glyph for the bottom page switcher: one icon per island page. */
-function IslandPageIcon({ page }: { page: IslandTab }) {
-  const Icon =
-    page === "timer"
-      ? Timer
-      : page === "music"
-        ? Music2
-        : page === "mail"
-          ? Mail
-          : page === "water"
-            ? Droplet
-            : Bot;
-  return <Icon size={13} aria-hidden="true" />;
-}
-
-function MediaWave({
-  playing,
-  compact = false,
-}: {
-  playing: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <span
-      className={`media-wave ${compact ? "media-wave-compact" : ""} ${playing ? "is-playing" : ""}`}
-      aria-hidden="true"
-    >
-      {Array.from({ length: compact ? 4 : 32 }, (_, index) => (
-        <i
-          key={index}
-          style={{
-            height: `${32 + ((index * 37 + 19) % 65)}%`,
-            animationDuration: `${0.8 + ((index * 29 + 13) % 85) / 100}s`,
-            animationDelay: `${-((index * 47 + 11) % 130) / 100}s`,
-          }}
-        />
-      ))}
-    </span>
-  );
-}
 
 function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
   if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
@@ -343,92 +210,9 @@ export function IslandWindow() {
   const focusDays = focusStreak(dailyStats.stats, dailyStats.today);
   const waterTodayRef = useRef(todayWater);
   const [now, setNow] = useState(() => Date.now());
-  const [media, setMedia] = useState<MediaState | null>(null);
-  const mediaSample = useRef(Date.now());
-  const lastMedia = useRef<MediaState | null>(null);
-  const mediaMissingSince = useRef<number | null>(null);
-  const [mediaNow, setMediaNow] = useState(Date.now);
-  const [lyrics, setLyrics] = useState<{
-    key: string;
-    text: string;
-    synced: boolean;
-  } | null>(null);
-  const [lyricsError, setLyricsError] = useState<{
-    key: string;
-    message: string;
-  } | null>(null);
-  const [seekPreview, setSeekPreview] = useState<number | null>(null);
+  const mediaState = useIslandMedia();
+  const { media, mediaKey, artwork, mediaPosition, currentLyric } = mediaState;
   const [mediaBadge, setMediaBadge] = useState<MediaBadge>("quota");
-  const [artwork, setArtwork] = useState<{
-    key: string;
-    src: string | null;
-  } | null>(null);
-  const mediaKey = media ? JSON.stringify([media.title, media.artist]) : "";
-  const mediaArtwork = artwork?.key === mediaKey ? artwork.src : null;
-  useEffect(() => {
-    if (!media?.title || !media.artist) return;
-    let active = true;
-    const key = JSON.stringify([media.title, media.artist]);
-    void invoke<{ text: string; synced: boolean }>("get_lyrics", {
-      title: media.title,
-      artist: media.artist,
-      duration: media.durationSeconds,
-    })
-      .then((value) => {
-        if (active) setLyrics({ key, ...value });
-      })
-      .catch((error: unknown) => {
-        if (active) setLyricsError({ key, message: String(error) });
-      });
-    return () => {
-      active = false;
-    };
-  }, [media?.title, media?.artist, media?.durationSeconds]);
-  useEffect(() => {
-    if (!media?.playing) return;
-    const timer = window.setInterval(() => setMediaNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, [media?.playing]);
-  const mediaPosition =
-    media?.positionSeconds == null
-      ? null
-      : Math.min(
-          media.durationSeconds ?? Infinity,
-          media.positionSeconds +
-            (media.playing
-              ? Math.max(0, mediaNow - mediaSample.current) / 1000
-              : 0),
-        );
-  const currentLyrics = lyrics?.key === mediaKey ? lyrics : null;
-  const currentLyric =
-    currentLyrics?.synced && mediaPosition !== null
-      ? lyricAt(parseLyrics(currentLyrics.text), mediaPosition)
-      : null;
-  useEffect(() => {
-    if (!mediaKey) return;
-    let active = true;
-    let retry: number | undefined;
-    const [title, artist] = JSON.parse(mediaKey) as [string, string];
-    async function refreshArtwork() {
-      let src: string | null = null;
-      try {
-        src = await invoke<string | null>("get_media_artwork", {
-          title,
-          artist,
-        });
-      } catch {
-        /* retry later */
-      }
-      if (!active) return;
-      setArtwork({ key: mediaKey, src });
-      if (!src) retry = window.setTimeout(() => void refreshArtwork(), 15_000);
-    }
-    void refreshArtwork();
-    return () => {
-      active = false;
-      window.clearTimeout(retry);
-    };
-  }, [mediaKey]);
   const [activeTab, setActiveTab] = useState<IslandTab>("timer");
   function selectPage(tab: IslandTab) {
     setActiveTab(tab);
@@ -461,29 +245,6 @@ export function IslandWindow() {
     if (expanded && activeTab === "ai") void reloadAiQuota();
   }, [expanded, activeTab, reloadAiQuota]);
   const [customTimerOpen, setCustomTimerOpen] = useState(false);
-  const [mediaError, setMediaError] = useState("");
-  useEffect(() => {
-    let active = true;
-    let timeout: number | undefined;
-    const refresh = async () => {
-      try {
-        const state = await invoke<MediaState | null>("get_media_state");
-        if (!active) return;
-        mediaSample.current = Date.now();
-        setMediaNow(mediaSample.current);
-        applyMediaState(state);
-      } catch (error) {
-        console.error("Unable to read Windows media session", error);
-      } finally {
-        if (active) timeout = window.setTimeout(() => void refresh(), 2000);
-      }
-    };
-    void refresh();
-    return () => {
-      active = false;
-      window.clearTimeout(timeout);
-    };
-  }, []);
   useEffect(() => {
     pomodoroRef.current = pomodoro;
   }, [pomodoro]);
@@ -1290,78 +1051,6 @@ export function IslandWindow() {
         : 232;
   // A transient banner floats over the panel bottom; make room for it.
   const panelHasBanner = expanded && display === "notice" && !!notice;
-  function applyMediaState(state: MediaState | null) {
-    const next = state?.title ? state : null;
-    if (next) {
-      lastMedia.current = next;
-      mediaMissingSince.current = null;
-      setMedia(next);
-      return;
-    }
-    if (!lastMedia.current) {
-      setMedia(null);
-      return;
-    }
-    // Players often report no session for a moment between tracks. Keep the
-    // previous track for a short grace period instead of flashing "no media".
-    if (mediaMissingSince.current === null) {
-      mediaMissingSince.current = Date.now();
-    } else if (Date.now() - mediaMissingSince.current >= 5000) {
-      lastMedia.current = null;
-      mediaMissingSince.current = null;
-      setMedia(null);
-    }
-  }
-  async function refreshMedia() {
-    try {
-      const state = await invoke<MediaState | null>("get_media_state");
-      mediaSample.current = Date.now();
-      setMediaNow(mediaSample.current);
-      applyMediaState(state);
-    } catch {
-      /* the 2s poll retries */
-    }
-  }
-  async function controlMedia(action: "previous" | "toggle" | "next") {
-    const previous = media;
-    // Flip the button before the player answers, then reconcile.
-    if (action === "toggle" && previous) {
-      setMedia({ ...previous, playing: !previous.playing });
-      mediaSample.current = Date.now();
-      setMediaNow(mediaSample.current);
-    }
-    try {
-      const applied = await invoke<boolean>("control_media", { action });
-      if (!applied) throw new Error(t("播放器未响应此操作"));
-      setMediaError("");
-      window.setTimeout(() => void refreshMedia(), 120);
-      window.setTimeout(() => void refreshMedia(), 600);
-    } catch (error) {
-      if (action === "toggle") setMedia(previous);
-      setMediaError(
-        typeof error === "string" && error
-          ? error
-          : error instanceof Error
-            ? error.message
-            : t("媒体控制失败"),
-      );
-    }
-  }
-  async function seekMedia(positionSeconds: number) {
-    try {
-      const applied = await invoke<boolean>("seek_media", { positionSeconds });
-      if (!applied) throw new Error("Seek unsupported");
-      setMediaError("");
-      const state = await invoke<MediaState | null>("get_media_state");
-      mediaSample.current = Date.now();
-      setMediaNow(mediaSample.current);
-      applyMediaState(state);
-    } catch {
-      setMediaError(t("当前播放器暂不支持调整进度"));
-    } finally {
-      setSeekPreview(null);
-    }
-  }
   function toggleIslandLyrics() {
     const next = !appearance.islandLyrics;
     setAppearance((current) => ({ ...current, islandLyrics: next }));
@@ -1369,22 +1058,6 @@ export function IslandWindow() {
       void emitTo("main", "island-lyrics-changed", next).catch(() => {});
     }
   }
-  // One lyric line for the music page: the synced line when there is one,
-  // otherwise the reason there is not (interlude, no progress, lookup failed).
-  function lyricLine(): { text: string; active: boolean } {
-    if (currentLyric) return { text: currentLyric, active: true };
-    if (currentLyrics?.synced) {
-      if (mediaPosition === null)
-        return { text: t("暂无播放进度，无法同步歌词"), active: false };
-      if (currentLyric === "") return { text: t("♪ 间奏"), active: false };
-      return { text: t("♪ 前奏"), active: false };
-    }
-    if (currentLyrics) return { text: t("暂无同步歌词"), active: false };
-    if (lyricsError?.key === mediaKey)
-      return { text: lyricsError.message, active: false };
-    return { text: t("正在查找歌词…"), active: false };
-  }
-  const lyric = lyricLine();
   async function copyCode(code: string, expiresAt: number) {
     if (Date.now() >= expiresAt) {
       setCopyStatus({ code, message: t("已过期") });
@@ -1765,527 +1438,45 @@ export function IslandWindow() {
           </div>
           <div className="island-page" key={activeTab}>
             {activeTab === "water" ? (
-              <div className="water-view">
-                <div className="water-hero">
-                  <WaterGlass
-                    percent={waterPercentToday}
-                    tone={waterToneValue}
-                    size="island"
-                    splashKey={waterAdded}
-                  />
-                  <div className="water-copy">
-                    <strong>
-                      {todayWater}
-                      <span> / {water.goalMl} ml</span>
-                    </strong>
-                    <span className="water-meta">
-                      <i
-                        className="water-tone-dot"
-                        style={{ background: waterToneColor }}
-                        aria-hidden="true"
-                      />
-                      <span style={{ color: waterToneColor }}>
-                        {waterPercentToday}%
-                      </span>
-                      <span>
-                        · {waterCupsToday} {t("杯")} ·{" "}
-                        {todayWater >= water.goalMl
-                          ? t("今日目标已完成")
-                          : `${t("还差")} ${water.goalMl - todayWater} ml`}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-                {customWaterOpen ? (
-                  <form
-                    className="water-custom-inline"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const amount = Number(customWaterMl);
-                      if (
-                        !Number.isInteger(amount) ||
-                        amount < 1 ||
-                        amount > 5000
-                      ) {
-                        setWaterError(t("请输入 1–5000 毫升"));
-                        return;
-                      }
-                      void drinkWater(amount);
-                      setCustomWaterOpen(false);
-                    }}
-                  >
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={4}
-                      placeholder="300"
-                      aria-label={t("自定义毫升")}
-                      value={customWaterMl}
-                      onChange={(event) => {
-                        setCustomWaterMl(event.target.value.replace(/\D/g, ""));
-                        setWaterError("");
-                      }}
-                    />
-                    <span>ml</span>
-                    <button type="submit" className="water-custom-add">
-                      {t("添加")}
-                    </button>
-                    <button
-                      type="button"
-                      className="water-custom-cancel"
-                      onClick={() => {
-                        setCustomWaterOpen(false);
-                        setWaterError("");
-                      }}
-                    >
-                      {t("取消")}
-                    </button>
-                  </form>
-                ) : (
-                  <div className="water-actions">
-                    <button
-                      className="water-add"
-                      onClick={() => void drinkWater(water.cupMl)}
-                    >
-                      <img
-                        className="water-drop-sm"
-                        src={waterDrop}
-                        alt=""
-                        draggable={false}
-                      />
-                      {t("喝一杯")} · {water.cupMl} ml
-                    </button>
-                    <button
-                      className="water-more"
-                      onClick={() => setCustomWaterOpen(true)}
-                    >
-                      {t("自定义")}
-                    </button>
-                  </div>
-                )}
-                {waterError && (
-                  <span className="duration-error" role="alert">
-                    {waterError}
-                  </span>
-                )}
-                {waterAdded > 0 && (
-                  <span
-                    key={`water-flash-${waterAdded}`}
-                    className="water-flash"
-                    aria-hidden="true"
-                  >
-                    <img
-                      className="water-flash-drop"
-                      src={waterDrop}
-                      alt=""
-                      draggable={false}
-                    />
-                    +{waterAddedMl} ml
-                  </span>
-                )}
-              </div>
+              <WaterPage
+                water={water}
+                waterPercentToday={waterPercentToday}
+                waterToneValue={waterToneValue}
+                waterToneColor={waterToneColor}
+                waterAdded={waterAdded}
+                waterAddedMl={waterAddedMl}
+                todayWater={todayWater}
+                waterCupsToday={waterCupsToday}
+                customWaterOpen={customWaterOpen}
+                setCustomWaterOpen={setCustomWaterOpen}
+                customWaterMl={customWaterMl}
+                setCustomWaterMl={setCustomWaterMl}
+                waterError={waterError}
+                setWaterError={setWaterError}
+                drinkWater={drinkWater}
+              />
             ) : activeTab === "ai" ? (
-              <div className="quota-view">
-                {ai.accounts.length === 0 ? (
-                  <IslandEmpty
-                    tone="ai"
-                    icon={<Bot size={14} />}
-                    title={t("尚未添加 AI 账户")}
-                    hint={t("在设置的 AI 额度页面添加。")}
-                  />
-                ) : (
-                  <div
-                    className={`quota-hero ${selectedRings.length ? "" : "is-balance"}`}
-                    key={selectedAi?.id ?? "none"}
-                  >
-                    {selectedRings.length ? (
-                      <QuotaRings items={selectedItems} compact={false} />
-                    ) : (
-                      <div className="quota-balance-icon">
-                        <ProviderIcon
-                          provider={selectedAi?.provider ?? ""}
-                          size="large"
-                        />
-                      </div>
-                    )}
-                    <div className="quota-hero-copy">
-                      <div className="quota-hero-line">
-                        {ai.accounts.length > 1 ? (
-                          <div
-                            className="quota-switcher"
-                            role="group"
-                            aria-label={t("选择 AI 账户")}
-                          >
-                            {ai.accounts.map((account) => (
-                              <button
-                                key={account.id}
-                                className={
-                                  account.id === selectedAi?.id ? "active" : ""
-                                }
-                                aria-pressed={account.id === selectedAi?.id}
-                                title={`${account.name} · ${aiProviderName(account.provider)}`}
-                                onClick={() => setSelectedAiId(account.id)}
-                              >
-                                <ProviderIcon
-                                  provider={account.provider}
-                                  size="tiny"
-                                />
-                                <span>{account.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <>
-                            <ProviderIcon
-                              provider={selectedAi?.provider ?? ""}
-                              size="tiny"
-                            />
-                            <strong>{selectedAi?.name}</strong>
-                            {selectedAi &&
-                              aiProviderName(
-                                selectedAi.provider,
-                              ).toLowerCase() !==
-                                selectedAi.name.toLowerCase() && (
-                                <span className="quota-hero-provider">
-                                  {aiProviderName(selectedAi.provider)}
-                                </span>
-                              )}
-                          </>
-                        )}
-                        {selectedAi?.pinned && (
-                          <em className="quota-hero-pin">{t("常驻")}</em>
-                        )}
-                      </div>
-                      <div className="quota-metrics">
-                        {selectedItems.length ? (
-                          selectedItems.map((item, index) => {
-                            const ringIndex = selectedRings.findIndex(
-                              (ring) => ring.item === item,
-                            );
-                            const percent =
-                              ringIndex >= 0
-                                ? selectedRings[ringIndex].percent
-                                : null;
-                            // A lone ring already shows its percentage in the
-                            // middle, so that row carries the reset time
-                            // instead of repeating the number.
-                            const percentInRing =
-                              selectedRings.length === 1 && ringIndex === 0;
-                            const resetLabel =
-                              item.resetAt != null
-                                ? formatResetMoment(
-                                    item.resetAt,
-                                    appearance.language,
-                                  )
-                                : null;
-                            // Only a lone ring frees the row's tail for the
-                            // reset stamp; otherwise the value keeps that slot
-                            // and the stamp lives in the tooltip.
-                            const resetInRow =
-                              resetLabel !== null && selectedRings.length === 1;
-                            return (
-                              <div
-                                className="quota-metric"
-                                key={`${item.label}-${index}`}
-                                title={
-                                  resetLabel
-                                    ? `${t("重置")} ${resetLabel}`
-                                    : undefined
-                                }
-                              >
-                                <div className="quota-metric-head">
-                                  <span className="quota-metric-label">
-                                    {ringIndex >= 0 && (
-                                      <i
-                                        className={`quota-dot quota-dot-${ringIndex}`}
-                                      />
-                                    )}
-                                    {item.label}
-                                  </span>
-                                  {percent !== null && (
-                                    <span
-                                      className="quota-metric-track"
-                                      aria-hidden="true"
-                                    >
-                                      <span
-                                        className={`quota-metric-fill quota-fill-${ringIndex}`}
-                                        style={
-                                          {
-                                            "--fill": `${percent}%`,
-                                          } as CSSProperties
-                                        }
-                                      />
-                                    </span>
-                                  )}
-                                  {resetInRow ? (
-                                    <span className="quota-metric-reset">
-                                      {`${t("重置")} ${resetLabel ?? ""}`}
-                                    </span>
-                                  ) : percentInRing ? null : (
-                                    <strong>{item.value}</strong>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="quota-message">
-                            {selectedAiResult?.error ?? t("正在查询额度…")}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <QuotaPage
+                accounts={ai.accounts}
+                selectedAi={selectedAi}
+                selectedAiResult={selectedAiResult}
+                selectedItems={selectedItems}
+                selectedRings={selectedRings}
+                setSelectedAiId={setSelectedAiId}
+                language={appearance.language}
+              />
             ) : activeTab === "mail" ? (
-              <div className="island-mail-view">
-                {selectedMail ? (
-                  <>
-                    <div className="island-mail-top">
-                      <span className="mail-avatar" aria-hidden="true">
-                        <Mail size={16} />
-                      </span>
-                      <div className="island-mail-heading">
-                        <strong className="island-mail-subject">
-                          {selectedMail.subject || t("新邮件")}
-                        </strong>
-                        <span>
-                          {selectedMail.account} · {t("最近提醒")}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Fixed regions: the pager stays put across mails. */}
-                    <div className="island-mail-body">
-                      {selectedMail.code ? (
-                        <div className="island-mail-code">
-                          <div className="island-mail-code-text">
-                            <span className="island-mail-code-label">
-                              {t("验证码")}
-                            </span>
-                            <strong>{selectedMail.code}</strong>
-                          </div>
-                          <button
-                            className={`island-mail-code-copy ${currentCopyStatus ? "is-copied" : ""}`}
-                            onClick={() =>
-                              void copyCode(
-                                selectedMail.code!,
-                                selectedMail.expiresAt,
-                              )
-                            }
-                          >
-                            {currentCopyStatus === t("已复制") ? (
-                              <Check size={13} />
-                            ) : (
-                              <Copy size={13} />
-                            )}
-                            <span>{currentCopyStatus || t("复制")}</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="island-mail-empty">
-                          {t("这封邮件未识别到验证码")}
-                        </p>
-                      )}
-                    </div>
-                    <div className="island-mail-navigation">
-                      {recentMail.length > 1 && (
-                        <>
-                          <button
-                            aria-label={t("上一条提醒")}
-                            disabled={mailIndex <= 0}
-                            onClick={() => {
-                              setMailIndex((value) => Math.max(0, value - 1));
-                              setCopyStatus(null);
-                            }}
-                          >
-                            <ChevronLeft size={14} />
-                          </button>
-                          <span>
-                            {Math.min(mailIndex + 1, recentMail.length)} /{" "}
-                            {recentMail.length}
-                          </span>
-                          <button
-                            aria-label={t("下一条提醒")}
-                            disabled={mailIndex >= recentMail.length - 1}
-                            onClick={() => {
-                              setMailIndex((value) =>
-                                Math.min(recentMail.length - 1, value + 1),
-                              );
-                              setCopyStatus(null);
-                            }}
-                          >
-                            <ChevronRight size={14} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <IslandEmpty
-                    tone="mail"
-                    icon={<Mail size={14} />}
-                    title={t("暂无新邮件提醒")}
-                    hint={t("在设置中添加邮箱后，新邮件会显示在这里。")}
-                  />
-                )}
-              </div>
+              <MailPage
+                selectedMail={selectedMail}
+                recentMail={recentMail}
+                mailIndex={mailIndex}
+                setMailIndex={setMailIndex}
+                currentCopyStatus={currentCopyStatus}
+                setCopyStatus={setCopyStatus}
+                copyCode={copyCode}
+              />
             ) : activeTab === "music" ? (
-              <div className={`media-view ${media ? "" : "is-empty"}`}>
-                {media ? (
-                  <>
-                    <div className="media-now">
-                      <div
-                        className={`media-disc ${mediaArtwork ? "has-art" : ""} ${mediaArtwork && media.playing ? "is-spinning" : ""}`}
-                      >
-                        {mediaArtwork ? (
-                          <img src={mediaArtwork} alt="" />
-                        ) : (
-                          <Music2 size={19} />
-                        )}
-                      </div>
-                      <div className="media-info">
-                        <strong title={media.title}>{media.title}</strong>
-                        <span className="media-byline">
-                          <span
-                            className="media-byline-text"
-                            title={media.artist || t("未知艺术家")}
-                          >
-                            {media.artist || t("未知艺术家")}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      className={`music-lyric ${lyric.active ? "is-active" : ""}`}
-                      aria-live="off"
-                      title={lyric.text}
-                    >
-                      {lyric.text}
-                    </div>
-                    {media.durationSeconds != null &&
-                      media.positionSeconds != null && (
-                        <div className="media-timeline">
-                          <span className="media-time-start">
-                            {formatMediaTime(
-                              seekPreview ??
-                                mediaPosition ??
-                                media.positionSeconds,
-                            )}
-                          </span>
-                          {media.canSeek && media.durationSeconds > 0 ? (
-                            <input
-                              className="media-seek"
-                              type="range"
-                              min={0}
-                              max={media.durationSeconds}
-                              step={1}
-                              value={Math.min(
-                                media.durationSeconds,
-                                seekPreview ??
-                                  mediaPosition ??
-                                  media.positionSeconds,
-                              )}
-                              aria-label={t("调整播放进度")}
-                              onChange={(event) =>
-                                setSeekPreview(
-                                  Number(event.currentTarget.value),
-                                )
-                              }
-                              onPointerUp={(event) =>
-                                void seekMedia(
-                                  Number(event.currentTarget.value),
-                                )
-                              }
-                              onKeyUp={(event) => {
-                                if (
-                                  [
-                                    "ArrowLeft",
-                                    "ArrowRight",
-                                    "ArrowUp",
-                                    "ArrowDown",
-                                    "Home",
-                                    "End",
-                                    "PageUp",
-                                    "PageDown",
-                                  ].includes(event.key)
-                                )
-                                  void seekMedia(
-                                    Number(event.currentTarget.value),
-                                  );
-                              }}
-                              onPointerCancel={() => setSeekPreview(null)}
-                            />
-                          ) : (
-                            <div className="media-progress">
-                              <span
-                                style={{
-                                  width: `${Math.min(100, Math.max(0, ((mediaPosition ?? media.positionSeconds) / media.durationSeconds) * 100))}%`,
-                                }}
-                              />
-                            </div>
-                          )}
-                          <span className="media-time-end">
-                            {formatMediaTime(media.durationSeconds)}
-                          </span>
-                        </div>
-                      )}
-                    {(media.durationSeconds == null ||
-                      media.positionSeconds == null) && (
-                      <div className="media-timeline is-unavailable">
-                        <span className="media-timeline-unavailable">
-                          {t("播放器未提供播放进度")}
-                        </span>
-                      </div>
-                    )}
-                    <div className="media-controls">
-                      <div className="media-transport">
-                        <button
-                          aria-label={t("上一首")}
-                          onClick={() => void controlMedia("previous")}
-                        >
-                          <SkipBack size={15} fill="currentColor" />
-                        </button>
-                        <button
-                          aria-label={media.playing ? t("暂停") : t("播放")}
-                          className="media-play"
-                          onClick={() => void controlMedia("toggle")}
-                        >
-                          <span
-                            key={media.playing ? "pause" : "play"}
-                            className="media-play-icon"
-                          >
-                            {media.playing ? (
-                              <Pause size={18} fill="currentColor" />
-                            ) : (
-                              <Play size={18} fill="currentColor" />
-                            )}
-                          </span>
-                        </button>
-                        <button
-                          aria-label={t("下一首")}
-                          onClick={() => void controlMedia("next")}
-                        >
-                          <SkipForward size={15} fill="currentColor" />
-                        </button>
-                      </div>
-                    </div>
-                    {mediaError && (
-                      <span className="duration-error" role="alert">
-                        {mediaError}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <IslandEmpty
-                    tone="music"
-                    icon={<Music2 size={14} />}
-                    title={t("没有正在播放的媒体")}
-                    hint={t("开始播放音乐后，这里会显示曲目信息和控制按钮。")}
-                  />
-                )}
-              </div>
+              <MusicPage mediaState={mediaState} />
             ) : countdownOpen ? (
               <div className="countdown-picker">
                 {durationCountdowns.slice(0, 3).map((item) => (
