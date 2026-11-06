@@ -14,6 +14,10 @@ const en: Record<string, string> = {
   // —— Shell / navigation ——
   灵动岛: "Dynamic Island",
   小岛伙伴: "Island companion",
+  展开样式: "Expanded shape",
+  选择展开面板的轮廓: "Choose the expanded panel outline",
+  经典: "Classic",
+  灵动: "Asymmetric",
   设置: "Settings",
   设置分区: "Settings sections",
   外观: "Appearance",

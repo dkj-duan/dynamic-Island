@@ -6,6 +6,7 @@ describe("parseAppearance", () => {
     expect(
       parseAppearance({ version: 1, scale: 1.1, showClock: false }),
     ).toEqual({
+      expandedShape: "classic",
       theme: "system",
       scale: 1.1,
       showClock: false,
@@ -18,6 +19,31 @@ describe("parseAppearance", () => {
       reminderStyle: "breathe",
       reminderAutoExpand: false,
     });
+  });
+  it("migrates old shapes and rejects invalid new shapes", () => {
+    const old = {
+      version: 11,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock"],
+      islandLyrics: false,
+      pomodoroView: "count",
+      reminderStyle: "breathe",
+      reminderAutoExpand: false,
+    };
+    expect(parseAppearance(old).expandedShape).toBe("classic");
+    expect(
+      parseAppearance({ ...old, version: 12, expandedShape: "soft" })
+        .expandedShape,
+    ).toBe("classic");
+    expect(() =>
+      parseAppearance({ ...old, version: 12, expandedShape: "invalid" }),
+    ).toThrow();
+    expect(() => parseAppearance({ ...old, version: 12 })).toThrow();
   });
   it("migrates version 2 and validates the selected theme", () => {
     expect(

@@ -91,6 +91,28 @@ html.island-window #root {
   border-radius: 30px;
 }
 
+.is-expanded[data-shape="asymmetric"] .island-panel {
+  border-radius: 18px 48px 18px 48px;
+}
+
+/* Subtle lighting gives the classic black shell a rounded, raised edge. */
+.is-expanded[data-shape="classic"] .island-panel {
+  background: linear-gradient(
+    180deg,
+    #242429 0%,
+    #121215 17%,
+    #050506 55%,
+    #101013 100%
+  );
+  border-color: rgb(255 255 255 / 0.1);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.18),
+    inset 1px 0 2px rgb(255 255 255 / 0.07),
+    inset -1px 0 2px rgb(255 255 255 / 0.07),
+    inset 0 -2px 3px rgb(255 255 255 / 0.05),
+    0 6px 16px rgb(0 0 0 / 0.45);
+}
+
 /* Each page tells the panel how tall to be; content decides, not a constant. */
 .is-expanded[data-page="music"] .island-panel {
   --panel-h: 200px;
@@ -2948,6 +2970,11 @@ html.island-window #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .island-panel[data-alert][data-reminder="beam"],
+  .reminder-style-stage[data-reminder="beam"] {
+    box-shadow: inset 0 0 0 2px var(--alert-color, #e4a65d);
+  }
+
   .water-flash,
   .island-panel.is-water-reminder::after,
   .island-water-add.is-low,

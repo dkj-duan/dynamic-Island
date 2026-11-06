@@ -1082,6 +1082,7 @@ export function IslandWindow() {
   return (
     <div
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
+      data-shape={appearance.expandedShape}
       data-page={expanded ? activeTab : undefined}
     >
       <ReminderBeam

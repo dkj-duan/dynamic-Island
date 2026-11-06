@@ -46,7 +46,16 @@ const legacyReminderStyles: readonly ReminderStyle[] = [
   "none",
 ];
 
+export const expandedShapes = [
+  "classic",
+  "soft",
+  "asymmetric",
+  "oval",
+] as const;
+export type ExpandedShape = (typeof expandedShapes)[number];
+
 export interface AppearanceSettings {
+  expandedShape: ExpandedShape;
   theme: "system" | "light" | "dark";
   scale: number;
   showClock: boolean;
@@ -67,6 +76,7 @@ export interface AppearanceSettings {
   reminderAutoExpand: boolean;
 }
 export const defaultAppearance: AppearanceSettings = {
+  expandedShape: "classic",
   theme: "system",
   scale: 1,
   showClock: true,
@@ -113,7 +123,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 8 &&
       item.version !== 9 &&
       item.version !== 10 &&
-      item.version !== 11) ||
+      item.version !== 11 &&
+      item.version !== 12) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -172,7 +183,14 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       throw new Error("提醒展开设置无效");
     reminderAutoExpand = item.reminderAutoExpand;
   }
+  const expandedShape = item.version >= 12 ? item.expandedShape : "classic";
+  if (!expandedShapes.includes(expandedShape as ExpandedShape))
+    throw new Error("展开样式无效");
   return {
+    expandedShape:
+      expandedShape === "oval" || expandedShape === "soft"
+        ? "classic"
+        : (expandedShape as ExpandedShape),
     theme,
     scale: item.scale,
     showClock: idleWidgets.includes("clock"),

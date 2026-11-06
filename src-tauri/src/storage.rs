@@ -249,7 +249,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
     let idle_widgets_valid = match version {
-        Some(8..=11) => value
+        Some(8..=12) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -271,7 +271,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "bluetooth"
                                     | "waterTimer"
                                     | "countdown"
-                            ) || (id == "mascot" && version == Some(11)))
+                            ) || (id == "mascot" && matches!(version, Some(11 | 12))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -301,21 +301,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=11) => value
+        Some(7..=12) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=11) => matches!(
+        Some(8..=12) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10 | 11) => {
+        Some(10..=12) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -335,7 +335,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    if !idle_widgets_valid
+    let shape_valid = version != Some(12)
+        || matches!(
+            value.get("expandedShape").and_then(|v| v.as_str()),
+            Some("classic" | "soft" | "asymmetric" | "oval")
+        );
+    if !shape_valid
+        || !idle_widgets_valid
         || !lyrics_valid
         || !pomodoro_view_valid
         || !reminder_valid
@@ -1301,6 +1307,13 @@ mod tests {
         let mut legacy_mascot = v10.clone();
         legacy_mascot["idleWidgets"] = serde_json::json!(["mascot", "clock"]);
         assert!(validate_appearance(&legacy_mascot).is_err());
+        let mut v12 = v11.clone();
+        v12["version"] = serde_json::json!(12);
+        assert!(validate_appearance(&v12).is_err());
+        v12["expandedShape"] = serde_json::json!("soft");
+        assert!(validate_appearance(&v12).is_ok());
+        v12["expandedShape"] = serde_json::json!("invalid");
+        assert!(validate_appearance(&v12).is_err());
         v11["idleWidgets"] = serde_json::json!(["mascot", "mascot"]);
         assert!(validate_appearance(&v11).is_err());
         let conn = initialize_connection(Connection::open_in_memory().unwrap()).unwrap();

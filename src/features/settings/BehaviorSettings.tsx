@@ -2,7 +2,7 @@ import { App, Button, Segmented, Switch } from "antd";
 import { useEffect, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AppearanceSettings } from "../../domain/settings";
+import type { AppearanceSettings, ExpandedShape } from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
 
@@ -85,6 +85,22 @@ export function BehaviorSettings({
             options={[
               { value: "click", label: t("点击展开") },
               { value: "hover", label: t("悬停展开") },
+            ]}
+          />
+        </SettingRow>
+        <SettingRow title={t("展开样式")} description={t("选择展开面板的轮廓")}>
+          <Segmented
+            value={appearance.expandedShape}
+            disabled={!canEdit}
+            onChange={(value) =>
+              onAppearanceChange({
+                ...appearance,
+                expandedShape: value as ExpandedShape,
+              })
+            }
+            options={[
+              { value: "classic", label: t("经典") },
+              { value: "asymmetric", label: t("灵动") },
             ]}
           />
         </SettingRow>
