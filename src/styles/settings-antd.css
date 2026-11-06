@@ -81,7 +81,7 @@
 .antd-page {
   max-width: 960px;
   margin: 0 auto;
-  padding: 12px 32px 16px;
+  padding: 10px 32px 12px;
 }
 
 .antd-page-title {
@@ -127,7 +127,7 @@
 
 .antd-stack {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .antd-columns {
@@ -144,19 +144,19 @@
 }
 
 .section-desc {
-  margin-bottom: 8px !important;
+  margin-bottom: 6px !important;
   font-size: 12px !important;
 }
 
 /* Denser cards keep the busier pages (interaction, hotkeys) inside one
    screen at 1080p; hero cards keep their full-bleed padding. */
 .antd-settings .ant-card > .ant-card-head {
-  min-height: 36px;
+  min-height: 34px;
   padding: 0 20px;
 }
 
 .antd-settings .ant-card:not(.antd-plain-card) > .ant-card-body {
-  padding: 10px 20px 12px;
+  padding: 8px 20px 10px;
 }
 
 .antd-setting-row {
@@ -164,7 +164,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 6px 0;
+  padding: 5px 0;
 }
 
 .antd-setting-row + .antd-setting-row {

@@ -38,7 +38,7 @@ struct Binding {
 static WINDOW: OnceLock<isize> = OnceLock::new();
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static PENDING: Mutex<Option<HotkeyConfig>> = Mutex::new(None);
-static FAILURES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static FAILURES: Mutex<Vec<HotkeyFailure>> = Mutex::new(Vec::new());
 static BINDINGS: Mutex<[Option<Binding>; 3]> = Mutex::new([None, None, None]);
 static LAST_PRESS: Mutex<[Option<Instant>; 3]> = Mutex::new([None, None, None]);
 static SPAWN: Mutex<()> = Mutex::new(());
@@ -49,8 +49,18 @@ const WM_APPLY_HOTKEYS: u32 = 0x8000; // WM_APP
 /// Two presses inside this window count as a double press.
 const DOUBLE_PRESS_WINDOW: Duration = Duration::from_millis(700);
 
+/// A combo another program already holds, with the action it belongs to.
+#[derive(Clone, serde::Serialize)]
+pub struct HotkeyFailure {
+    pub action: &'static str,
+    pub combo: String,
+}
+
 #[tauri::command]
-pub fn apply_hotkeys(app: tauri::AppHandle, config: HotkeyConfig) -> Result<Vec<String>, String> {
+pub fn apply_hotkeys(
+    app: tauri::AppHandle,
+    config: HotkeyConfig,
+) -> Result<Vec<HotkeyFailure>, String> {
     let hwnd = ensure_thread(app)?;
     unsafe {
         *PENDING.lock().map_err(|_| "快捷键状态不可用".to_string())? = Some(config);
@@ -215,11 +225,17 @@ unsafe extern "system" fn wnd_proc(
                         continue;
                     };
                     let Some((mods, vk)) = parse_combo(&binding.combo) else {
-                        failures.push(binding.combo);
+                        failures.push(HotkeyFailure {
+                            action: SLOTS[index],
+                            combo: binding.combo,
+                        });
                         continue;
                     };
                     if RegisterHotKey(hwnd, (index + 1) as i32, mods, vk) == 0 {
-                        failures.push(binding.combo);
+                        failures.push(HotkeyFailure {
+                            action: SLOTS[index],
+                            combo: binding.combo,
+                        });
                     } else {
                         next[index] = Some(Binding {
                             double: binding.double,

@@ -1,5 +1,11 @@
 import { App, Button, Segmented, Space, Switch, Typography } from "antd";
-import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -20,6 +26,15 @@ function capturedKey(event: KeyboardEvent): string | null {
   return null;
 }
 
+/** Same window the native layer uses to decide a double press. */
+const DOUBLE_PRESS_WINDOW = 700;
+
+const hotkeyTitles: Record<string, string> = {
+  focus: t("开始 / 暂停专注"),
+  water: t("记一杯水"),
+  island: t("展开 / 收起灵动岛"),
+};
+
 function HotkeyRow({
   title,
   fallback,
@@ -34,11 +49,35 @@ function HotkeyRow({
   onChange: (next: HotkeySetting | null) => void;
 }) {
   const [recording, setRecording] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const pendingTimer = useRef<number | null>(null);
+  function stopRecording() {
+    if (pendingTimer.current !== null) {
+      window.clearTimeout(pendingTimer.current);
+      pendingTimer.current = null;
+    }
+    setPending(null);
+    setRecording(false);
+  }
+  // A single press commits itself once the double-press window has passed;
+  // pressing the same combo again inside the window records it as a double.
+  function scheduleSingle(combo: string) {
+    if (pendingTimer.current !== null) {
+      window.clearTimeout(pendingTimer.current);
+    }
+    setPending(combo);
+    pendingTimer.current = window.setTimeout(() => {
+      pendingTimer.current = null;
+      setPending(null);
+      onChange({ combo, double: false });
+      setRecording(false);
+    }, DOUBLE_PRESS_WINDOW + 50);
+  }
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     event.preventDefault();
     event.stopPropagation();
     if (event.key === "Escape") {
-      setRecording(false);
+      stopRecording();
       return;
     }
     const key = capturedKey(event);
@@ -52,18 +91,27 @@ function HotkeyRow({
     if ((/^[A-Z0-9]$/.test(key) || key === "Space") && modifiers.length === 0) {
       return;
     }
-    onChange({
-      combo: [...modifiers, key].join("+"),
-      double: setting?.double ?? false,
-    });
-    setRecording(false);
+    const combo = [...modifiers, key].join("+");
+    if (pending === combo) {
+      // The same combo twice inside the window: record it as a double press.
+      if (pendingTimer.current !== null) {
+        window.clearTimeout(pendingTimer.current);
+        pendingTimer.current = null;
+      }
+      setPending(null);
+      onChange({ combo, double: true });
+      setRecording(false);
+      return;
+    }
+    scheduleSingle(combo);
   }
+  useEffect(() => stopRecording, []);
   return (
     <SettingRow
       title={title}
       description={
         setting
-          ? `${setting.combo}${setting.double ? t(" · 双击触发") : ""}`
+          ? `${setting.combo}${setting.double ? t("（双击）") : ""}`
           : t("已关闭")
       }
     >
@@ -80,9 +128,11 @@ function HotkeyRow({
             type="primary"
             autoFocus
             onKeyDown={handleKeyDown}
-            onBlur={() => setRecording(false)}
+            onBlur={stopRecording}
           >
-            {t("按下组合键，Esc 取消")}
+            {pending
+              ? t("再按一次录为双击，等待则录为单次")
+              : t("按下组合键，Esc 取消")}
           </Button>
         ) : (
           <Button
@@ -90,16 +140,11 @@ function HotkeyRow({
             disabled={disabled || !setting}
             onClick={() => setRecording(true)}
           >
-            {setting?.combo ?? t("录制")}
+            {setting
+              ? `${setting.combo}${setting.double ? " ×2" : ""}`
+              : t("录制")}
           </Button>
         )}
-        <Switch
-          size="small"
-          disabled={disabled || !setting}
-          checked={setting?.double ?? false}
-          checkedChildren={t("双击")}
-          onChange={(double) => setting && onChange({ ...setting, double })}
-        />
       </Space>
     </SettingRow>
   );
@@ -117,7 +162,9 @@ export function BehaviorSettings({
   const [positionReset, setPositionReset] = useState(false);
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [autostartBusy, setAutostartBusy] = useState(false);
-  const [hotkeyFailures, setHotkeyFailures] = useState<string[]>([]);
+  const [hotkeyFailures, setHotkeyFailures] = useState<
+    { action: string; combo: string }[]
+  >([]);
   const [notificationAccess, setNotificationAccess] = useState<
     "allowed" | "denied" | "unspecified" | null
   >(null);
@@ -136,7 +183,7 @@ export function BehaviorSettings({
   useEffect(() => {
     if (!isTauri()) return;
     let active = true;
-    void invoke<string[]>("apply_hotkeys", {
+    void invoke<{ action: string; combo: string }[]>("apply_hotkeys", {
       config: {
         focus: appearance.hotkeyFocus,
         water: appearance.hotkeyWater,
@@ -286,7 +333,7 @@ export function BehaviorSettings({
       <Section
         title={t("全局快捷键")}
         description={t(
-          "在任何应用里都生效；被其他程序占用的组合键会在下方列出。",
+          "录制时快速按两次同一组合即录为双击触发；被其他程序占用的组合键会在下方列出。",
         )}
       >
         <HotkeyRow
@@ -319,7 +366,11 @@ export function BehaviorSettings({
         {hotkeyFailures.length > 0 && (
           <Typography.Text type="warning" className="antd-hint">
             {t("注册失败，可能被其他程序占用：")}
-            {hotkeyFailures.join("、")}
+            {hotkeyFailures
+              .map(
+                (failure) => `${hotkeyTitles[failure.action]} ${failure.combo}`,
+              )
+              .join("、")}
           </Typography.Text>
         )}
       </Section>

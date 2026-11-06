@@ -618,12 +618,13 @@ const en: Record<string, string> = {
     "Opens the panel automatically for mail codes, water and finished timers.",
   胶囊交互: "Capsule behaviour",
   全局快捷键: "Global hotkeys",
-  "在任何应用里都生效；被其他程序占用的组合键会在下方列出。":
-    "Work in any app; combos already held by other programs are listed below.",
+  "录制时快速按两次同一组合即录为双击触发；被其他程序占用的组合键会在下方列出。":
+    "Press the same combo twice while recording to make it a double press; combos held by other programs are listed below.",
   "按下组合键，Esc 取消": "Press a combo, Esc to cancel",
   录制: "Record",
-  双击: "2×",
-  " · 双击触发": " · double press",
+  "再按一次录为双击，等待则录为单次":
+    "Press again for double press, or wait for a single press",
+  "（双击）": " (double press)",
   已关闭: "Off",
   "开始 / 暂停专注": "Start / pause focus",
   记一杯水: "Log a cup of water",
