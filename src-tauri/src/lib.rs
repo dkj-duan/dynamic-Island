@@ -1243,6 +1243,10 @@ pub fn run() {
             mail::copy_mail_code
         ])
         .setup(|app| {
+            let app_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_icon(app_icon.clone())?;
+            }
             app.manage(storage::initialize(app.handle()).map_err(std::io::Error::other)?);
             app.manage(mail::MailMonitor::default());
             // Scale the settings window with the monitor so every page fits
@@ -1327,7 +1331,7 @@ pub fn run() {
             let tray_menu = build_tray_menu(app.handle())?;
             let tray_handle = app.handle().clone();
             tauri::tray::TrayIconBuilder::with_id("app-tray")
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(app_icon)
                 .tooltip("Dynamic Island")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
