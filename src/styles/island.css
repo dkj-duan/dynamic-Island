@@ -134,6 +134,10 @@ html.island-window #root {
   --panel-h: 172px;
 }
 
+.is-expanded[data-page="device"] .island-panel {
+  --panel-h: 188px;
+}
+
 /* The banner floats in its own lane, so the page grows instead of shrinking. */
 .island-panel.has-banner {
   --banner-extra: 34px;
@@ -772,6 +776,10 @@ html.island-window #root {
   color: #7fb8f2;
 }
 
+.island-page-title.is-device {
+  color: #9bd0a8;
+}
+
 .island-head-clock {
   position: absolute;
   left: 50%;
@@ -869,6 +877,11 @@ html.island-window #root {
 .pager-tab.is-ai.active {
   background: rgb(143 192 242 / 0.15);
   color: #8fc0f2;
+}
+
+.pager-tab.is-device.active {
+  background: rgb(155 208 168 / 0.14);
+  color: #9bd0a8;
 }
 
 /* —— Pager: ghost steppers in a fixed slot + wheel switching —— */
@@ -2402,6 +2415,212 @@ html.island-window #root {
   border-radius: 8px;
 }
 
+/* —— Device page: output and input lists share one scroll area —— */
+.device-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.device-groups {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+/* Long lists fold into columns instead of growing a scrollbar. */
+.device-rows {
+  display: grid;
+  grid-template-columns: repeat(var(--device-columns, 1), minmax(0, 1fr));
+  column-gap: 4px;
+}
+
+.device-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 15px;
+  padding: 0 6px;
+  color: #8d8d99;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.device-group-head svg {
+  color: #7f8a99;
+}
+
+.device-group-count {
+  margin-left: auto;
+  color: #6d6d77;
+  font-size: 10px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  height: var(--device-row-h, 26px);
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #cfcfd8;
+  font: inherit;
+  font-size: var(--device-font, 12px);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+/* Narrow columns cannot carry the tag or a full check slot; a dot in the
+   padding marks the default device and leaves the name more room. */
+.device-groups:not([data-columns="1"]) .device-row-tag,
+.device-groups:not([data-columns="1"]) .device-row-mark {
+  display: none;
+}
+
+.device-groups:not([data-columns="1"]) .device-row {
+  position: relative;
+  padding-left: 11px;
+}
+
+.device-groups:not([data-columns="1"]) .device-row.is-default::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: #9bd0a8;
+}
+
+.device-row:hover:not(:disabled) {
+  background: #23232a;
+  color: #f0f0f5;
+}
+
+.device-row.is-default {
+  background: rgb(155 208 168 / 0.1);
+  color: #e6f3ea;
+}
+
+.device-row.is-default:hover:not(:disabled) {
+  background: rgb(155 208 168 / 0.16);
+}
+
+.device-row:disabled {
+  cursor: default;
+}
+
+.device-row-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: #9bd0a8;
+}
+
+.device-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-row-tag {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgb(155 208 168 / 0.14);
+  color: #9bd0a8;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.device-spinner {
+  color: #9aa0ab;
+  animation: device-spin 0.9s linear infinite;
+}
+
+@keyframes device-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.device-empty {
+  display: block;
+  grid-column: 1 / -1;
+  height: var(--device-row-h, 26px);
+  padding: 0 25px;
+  overflow: hidden;
+  color: #77777f;
+  font-size: var(--device-font, 11.5px);
+  line-height: var(--device-row-h, 26px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-hint {
+  flex: none;
+  height: 14px;
+  padding: 0 6px;
+  overflow: hidden;
+  color: #77777f;
+  font-size: 11px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-hint.is-error {
+  color: #f09a9a;
+}
+
+.device-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #9a9aa4;
+  font-size: 12px;
+}
+
+.device-state.is-error {
+  color: #d9a0a0;
+}
+
+.device-state button {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: #2a2a31;
+  color: #e2e2e8;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.device-state button:hover {
+  background: #33333b;
+}
+
 /* —— Water page: tank gauge, quick add, reminder capsule —— */
 .water-view {
   position: relative;
@@ -2989,7 +3208,8 @@ html.island-window #root {
   .quota-ring-progress,
   .quota-ring-glow,
   .quota-hero .quota-rings,
-  .idle-widget-cover {
+  .idle-widget-cover,
+  .device-spinner {
     animation: none;
   }
 

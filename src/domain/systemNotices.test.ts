@@ -8,7 +8,18 @@ describe("system status changes", () => {
     onAc: true,
     battery: 80,
     charging: true,
-    outputDevice: { id: "a", name: "耳机 A", isDefault: true },
+    outputDevice: {
+      id: "a",
+      name: "耳机 A",
+      isDefault: true,
+      direction: "output" as const,
+    },
+    inputDevice: {
+      id: "m",
+      name: "麦克风 A",
+      isDefault: true,
+      direction: "input" as const,
+    },
   };
   it("does not announce the initial snapshot or unavailable values", () => {
     expect(systemChanges(undefined, initial)).toEqual([]);
@@ -41,22 +52,50 @@ describe("system status changes", () => {
     expect(
       systemChanges(initial, {
         ...initial,
-        outputDevice: { id: "b", name: "耳机 B", isDefault: true },
+        outputDevice: {
+          id: "b",
+          name: "耳机 B",
+          isDefault: true,
+          direction: "output" as const,
+        },
       }),
     ).toEqual([{ kind: "audio", label: "输出设备", value: "耳机 B" }]);
     expect(
       systemChanges(initial, {
         ...initial,
-        outputDevice: { id: "a", name: "耳机 A", isDefault: true },
+        outputDevice: {
+          id: "a",
+          name: "耳机 A",
+          isDefault: true,
+          direction: "output" as const,
+        },
       }),
     ).toEqual([]);
+  });
+  it("reports input device switches", () => {
+    expect(
+      systemChanges(initial, {
+        ...initial,
+        inputDevice: {
+          id: "n",
+          name: "麦克风 B",
+          isDefault: true,
+          direction: "input" as const,
+        },
+      }),
+    ).toEqual([{ kind: "audio", label: "输入设备", value: "麦克风 B" }]);
   });
   it("prefers the device notice over the volume side effect", () => {
     expect(
       systemChanges(initial, {
         ...initial,
         volume: 12,
-        outputDevice: { id: "b", name: "耳机 B", isDefault: true },
+        outputDevice: {
+          id: "b",
+          name: "耳机 B",
+          isDefault: true,
+          direction: "output" as const,
+        },
       }),
     ).toEqual([{ kind: "audio", label: "输出设备", value: "耳机 B" }]);
   });

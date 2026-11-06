@@ -226,6 +226,7 @@ pub struct SystemStatus {
     battery: Option<u8>,
     charging: Option<bool>,
     output_device: Option<crate::audio::AudioDevice>,
+    input_device: Option<crate::audio::AudioDevice>,
 }
 
 #[tauri::command]
@@ -286,6 +287,7 @@ fn read_status() -> SystemStatus {
                     None
                 },
                 output_device: crate::audio::default_device(),
+                input_device: crate::audio::default_input_device(),
             }
         }
     }
@@ -297,5 +299,6 @@ fn read_status() -> SystemStatus {
         battery: None,
         charging: None,
         output_device: None,
+        input_device: None,
     }
 }

@@ -882,3 +882,17 @@
 .antd-settings[data-theme="dark"] .behavior-hint {
   color: #9a9aa4;
 }
+
+/* Output and input endpoints share one card, split by a small heading. */
+.antd-device-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.antd-device-group-title {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  opacity: 0.7;
+}

@@ -49,12 +49,15 @@ import {
 import "../../styles/index.css";
 import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
+import { useAudioDevices } from "./useAudioDevices";
 import { useIslandMedia } from "./useIslandMedia";
 import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
 import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
 import { MusicPage } from "./MusicPage";
+import { DevicePage } from "./DevicePage";
+import { deviceLayout } from "./deviceLayout";
 import { formatMediaTime } from "./islandFormat";
 import { ISLAND_PAGES, type IslandTab } from "./islandPages";
 import { IslandPageIcon, MediaWave, NoticeIcon } from "./IslandParts";
@@ -157,6 +160,9 @@ export function IslandWindow() {
   const panel = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<number | null>(null);
   const hoverTimeout = useRef<number | null>(null);
+  // A page switch can shrink the panel under a stationary pointer, which the
+  // browser reports as a mouseleave; that synthetic leave must not collapse it.
+  const ignoreLeaveUntil = useRef(0);
   const dragState = useRef<{
     x: number;
     y: number;
@@ -215,8 +221,10 @@ export function IslandWindow() {
   const { media, mediaKey, artwork, mediaPosition, currentLyric } = mediaState;
   const [mediaBadge, setMediaBadge] = useState<MediaBadge>("quota");
   const [activeTab, setActiveTab] = useState<IslandTab>("timer");
+  const deviceState = useAudioDevices(expanded && activeTab === "device");
   function selectPage(tab: IslandTab) {
     setActiveTab(tab);
+    ignoreLeaveUntil.current = Date.now() + 400;
     if (tab === "mail") {
       setMailIndex(0);
       setCopyStatus(null);
@@ -599,6 +607,7 @@ export function IslandWindow() {
   }
   function handlePanelLeave() {
     cancelHoverExpand();
+    if (Date.now() < ignoreLeaveUntil.current) return;
     scheduleAutoCollapse();
   }
   // Reminder capsules carry their own destination, so opening the panel from
@@ -1050,6 +1059,9 @@ export function IslandWindow() {
       : largeDisplay
         ? 240
         : 232;
+  // The banner lane adds 34px; the layout cap keeps the tallest panel inside
+  // the 320px island viewport instead of clipping the pager.
+  const devicePanelHeight = deviceLayout(deviceState.devices).panelHeight;
   // A transient banner floats over the panel bottom; make room for it.
   const panelHasBanner = expanded && display === "notice" && !!notice;
   function toggleIslandLyrics() {
@@ -1098,6 +1110,9 @@ export function IslandWindow() {
               width: panelWidth,
               ...(alertKind === "water"
                 ? { "--alert-color": waterToneColor }
+                : {}),
+              ...(expanded && activeTab === "device"
+                ? { "--panel-h": `${devicePanelHeight}px` }
                 : {}),
             } as CSSProperties
           }
@@ -1417,6 +1432,15 @@ export function IslandWindow() {
                     <RefreshCw size={15} aria-hidden="true" />
                   </button>
                 )}
+                {activeTab === "device" && (
+                  <button
+                    aria-label={t("刷新设备")}
+                    title={t("刷新设备")}
+                    onClick={() => void deviceState.refresh()}
+                  >
+                    <RefreshCw size={15} aria-hidden="true" />
+                  </button>
+                )}
                 {/* Without auto-collapse or hover mode this is the only way out
                   of the expanded panel, so it stays for that case. */}
                 {appearance.expandTrigger !== "hover" &&
@@ -1486,6 +1510,8 @@ export function IslandWindow() {
                 />
               ) : activeTab === "music" ? (
                 <MusicPage mediaState={mediaState} />
+              ) : activeTab === "device" ? (
+                <DevicePage deviceState={deviceState} />
               ) : countdownOpen ? (
                 <div className="countdown-picker">
                   {durationCountdowns.slice(0, 3).map((item) => (

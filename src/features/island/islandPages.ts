@@ -4,6 +4,7 @@ export const ISLAND_PAGES = [
   { id: "mail", label: "邮件" },
   { id: "water", label: "喝水" },
   { id: "ai", label: "AI 额度" },
+  { id: "device", label: "设备" },
 ] as const;
 
 export type IslandTab = (typeof ISLAND_PAGES)[number]["id"];

@@ -557,8 +557,15 @@ fn build_tray_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Resul
     let separator = PredefinedMenuItem::separator(app)?;
     let devices = Submenu::with_id(app, "audio", "输出设备", true)?;
     match audio::list() {
-        Ok(list) if !list.is_empty() => {
-            for device in list {
+        Ok(list)
+            if list
+                .iter()
+                .any(|d| d.direction == audio::AudioDirection::Output) =>
+        {
+            for device in list
+                .into_iter()
+                .filter(|d| d.direction == audio::AudioDirection::Output)
+            {
                 let item = CheckMenuItem::with_id(
                     app,
                     format!("audio:{}", device.id),
@@ -590,6 +597,7 @@ fn spawn_tray_audio_refresh<R: tauri::Runtime + 'static>(app: tauri::AppHandle<R
             };
             let next: Vec<(String, String, bool)> = devices
                 .into_iter()
+                .filter(|device| device.direction == audio::AudioDirection::Output)
                 .map(|device| (device.id, device.name, device.is_default))
                 .collect();
             if next == signature {
@@ -620,8 +628,8 @@ async fn get_audio_devices() -> Result<Vec<audio::AudioDevice>, String> {
 
 #[tauri::command]
 async fn set_audio_device(window: tauri::WebviewWindow, device_id: String) -> Result<(), String> {
-    if window.label() != "main" {
-        return Err("当前窗口不能切换输出设备".into());
+    if !matches!(window.label(), "main" | "island") {
+        return Err("当前窗口不能切换音频设备".into());
     }
     tauri::async_runtime::spawn_blocking(move || audio::set_default(&device_id))
         .await

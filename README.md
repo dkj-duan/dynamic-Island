@@ -1,8 +1,8 @@
 # Dynamic Island for Windows
 
-把 macOS 灵动岛带到 Windows 桌面：番茄钟、喝水、音乐与歌词、邮件验证码和 AI 额度，都收进屏幕顶部一枚始终置顶的胶囊里。
+把 macOS 灵动岛带到 Windows 桌面：番茄钟、喝水、音乐与歌词、邮件验证码、AI 额度和音频设备切换，都收进屏幕顶部一枚始终置顶的胶囊里。
 
-_A dynamic island for Windows 10/11 — pomodoro, water, media & lyrics, mail codes and AI quota in one always-on-top capsule._
+_A dynamic island for Windows 10/11 — pomodoro, water, media & lyrics, mail codes, AI quota and audio device switching in one always-on-top capsule._
 
 Tauri 2 · Rust · React 19 · TypeScript · WebView2 · [MIT License](LICENSE)
 
@@ -15,7 +15,7 @@ Tauri 2 · Rust · React 19 · TypeScript · WebView2 · [MIT License](LICENSE)
 - 收起态按内容自适应宽度，悬停或点击展开；可设置鼠标离开后「立即 / 1 / 3 / 5 / 10 / 15 秒」收起。
 - 空闲时自定义显示哪些组件：时钟、喝水进度、番茄进度（今日个数 / 专注分钟 / 本轮轮次）、常驻额度环、正在播放、电池与充电、今日专注、连续专注、音量与静音、蓝牙耳机电量、喝水倒计时、倒计时；最多同时显示 6 个，可勾选并在预览里拖动排序。
 - 可在「设置 → 外观 → 胶囊」添加动态小岛伙伴，并调整它的显示顺序；系统开启减少动画时使用静态形象。
-- 展开后按页展示计时器、音乐、邮件、喝水、AI 额度，可用两侧箭头、底部圆点或拖动面板标题切换。
+- 展开后按页展示计时器、音乐、邮件、喝水、AI 额度、设备，可用两侧箭头、底部圆点或拖动面板标题切换；设备页可直接切换默认扬声器与麦克风。
 - 常驻置顶、可拖动并记住位置；岛始终为深色，浅色 / 深色主题只作用于设置窗口。
 - 按屏幕逻辑宽度自动分级字号与面板尺寸，适配 2K / 4K 与 Windows 缩放。
 

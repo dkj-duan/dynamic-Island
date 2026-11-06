@@ -1,4 +1,4 @@
-//! Output audio device discovery and default-device switching.
+//! Audio device discovery and default-device switching for playback and capture.
 //!
 //! Discovery uses the public Core Audio API. Switching uses the undocumented
 //! IPolicyConfig interface (the same path the Windows Sound settings use);
@@ -6,22 +6,38 @@
 
 use serde::Serialize;
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AudioDirection {
+    Output,
+    Input,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioDevice {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+    pub direction: AudioDirection,
 }
 
+/// Playback and capture endpoints in enumeration order, each marked against
+/// the default endpoint for its own direction.
 pub fn list() -> Result<Vec<AudioDevice>, String> {
     imp::list()
 }
 
 pub fn default_device() -> Option<AudioDevice> {
-    imp::default_device()
+    imp::default_device(AudioDirection::Output)
 }
 
+pub fn default_input_device() -> Option<AudioDevice> {
+    imp::default_device(AudioDirection::Input)
+}
+
+/// Switches the default endpoint for every role. Works for both playback and
+/// capture endpoint ids.
 pub fn set_default(device_id: &str) -> Result<(), String> {
     imp::set_default(device_id)
 }
@@ -29,12 +45,12 @@ pub fn set_default(device_id: &str) -> Result<(), String> {
 #[cfg(target_os = "windows")]
 #[allow(non_snake_case)]
 mod imp {
-    use super::AudioDevice;
+    use super::{AudioDevice, AudioDirection};
     use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
     use windows::Win32::Foundation::PROPERTYKEY;
     use windows::Win32::Media::Audio::{
-        DEVICE_STATE_ACTIVE, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
-        eCommunications, eConsole, eMultimedia, eRender,
+        DEVICE_STATE_ACTIVE, EDataFlow, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
+        eCapture, eCommunications, eConsole, eMultimedia, eRender,
     };
     use windows::Win32::System::Com::StructuredStorage::{
         PROPVARIANT, PropVariantClear, PropVariantToStringAlloc,
@@ -129,48 +145,72 @@ mod imp {
         }
     }
 
-    fn describe(device: &IMMDevice) -> Result<AudioDevice, String> {
+    fn describe(device: &IMMDevice, direction: AudioDirection) -> Result<AudioDevice, String> {
         let id = endpoint_id(device)?;
         let name = friendly_name(device).unwrap_or_else(|| "未命名设备".to_string());
         Ok(AudioDevice {
             id,
             name,
             is_default: false,
+            direction,
         })
+    }
+
+    fn flow_enum(flow: EDataFlow) -> (AudioDirection, &'static str) {
+        if flow == eCapture {
+            (AudioDirection::Input, "输入设备")
+        } else {
+            (AudioDirection::Output, "输出设备")
+        }
+    }
+
+    fn flow_devices(
+        enumerator: &IMMDeviceEnumerator,
+        flow: EDataFlow,
+    ) -> Result<Vec<AudioDevice>, String> {
+        let (direction, label) = flow_enum(flow);
+        unsafe {
+            let default_id = enumerator
+                .GetDefaultAudioEndpoint(flow, eConsole)
+                .ok()
+                .and_then(|device| endpoint_id(&device).ok());
+            let collection = enumerator
+                .EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE)
+                .map_err(|error| format!("无法读取{label}: {error}"))?;
+            let count = collection.GetCount().map_err(|error| error.to_string())?;
+            let mut devices = Vec::new();
+            for index in 0..count {
+                let device = collection.Item(index).map_err(|error| error.to_string())?;
+                let mut info = describe(&device, direction)?;
+                info.is_default = default_id.as_deref() == Some(info.id.as_str());
+                devices.push(info);
+            }
+            Ok(devices)
+        }
     }
 
     pub fn list() -> Result<Vec<AudioDevice>, String> {
         with_com(|| {
             let enumerator = enumerator()?;
-            unsafe {
-                let default_id = enumerator
-                    .GetDefaultAudioEndpoint(eRender, eConsole)
-                    .ok()
-                    .and_then(|device| endpoint_id(&device).ok());
-                let collection = enumerator
-                    .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
-                    .map_err(|error| format!("无法读取输出设备: {error}"))?;
-                let count = collection.GetCount().map_err(|error| error.to_string())?;
-                let mut devices = Vec::new();
-                for index in 0..count {
-                    let device = collection.Item(index).map_err(|error| error.to_string())?;
-                    let mut info = describe(&device)?;
-                    info.is_default = default_id.as_deref() == Some(info.id.as_str());
-                    devices.push(info);
-                }
-                Ok(devices)
-            }
+            let mut devices = flow_devices(&enumerator, eRender)?;
+            devices.extend(flow_devices(&enumerator, eCapture)?);
+            Ok(devices)
         })
     }
 
-    pub fn default_device() -> Option<AudioDevice> {
+    pub fn default_device(direction: AudioDirection) -> Option<AudioDevice> {
         with_com(|| {
             let enumerator = enumerator()?;
+            let flow = if direction == AudioDirection::Input {
+                eCapture
+            } else {
+                eRender
+            };
             unsafe {
                 let device = enumerator
-                    .GetDefaultAudioEndpoint(eRender, eConsole)
+                    .GetDefaultAudioEndpoint(flow, eConsole)
                     .map_err(|error| error.to_string())?;
-                let mut info = describe(&device)?;
+                let mut info = describe(&device, direction)?;
                 info.is_default = true;
                 Ok(info)
             }
@@ -182,12 +222,12 @@ mod imp {
         let wide: Vec<u16> = device_id.encode_utf16().chain(std::iter::once(0)).collect();
         with_com(|| unsafe {
             let policy: IPolicyConfig = CoCreateInstance(&POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)
-                .map_err(|error| format!("无法切换输出设备: {error}"))?;
+                .map_err(|error| format!("无法切换音频设备: {error}"))?;
             for role in [eConsole, eMultimedia, eCommunications] {
                 policy
                     .SetDefaultEndpoint(PCWSTR(wide.as_ptr()), role)
                     .ok()
-                    .map_err(|error| format!("切换输出设备失败: {error}"))?;
+                    .map_err(|error| format!("切换音频设备失败: {error}"))?;
             }
             Ok(())
         })
@@ -196,17 +236,17 @@ mod imp {
 
 #[cfg(not(target_os = "windows"))]
 mod imp {
-    use super::AudioDevice;
+    use super::{AudioDevice, AudioDirection};
 
     pub fn list() -> Result<Vec<AudioDevice>, String> {
-        Err("输出设备切换仅支持 Windows".into())
+        Err("音频设备切换仅支持 Windows".into())
     }
 
-    pub fn default_device() -> Option<AudioDevice> {
+    pub fn default_device(_direction: AudioDirection) -> Option<AudioDevice> {
         None
     }
 
     pub fn set_default(_device_id: &str) -> Result<(), String> {
-        Err("输出设备切换仅支持 Windows".into())
+        Err("音频设备切换仅支持 Windows".into())
     }
 }

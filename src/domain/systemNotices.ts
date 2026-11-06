@@ -7,11 +7,14 @@ export type SystemStatus = {
   battery: number | null;
   charging: boolean | null;
   outputDevice: AudioDevice | null;
+  inputDevice: AudioDevice | null;
 };
+export type AudioDirection = "output" | "input";
 export type AudioDevice = {
   id: string;
   name: string;
   isDefault: boolean;
+  direction: AudioDirection;
 };
 export type BluetoothStatus = {
   id: string;
@@ -36,6 +39,10 @@ export function systemChanges(
     !!current.outputDevice &&
     !!previous.outputDevice &&
     current.outputDevice.id !== previous.outputDevice.id;
+  const inputChanged =
+    !!current.inputDevice &&
+    !!previous.inputDevice &&
+    current.inputDevice.id !== previous.inputDevice.id;
   if (
     !deviceChanged &&
     current.volume !== null &&
@@ -72,6 +79,13 @@ export function systemChanges(
       kind: "audio",
       label: t("输出设备"),
       value: current.outputDevice.name,
+    });
+  }
+  if (inputChanged && current.inputDevice) {
+    notices.push({
+      kind: "audio",
+      label: t("输入设备"),
+      value: current.inputDevice.name,
     });
   }
   return notices;

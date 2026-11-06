@@ -1,7 +1,7 @@
 import { Button, List, Tag, Typography } from "antd";
 import {
+  AudioOutlined,
   BellOutlined,
-  BgColorsOutlined,
   BulbOutlined,
   CustomerServiceOutlined,
   ReloadOutlined,
@@ -88,10 +88,12 @@ export function StatusSettings() {
       await invoke("set_audio_device", { deviceId: device.id });
       const list = await invoke<AudioDevice[]>("get_audio_devices");
       setAudio({ state: "ready", value: list });
-      setAudioMessage(t("已切换输出设备"));
+      setAudioMessage(
+        t(device.direction === "input" ? "已切换输入设备" : "已切换输出设备"),
+      );
     } catch (error) {
       setAudioMessage(
-        typeof error === "string" ? error : t("切换输出设备失败，请重试"),
+        typeof error === "string" ? error : t("切换音频设备失败，请重试"),
       );
     } finally {
       setSwitching("");
@@ -238,8 +240,10 @@ export function StatusSettings() {
       </Section>
 
       <Section
-        title={t("输出设备")}
-        description={t("点击设备即可设为默认播放设备；托盘菜单也可以切换。")}
+        title={t("音频设备")}
+        description={t(
+          "点击设备即可设为默认播放或录音设备；托盘菜单也可以切换输出。",
+        )}
         extra={
           <Button
             icon={<ReloadOutlined />}
@@ -256,52 +260,76 @@ export function StatusSettings() {
           </Typography.Text>
         ) : audio.state === "loading" ? (
           <Typography.Text type="secondary">
-            {t("正在读取输出设备…")}
+            {t("正在读取音频设备…")}
           </Typography.Text>
         ) : audio.state === "error" ? (
           <Typography.Text type="secondary">
-            {t("读取输出设备失败")}
-          </Typography.Text>
-        ) : audio.value.length === 0 ? (
-          <Typography.Text type="secondary">
-            {t("未找到输出设备")}
+            {t("读取音频设备失败")}
           </Typography.Text>
         ) : (
-          <List
-            dataSource={audio.value}
-            renderItem={(device) => (
-              <List.Item
-                className={`antd-device-row ${device.isDefault ? "is-default" : ""}`}
-                onClick={() => void switchDevice(device)}
-                actions={[
-                  device.isDefault ? (
-                    <Tag key="tag" color="blue">
-                      {t("默认")}
-                    </Tag>
-                  ) : null,
-                ].filter(Boolean)}
-              >
-                <div className="antd-list-row">
-                  <span className="antd-list-icon">
-                    {device.isDefault ? (
-                      <CustomerServiceOutlined />
-                    ) : (
-                      <BgColorsOutlined />
-                    )}
-                  </span>
-                  <div className="antd-list-copy">
-                    <strong>{device.name}</strong>
-                    <small>
-                      {device.isDefault
-                        ? t("当前默认设备")
-                        : t("点击切换为默认输出设备")}
-                    </small>
-                  </div>
-                  {switching === device.id && <ReloadOutlined spin />}
+          <div className="antd-device-groups">
+            {(["output", "input"] as const).map((direction) => {
+              const items = audio.value.filter(
+                (device) => device.direction === direction,
+              );
+              return (
+                <div className="antd-device-group" key={direction}>
+                  <Typography.Text strong className="antd-device-group-title">
+                    {t(direction === "output" ? "输出设备" : "输入设备")}
+                  </Typography.Text>
+                  {items.length === 0 ? (
+                    <Typography.Text type="secondary">
+                      {t(
+                        direction === "output"
+                          ? "未找到输出设备"
+                          : "未找到输入设备",
+                      )}
+                    </Typography.Text>
+                  ) : (
+                    <List
+                      dataSource={items}
+                      renderItem={(device) => (
+                        <List.Item
+                          className={`antd-device-row ${device.isDefault ? "is-default" : ""}`}
+                          onClick={() => void switchDevice(device)}
+                          actions={[
+                            device.isDefault ? (
+                              <Tag key="tag" color="blue">
+                                {t("默认")}
+                              </Tag>
+                            ) : null,
+                          ].filter(Boolean)}
+                        >
+                          <div className="antd-list-row">
+                            <span className="antd-list-icon">
+                              {device.direction === "input" ? (
+                                <AudioOutlined />
+                              ) : (
+                                <CustomerServiceOutlined />
+                              )}
+                            </span>
+                            <div className="antd-list-copy">
+                              <strong>{device.name}</strong>
+                              <small>
+                                {device.isDefault
+                                  ? t("当前默认设备")
+                                  : t(
+                                      device.direction === "input"
+                                        ? "点击切换为默认录音设备"
+                                        : "点击切换为默认输出设备",
+                                    )}
+                              </small>
+                            </div>
+                            {switching === device.id && <ReloadOutlined spin />}
+                          </div>
+                        </List.Item>
+                      )}
+                    />
+                  )}
                 </div>
-              </List.Item>
-            )}
-          />
+              );
+            })}
+          </div>
         )}
         <Typography.Text type="secondary" className="antd-hint">
           {audioMessage}
