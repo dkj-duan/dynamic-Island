@@ -33,7 +33,7 @@ mailparse = "0.16"
 regex = "1"
 uuid = { version = "1", features = ["v4"] }
 arboard = { version = "3", default-features = false }
-rusqlite = { version = "0.37", features = ["bundled", "backup"] }
+rusqlite = { version = "0.41", features = ["bundled", "backup"] }
 tauri-plugin-dialog = "2"
 tempfile = "3"
 zeroize = "1"
