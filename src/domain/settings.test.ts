@@ -18,6 +18,10 @@ describe("parseAppearance", () => {
       islandLyrics: false,
       reminderStyle: "breathe",
       reminderAutoExpand: false,
+      hotkeyFocus: true,
+      hotkeyWater: true,
+      hotkeyIsland: true,
+      forwardNotifications: false,
     });
   });
   it("migrates old shapes and rejects invalid new shapes", () => {
@@ -282,6 +286,48 @@ describe("parseAppearance", () => {
     ).toBe("count");
     expect(() =>
       parseAppearance({ ...base, pomodoroView: "unknown" }),
+    ).toThrow();
+  });
+
+  it("reads hotkeys and notification forwarding from version 13", () => {
+    const base = {
+      version: 12,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock"],
+      islandLyrics: false,
+      pomodoroView: "count",
+      reminderStyle: "breathe",
+      reminderAutoExpand: false,
+      expandedShape: "classic",
+    };
+    // Version 12 data keeps the defaults for the new switches.
+    const migrated = parseAppearance(base);
+    expect(migrated.hotkeyFocus).toBe(true);
+    expect(migrated.hotkeyWater).toBe(true);
+    expect(migrated.hotkeyIsland).toBe(true);
+    expect(migrated.forwardNotifications).toBe(false);
+    const updated = parseAppearance({
+      ...base,
+      version: 13,
+      hotkeyFocus: false,
+      hotkeyWater: true,
+      hotkeyIsland: false,
+      forwardNotifications: true,
+    });
+    expect(updated.hotkeyFocus).toBe(false);
+    expect(updated.hotkeyWater).toBe(true);
+    expect(updated.hotkeyIsland).toBe(false);
+    expect(updated.forwardNotifications).toBe(true);
+    expect(() =>
+      parseAppearance({ ...base, version: 13, hotkeyFocus: "yes" }),
+    ).toThrow();
+    expect(() =>
+      parseAppearance({ ...base, version: 13, forwardNotifications: 1 }),
     ).toThrow();
   });
 });

@@ -189,7 +189,7 @@ export default function App() {
     setStatus({ text: t("正在同步…"), error: false });
     try {
       await emitTo("island", "appearance-changed", {
-        version: 12,
+        version: 13,
         ...normalized,
       });
     } catch {
@@ -232,7 +232,7 @@ export default function App() {
     setDirty(false);
     setStatus({ text: t("已切换数据目录"), error: false });
     await Promise.all([
-      emitTo("island", "appearance-changed", { version: 12, ...value }),
+      emitTo("island", "appearance-changed", { version: 13, ...value }),
       emitTo("island", "mail-accounts-changed"),
       emitTo("island", "ai-accounts-changed"),
     ]);
