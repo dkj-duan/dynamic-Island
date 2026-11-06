@@ -28,6 +28,23 @@ export const MAX_IDLE_WIDGETS = 6;
 export const pomodoroIdleViews = ["count", "focus", "cycle"] as const;
 export type PomodoroIdleView = (typeof pomodoroIdleViews)[number];
 
+/** How the capsule draws attention when a reminder arrives. */
+export const reminderStyles = [
+  "breathe",
+  "sweep",
+  "pulse",
+  "beam",
+  "none",
+] as const;
+export type ReminderStyle = (typeof reminderStyles)[number];
+/** Version 9 predates the travelling border beam. */
+const legacyReminderStyles: readonly ReminderStyle[] = [
+  "breathe",
+  "sweep",
+  "pulse",
+  "none",
+];
+
 export interface AppearanceSettings {
   theme: "system" | "light" | "dark";
   scale: number;
@@ -43,6 +60,10 @@ export interface AppearanceSettings {
   pomodoroView: PomodoroIdleView;
   /** Show the current lyric instead of the artist in the music capsule. */
   islandLyrics: boolean;
+  /** Reminder attention effect. */
+  reminderStyle: ReminderStyle;
+  /** Open the panel by itself when a reminder arrives. */
+  reminderAutoExpand: boolean;
 }
 export const defaultAppearance: AppearanceSettings = {
   theme: "system",
@@ -54,6 +75,8 @@ export const defaultAppearance: AppearanceSettings = {
   idleWidgets: ["clock", "quota"],
   pomodoroView: "count",
   islandLyrics: false,
+  reminderStyle: "breathe",
+  reminderAutoExpand: false,
 };
 
 function parseIdleWidgets(value: unknown): IdleWidgetId[] {
@@ -85,7 +108,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 5 &&
       item.version !== 6 &&
       item.version !== 7 &&
-      item.version !== 8) ||
+      item.version !== 8 &&
+      item.version !== 9 &&
+      item.version !== 10) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -122,7 +147,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
         ? ["clock", "quota"]
         : ["quota"];
   let islandLyrics = false;
-  if (item.version === 7 || item.version === 8) {
+  if (item.version >= 7) {
     if (typeof item.islandLyrics !== "boolean")
       throw new Error("岛上歌词设置无效");
     islandLyrics = item.islandLyrics;
@@ -132,6 +157,17 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     if (!pomodoroIdleViews.includes(item.pomodoroView as PomodoroIdleView))
       throw new Error("番茄组件显示方式无效");
     pomodoroView = item.pomodoroView as PomodoroIdleView;
+  }
+  let reminderStyle = defaultAppearance.reminderStyle;
+  let reminderAutoExpand = defaultAppearance.reminderAutoExpand;
+  if (item.version >= 9) {
+    const styles = item.version >= 10 ? reminderStyles : legacyReminderStyles;
+    if (!styles.includes(item.reminderStyle as ReminderStyle))
+      throw new Error("提醒动效无效");
+    reminderStyle = item.reminderStyle as ReminderStyle;
+    if (typeof item.reminderAutoExpand !== "boolean")
+      throw new Error("提醒展开设置无效");
+    reminderAutoExpand = item.reminderAutoExpand;
   }
   return {
     theme,
@@ -143,5 +179,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     idleWidgets,
     pomodoroView,
     islandLyrics,
+    reminderStyle,
+    reminderAutoExpand,
   };
 }

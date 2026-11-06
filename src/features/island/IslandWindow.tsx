@@ -742,15 +742,26 @@ export function IslandWindow() {
       collapseTimeout.current = null;
     }
   }
+  // A panel opened by a reminder gets 20s to be noticed. As soon as the
+  // pointer reaches it the reminder has been seen, so the hold is dropped and
+  // the normal "collapse after leaving" delay applies again.
+  const reminderHold = useRef(0);
+  function reminderHoldRemaining() {
+    return Math.max(0, reminderHold.current - Date.now());
+  }
   function scheduleAutoCollapse() {
     cancelAutoCollapse();
     if (!expanded || transitioning) return;
+    const delay = Math.max(
+      appearance.autoCollapseSeconds * 1000,
+      reminderHoldRemaining(),
+    );
     collapseTimeout.current = window.setTimeout(() => {
       collapseTimeout.current = null;
       if (!panel.current?.matches(":hover")) {
         void toggleExpanded();
       }
-    }, appearance.autoCollapseSeconds * 1000);
+    }, delay);
   }
   useEffect(() => {
     scheduleCollapseRef.current = scheduleAutoCollapse;
@@ -769,6 +780,7 @@ export function IslandWindow() {
         event.clientY >= rect.top &&
         event.clientY <= rect.bottom;
       if (inside) {
+        reminderHold.current = 0;
         if (collapseTimeout.current !== null) {
           window.clearTimeout(collapseTimeout.current);
           collapseTimeout.current = null;
@@ -806,7 +818,11 @@ export function IslandWindow() {
       hoverTimeout.current = null;
     }
   }
+  function releaseReminderHold() {
+    reminderHold.current = 0;
+  }
   function handlePanelEnter() {
+    releaseReminderHold();
     cancelAutoCollapse();
     if (appearance.expandTrigger !== "hover") return;
     if (expanded || transitioning || dragState.current?.active) return;
@@ -825,16 +841,19 @@ export function IslandWindow() {
   }
   // Reminder capsules carry their own destination, so opening the panel from
   // one (by click or by hover) must land on that page instead of the last tab.
-  function openReminderPage() {
+  function openReminderPage(acknowledge = true) {
     if (expanded) return;
     if (display === "mail") {
       setActiveTab("mail");
       setMailIndex(0);
       setCopyStatus(null);
-      // Opening the panel counts as handling the reminder.
-      dismissHighlight();
+      // A user opening the panel counts as handling the reminder; an
+      // automatic expansion must keep it alive.
+      if (acknowledge) dismissHighlight();
     } else if (display === "water") {
       setActiveTab("water");
+    } else if (display === "finished") {
+      setActiveTab("timer");
     }
   }
   function beginDrag(event: React.PointerEvent) {
@@ -881,6 +900,7 @@ export function IslandWindow() {
     setTransitioning(true);
     try {
       if (expanded) {
+        reminderHold.current = 0;
         const animation = waitForPanelTransition(panel.current);
         setExpanded(false);
         await animation;
@@ -1016,6 +1036,88 @@ export function IslandWindow() {
     // lyrics are off, music only appears through the idle music widget.
     media: !!(media?.title && media.playing && appearance.islandLyrics),
   });
+  // Reminder-aware chrome: the capsule pops once when a reminder arrives and
+  // keeps a colour-coded breathing ring until it is acknowledged.
+  const alertKind =
+    display === "finished"
+      ? "timer"
+      : display === "mail"
+        ? "mail"
+        : display === "water"
+          ? "water"
+          : display === "notice"
+            ? "notice"
+            : null;
+  const alertToken = alertKind
+    ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}`
+    : "";
+  const [popping, setPopping] = useState(false);
+  useEffect(() => {
+    if (!alertToken) return;
+    // Flip the class on the next frame so the spring transition replays even
+    // when two reminders arrive back to back.
+    const frame = window.requestAnimationFrame(() => setPopping(true));
+    const timer = window.setTimeout(() => setPopping(false), 220);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [alertToken]);
+  useEffect(() => {
+    if (!alertKind) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (alertKind === "timer") resetTimer();
+      else if (alertKind === "mail") dismissHighlight();
+      else if (alertKind === "water") setWaterReminder(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [alertKind, dismissHighlight]);
+
+  // Optional: open the panel by itself when a reminder arrives. System
+  // notices stay transient so volume keys do not keep popping the panel.
+  const reminderActions = useRef({
+    open: openReminderPage,
+    expand: toggleExpanded,
+    expanded,
+    transitioning,
+  });
+  useEffect(() => {
+    reminderActions.current = {
+      open: openReminderPage,
+      expand: toggleExpanded,
+      expanded,
+      transitioning,
+    };
+  });
+  const autoExpandedRef = useRef("");
+  // A fresh reminder of the same kind (two water nudges in a row) must be
+  // able to expand again once the previous one has cleared.
+  useEffect(() => {
+    if (!alertToken) autoExpandedRef.current = "";
+  }, [alertToken]);
+  useEffect(() => {
+    if (!alertToken || !appearance.reminderAutoExpand) return;
+    if (autoExpandedRef.current === alertToken) return;
+    if (!alertKind || alertKind === "notice") return;
+    autoExpandedRef.current = alertToken;
+    const current = reminderActions.current;
+    if (current.expanded || current.transitioning) return;
+    reminderHold.current = Date.now() + 20_000;
+    current.open(false);
+    void current.expand();
+  }, [alertToken, alertKind, appearance.reminderAutoExpand]);
+  // The hold is measured from the moment the panel actually opens; wait for
+  // the expansion transition to finish before arming the collapse timer.
+  useEffect(() => {
+    if (transitioning) return;
+    if (!expanded) {
+      reminderHold.current = 0;
+      return;
+    }
+    if (reminderHoldRemaining() > 0) scheduleCollapseRef.current();
+  }, [expanded, transitioning]);
   const isPomodoroMode =
     timerMode === "focus" || timerMode === "break" || timerMode === "longBreak";
   function timerModeLabel(): string {
@@ -1144,8 +1246,7 @@ export function IslandWindow() {
         ? 240
         : 232;
   // A transient banner floats over the panel bottom; make room for it.
-  const panelHasBanner =
-    expanded && ((display === "notice" && !!notice) || display === "mail");
+  const panelHasBanner = expanded && display === "notice" && !!notice;
   function applyMediaState(state: MediaState | null) {
     const next = state?.title ? state : null;
     if (next) {
@@ -1255,7 +1356,7 @@ export function IslandWindow() {
       setCopyStatus({ code, message: t("复制失败") });
     }
   }
-  // Copy feedback is transient; the button falls back to "复制验证码".
+  // Copy feedback is transient; the button falls back to "复制".
   useEffect(() => {
     if (!copyStatus) return;
     const timer = window.setTimeout(() => setCopyStatus(null), 2200);
@@ -1268,16 +1369,30 @@ export function IslandWindow() {
     >
       <div
         ref={panel}
-        className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""}`}
-        style={{ width: panelWidth }}
+        className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${popping && alertKind ? "is-popping" : ""}`}
+        data-alert={alertKind ?? undefined}
+        data-reminder={alertKind ? appearance.reminderStyle : undefined}
+        style={
+          {
+            width: panelWidth,
+            ...(alertKind === "water"
+              ? { "--alert-color": waterToneColor }
+              : {}),
+          } as CSSProperties
+        }
         onMouseEnter={handlePanelEnter}
         onMouseLeave={handlePanelLeave}
-        onFocusCapture={cancelAutoCollapse}
+        onPointerDownCapture={releaseReminderHold}
+        onFocusCapture={() => {
+          releaseReminderHold();
+          cancelAutoCollapse();
+        }}
         onBlurCapture={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null))
             scheduleAutoCollapse();
         }}
       >
+        {alertKind && <span className="island-alert-ring" aria-hidden="true" />}
         <button
           className="island-toggle"
           aria-expanded={expanded}
@@ -1386,7 +1501,7 @@ export function IslandWindow() {
                     timer.status === "paused"
                       ? "已暂停"
                       : timer.status === "finished"
-                        ? "已结束"
+                        ? "已结束 · 按 Esc 关闭"
                         : "进行中",
                   )}
                 </span>
@@ -1488,14 +1603,15 @@ export function IslandWindow() {
         )}
         {!expanded && display === "mail" && capsuleMail?.code && (
           <button
-            className={`island-copy ${capsuleCopied ? "is-copied" : ""}`}
+            className={`island-copy has-label ${capsuleCopied ? "is-copied" : ""}`}
             aria-label={capsuleCopied ? t("已复制") : t("复制验证码")}
             title={capsuleCopied ? t("已复制") : t("复制验证码")}
             onClick={() =>
               void copyCode(capsuleMail.code!, capsuleMail.expiresAt)
             }
           >
-            {capsuleCopied ? <Check size={13} /> : <Copy size={13} />}
+            {capsuleCopied ? <Check size={12} /> : <Copy size={12} />}
+            <span>{capsuleCopied ? t("已复制") : t("复制")}</span>
           </button>
         )}
         {!expanded && display === "mail" && capsuleMail && (
@@ -1510,14 +1626,6 @@ export function IslandWindow() {
             <NoticeIcon kind={notice.kind} />
             <span>{notice.label}</span>
             <strong>{notice.value}</strong>
-          </div>
-        )}
-        {expanded && display === "mail" && (
-          <div className="system-notice-banner" role="status">
-            <Mail size={13} />
-            <span>
-              {recentMail[0].code ? t("收到邮箱验证码") : t("收到新邮件")}
-            </span>
           </div>
         )}
         <div
@@ -1900,15 +2008,23 @@ export function IslandWindow() {
                         <strong className="island-mail-subject">
                           {selectedMail.subject || t("新邮件")}
                         </strong>
-                        <span>{selectedMail.account} · 最近提醒</span>
+                        <span>
+                          {selectedMail.account} · {t("最近提醒")}
+                        </span>
                       </div>
                     </div>
                     {/* Fixed regions: the pager stays put across mails. */}
                     <div className="island-mail-body">
                       {selectedMail.code ? (
                         <div className="island-mail-code">
-                          <span>{selectedMail.code}</span>
+                          <div className="island-mail-code-text">
+                            <span className="island-mail-code-label">
+                              {t("验证码")}
+                            </span>
+                            <strong>{selectedMail.code}</strong>
+                          </div>
                           <button
+                            className={`island-mail-code-copy ${currentCopyStatus ? "is-copied" : ""}`}
                             onClick={() =>
                               void copyCode(
                                 selectedMail.code!,
@@ -1917,11 +2033,11 @@ export function IslandWindow() {
                             }
                           >
                             {currentCopyStatus === t("已复制") ? (
-                              <Check size={14} />
+                              <Check size={13} />
                             ) : (
-                              <Copy size={14} />
+                              <Copy size={13} />
                             )}
-                            {currentCopyStatus || t("复制验证码")}
+                            <span>{currentCopyStatus || t("复制")}</span>
                           </button>
                         </div>
                       ) : (
@@ -2168,7 +2284,7 @@ export function IslandWindow() {
                   <span>
                     {t(
                       timer.status === "finished"
-                        ? "已结束"
+                        ? "已结束 · 按 Esc 关闭"
                         : timer.status === "paused"
                           ? "已暂停"
                           : timer.status === "running"

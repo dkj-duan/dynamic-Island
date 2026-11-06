@@ -59,7 +59,7 @@
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="mail"] .island-panel {
-  --panel-h: 182px;
+  --panel-h: 188px;
 }
 
 :root[data-large-display="true"] .is-expanded[data-page="ai"] .island-panel {

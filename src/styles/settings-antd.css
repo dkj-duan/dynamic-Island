@@ -704,3 +704,72 @@
 .settings-water-hero .settings-water-actions > .ant-btn {
   width: 100%;
 }
+
+/* Reminder animation picker preview. */
+.reminder-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+
+.reminder-preview {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  overflow: hidden;
+  border: 1px solid #2b2b32;
+  border-radius: 19px;
+  background: #0b0b0d;
+  color: #f2f2f5;
+  font-size: 13px;
+}
+
+.reminder-preview .island-alert-ring {
+  z-index: 1;
+}
+
+.reminder-preview > *:not(.island-alert-ring) {
+  position: relative;
+  z-index: 2;
+}
+
+.reminder-preview .anticon {
+  color: #f0b26b;
+}
+
+.reminder-preview strong {
+  margin-left: 6px;
+  color: #f0b26b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Interaction page: labelled stacks inside a card. */
+.behavior-field {
+  display: grid;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.behavior-field + .behavior-field {
+  border-top: 1px solid rgb(128 128 128 / 0.14);
+}
+
+.behavior-label {
+  color: #6f6f79;
+  font-size: 12px;
+}
+
+.behavior-hint {
+  color: #8a8a94;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.antd-settings[data-theme="dark"] .behavior-label,
+.antd-settings[data-theme="dark"] .behavior-hint {
+  color: #9a9aa4;
+}

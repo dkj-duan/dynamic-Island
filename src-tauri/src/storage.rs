@@ -245,7 +245,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
     let idle_widgets_valid = match version {
-        Some(8) => value
+        Some(8..=10) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -296,22 +296,44 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7 | 8) => value
+        Some(7..=10) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8) => matches!(
+        Some(8..=10) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
+    let reminder_valid = match version {
+        Some(10) => {
+            matches!(
+                value.get("reminderStyle").and_then(|v| v.as_str()),
+                Some("breathe" | "sweep" | "pulse" | "beam" | "none")
+            ) && value
+                .get("reminderAutoExpand")
+                .and_then(|v| v.as_bool())
+                .is_some()
+        }
+        Some(9) => {
+            matches!(
+                value.get("reminderStyle").and_then(|v| v.as_str()),
+                Some("breathe" | "sweep" | "pulse" | "none")
+            ) && value
+                .get("reminderAutoExpand")
+                .and_then(|v| v.as_bool())
+                .is_some()
+        }
+        _ => true,
+    };
     if !idle_widgets_valid
         || !lyrics_valid
         || !pomodoro_view_valid
+        || !reminder_valid
         || !matches!(
             value.get("theme").and_then(|v| v.as_str()),
             Some("system" | "light" | "dark")
@@ -1231,6 +1253,45 @@ mod tests {
         let mut missing_view = v8.clone();
         missing_view.as_object_mut().unwrap().remove("pomodoroView");
         assert!(validate_appearance(&missing_view).is_err());
+
+        let v9 = serde_json::json!({
+            "version": 9,
+            "theme": "system",
+            "scale": 1.0,
+            "showClock": true,
+            "autoCollapseSeconds": 3,
+            "expandTrigger": "click",
+            "language": "zh-CN",
+            "idleWidgets": ["clock", "water"],
+            "pomodoroView": "count",
+            "islandLyrics": true,
+            "reminderStyle": "sweep",
+            "reminderAutoExpand": true
+        });
+        assert!(validate_appearance(&v9).is_ok());
+        let mut bad_style = v9.clone();
+        bad_style["reminderStyle"] = serde_json::json!("sparkle");
+        assert!(validate_appearance(&bad_style).is_err());
+        let mut missing_expand = v9.clone();
+        missing_expand
+            .as_object_mut()
+            .unwrap()
+            .remove("reminderAutoExpand");
+        assert!(validate_appearance(&missing_expand).is_err());
+        let mut missing_style = v9.clone();
+        missing_style
+            .as_object_mut()
+            .unwrap()
+            .remove("reminderStyle");
+        assert!(validate_appearance(&missing_style).is_err());
+
+        let mut v10 = v9.clone();
+        v10["version"] = serde_json::json!(10);
+        v10["reminderStyle"] = serde_json::json!("beam");
+        assert!(validate_appearance(&v10).is_ok());
+        let mut legacy_beam = v9.clone();
+        legacy_beam["reminderStyle"] = serde_json::json!("beam");
+        assert!(validate_appearance(&legacy_beam).is_err());
     }
 
     #[test]

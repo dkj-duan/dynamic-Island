@@ -458,8 +458,6 @@ const en: Record<string, string> = {
     "Track info and controls appear here once music plays.",
   最近提醒: "Recent",
   新邮件: "New mail",
-  收到新邮件: "New mail",
-  收到邮箱验证码: "Verification code",
   验证码: "Code",
   复制验证码: "Copy code",
   已复制: "Copied",
@@ -577,6 +575,21 @@ const en: Record<string, string> = {
   可添加: "Available",
   关闭岛上歌词: "Hide island lyrics",
   开启岛上歌词: "Show island lyrics",
+  复制: "Copy",
+  "已结束 · 按 Esc 关闭": "Finished · Esc to dismiss",
+  提醒动效: "Reminder animation",
+  "提醒出现时胶囊的提示方式，可以在下面预览。":
+    "How the capsule reacts to a reminder; preview it below.",
+  呼吸描边: "Breathing outline",
+  光晕扫过: "Light sweep",
+  脉冲闪烁: "Pulse flash",
+  边框流光: "Border beam",
+  仅颜色: "Colour only",
+  重新播放: "Replay",
+  提醒时自动展开: "Expand on reminder",
+  "验证码、喝水和计时结束时会自动打开面板。":
+    "Opens the panel automatically for mail codes, water and finished timers.",
+  胶囊交互: "Capsule behaviour",
 };
 
 let current: Language = defaultLanguage;

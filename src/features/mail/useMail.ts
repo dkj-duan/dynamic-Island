@@ -5,8 +5,9 @@ import type { MailAccount, MailNotice } from "./types";
 
 export type RecentMail = MailNotice & { expiresAt: number };
 
-/** A code waits for the user; plain mail only gets a short heads-up. */
-const CODE_HIGHLIGHT_MS = 120_000;
+/** A code waits for the user (the notice itself lives for five minutes);
+ *  plain mail only gets a short heads-up. */
+const CODE_HIGHLIGHT_MS = 300_000;
 const MAIL_HIGHLIGHT_MS = 10_000;
 
 export function useMail() {

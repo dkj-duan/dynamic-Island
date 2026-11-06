@@ -15,6 +15,8 @@ describe("parseAppearance", () => {
       idleWidgets: ["quota"],
       pomodoroView: "count",
       islandLyrics: false,
+      reminderStyle: "breathe",
+      reminderAutoExpand: false,
     });
   });
   it("migrates version 2 and validates the selected theme", () => {
@@ -152,6 +154,57 @@ describe("parseAppearance", () => {
   ])("rejects invalid or unsupported data: %s", (input) => {
     expect(() => parseAppearance(input)).toThrow();
   });
+  it("reads reminder settings from version 9", () => {
+    const base = {
+      version: 9,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock"],
+      islandLyrics: false,
+      pomodoroView: "count",
+    };
+    const parsed = parseAppearance({
+      ...base,
+      reminderStyle: "sweep",
+      reminderAutoExpand: true,
+    });
+    expect(parsed.reminderStyle).toBe("sweep");
+    expect(parsed.reminderAutoExpand).toBe(true);
+    expect(() =>
+      parseAppearance({
+        ...base,
+        reminderStyle: "sparkle",
+        reminderAutoExpand: false,
+      }),
+    ).toThrow();
+    expect(() =>
+      parseAppearance({ ...base, reminderStyle: "pulse" }),
+    ).toThrow();
+  });
+
+  it("reads the border beam from version 10 only", () => {
+    const base = {
+      version: 10,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock"],
+      islandLyrics: false,
+      pomodoroView: "count",
+      reminderStyle: "beam",
+      reminderAutoExpand: false,
+    };
+    expect(parseAppearance(base).reminderStyle).toBe("beam");
+    expect(() => parseAppearance({ ...base, version: 9 })).toThrow();
+  });
+
   it("reads the pomodoro widget view from version 8", () => {
     const base = {
       version: 8,
