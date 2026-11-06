@@ -19,6 +19,7 @@ export const idleWidgetIds = [
   "bluetooth",
   "waterTimer",
   "countdown",
+  "mascot",
 ] as const;
 export type IdleWidgetId = (typeof idleWidgetIds)[number];
 
@@ -79,13 +80,14 @@ export const defaultAppearance: AppearanceSettings = {
   reminderAutoExpand: false,
 };
 
-function parseIdleWidgets(value: unknown): IdleWidgetId[] {
+function parseIdleWidgets(value: unknown, version: number): IdleWidgetId[] {
   if (!Array.isArray(value)) throw new Error("闲时内容无效");
   const widgets: IdleWidgetId[] = [];
   for (const item of value) {
     if (
       typeof item !== "string" ||
       !idleWidgetIds.includes(item as IdleWidgetId) ||
+      (item === "mascot" && version < 11) ||
       widgets.includes(item as IdleWidgetId)
     ) {
       throw new Error("闲时内容无效");
@@ -110,7 +112,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 7 &&
       item.version !== 8 &&
       item.version !== 9 &&
-      item.version !== 10) ||
+      item.version !== 10 &&
+      item.version !== 11) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -142,7 +145,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       : defaultAppearance.language;
   const idleWidgets: IdleWidgetId[] =
     item.version >= 6
-      ? parseIdleWidgets(item.idleWidgets)
+      ? parseIdleWidgets(item.idleWidgets, item.version as number)
       : item.showClock
         ? ["clock", "quota"]
         : ["quota"];

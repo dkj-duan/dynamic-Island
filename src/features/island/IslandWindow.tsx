@@ -50,6 +50,7 @@ import "../../styles/index.css";
 import { selectIslandDisplay } from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
 import { useIslandMedia } from "./useIslandMedia";
+import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
 import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
@@ -1083,751 +1084,759 @@ export function IslandWindow() {
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
       data-page={expanded ? activeTab : undefined}
     >
-      <div
-        ref={panel}
-        className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${popping && alertKind ? "is-popping" : ""}`}
-        data-alert={alertKind ?? undefined}
-        data-reminder={alertKind ? appearance.reminderStyle : undefined}
-        style={
-          {
-            width: panelWidth,
-            ...(alertKind === "water"
-              ? { "--alert-color": waterToneColor }
-              : {}),
-          } as CSSProperties
-        }
-        onMouseEnter={handlePanelEnter}
-        onMouseLeave={handlePanelLeave}
-        onPointerDownCapture={releaseReminderHold}
-        onFocusCapture={() => {
-          releaseReminderHold();
-          cancelAutoCollapse();
-        }}
-        onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-            scheduleAutoCollapse();
-        }}
+      <ReminderBeam
+        enabled={!!alertKind && appearance.reminderStyle === "beam"}
       >
-        {alertKind && <span className="island-alert-ring" aria-hidden="true" />}
-        <button
-          className="island-toggle"
-          aria-expanded={expanded}
-          aria-label={expanded ? t("收起灵动岛") : t("展开灵动岛")}
-          onPointerDown={beginDrag}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onClick={() => {
-            // A drag is not a click.
-            if (dragMoved.current) {
-              dragMoved.current = false;
-              return;
-            }
-            cancelHoverExpand();
-            openReminderPage();
-            void toggleExpanded();
+        <div
+          ref={panel}
+          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${popping && alertKind ? "is-popping" : ""}`}
+          data-alert={alertKind ?? undefined}
+          data-reminder={alertKind ? appearance.reminderStyle : undefined}
+          style={
+            {
+              width: panelWidth,
+              ...(alertKind === "water"
+                ? { "--alert-color": waterToneColor }
+                : {}),
+            } as CSSProperties
+          }
+          onMouseEnter={handlePanelEnter}
+          onMouseLeave={handlePanelLeave}
+          onPointerDownCapture={releaseReminderHold}
+          onFocusCapture={() => {
+            releaseReminderHold();
+            cancelAutoCollapse();
+          }}
+          onBlurCapture={(event) => {
+            if (
+              !event.currentTarget.contains(event.relatedTarget as Node | null)
+            )
+              scheduleAutoCollapse();
           }}
         >
-          {expanded ? null : display === "notice" && notice ? (
-            <span className="island-current system-notice" role="status">
-              <NoticeIcon kind={notice.kind} />
-              <span className="system-notice-label">{notice.label}</span>
-              <strong>{notice.value}</strong>
-            </span>
-          ) : display === "water" ? (
-            <span
-              className={`island-current island-water-current ${waterToneValue === "low" ? "is-low" : ""}`}
-              role="status"
-            >
-              <img
-                className="water-indicator water-drop-icon"
-                src={waterDrop}
-                alt=""
-                draggable={false}
-              />
-              <span className="compact-copy">
-                <span className="compact-primary">{t("该喝水了")}</span>
-                <span className="compact-secondary">
-                  {todayWater} / {water.goalMl} ml ·{" "}
-                  {waterCups(todayWater, water.cupMl)} {t("杯")}
-                </span>
-              </span>
-            </span>
-          ) : display === "mail" && capsuleMail ? (
-            <span
-              key={mailKey}
-              className={`island-current island-mail-current ${capsuleMail.code ? "has-code" : ""}`}
-              role="status"
-            >
-              {/* Icon on the left; account above the code, both centered. */}
-              <Mail
-                className={`island-mail-icon ${capsuleMail.code ? "" : "is-new"}`}
-                size={15}
-                aria-hidden="true"
-              />
-              <span className="compact-copy island-mail-copy">
-                <span className="island-mail-line">
-                  <span className="island-mail-account">
-                    {capsuleMail.account}
-                  </span>
-                </span>
-                <span
-                  className={`compact-primary ${capsuleMail.code ? "island-code" : "island-mail-title"}`}
-                >
-                  {capsuleMail.code ? (
-                    <>
-                      <span className="island-code-digits" aria-hidden="true">
-                        {[...capsuleMail.code].map((digit, index) => (
-                          <span
-                            key={index}
-                            style={{ "--i": index } as CSSProperties}
-                          >
-                            {digit}
-                          </span>
-                        ))}
-                      </span>
-                      <span className="sr-only">{capsuleMail.code}</span>
-                    </>
-                  ) : (
-                    capsuleMail.subject || t("新邮件")
-                  )}
-                </span>
-              </span>
-            </span>
-          ) : display === "timer" || display === "finished" ? (
-            <span className="island-current compact-timer timer-only">
-              {isPomodoroMode ? (
-                <img
-                  className="timer-indicator tomato-photo"
-                  src={pomodoroClock}
-                  alt=""
-                  draggable={false}
-                />
-              ) : (
-                <Timer
-                  className="timer-indicator"
-                  size={15}
-                  aria-hidden="true"
-                />
-              )}
-              <span className="compact-copy">
-                <span className="compact-primary">
-                  {timerModeLabel()} ·{" "}
-                  {t(
-                    timer.status === "paused"
-                      ? "已暂停"
-                      : timer.status === "finished"
-                        ? "已结束 · 按 Esc 关闭"
-                        : "进行中",
-                  )}
-                </span>
-              </span>
-              <span className={`island-timer-value mode-${timerMode}`}>
-                {timer.status === "finished" ? t("时间到") : remaining}
-              </span>
-            </span>
-          ) : display === "media" && media?.title ? (
-            <span className="island-current island-media-current">
-              <span
-                className={`compact-art ${media.playing && artwork?.key === mediaKey && artwork.src ? "is-spinning" : ""}`}
-              >
-                {artwork?.key === mediaKey && artwork.src ? (
-                  <img src={artwork.src} alt="" />
-                ) : (
-                  <Music2 size={14} aria-hidden="true" />
-                )}
-              </span>
-              <span className="compact-copy">
-                <span className="compact-primary">{media.title}</span>
-                <span className="compact-secondary">
-                  {appearance.islandLyrics && currentLyric
-                    ? currentLyric
-                    : media.artist || t("未知艺术家")}
-                </span>
-              </span>
-              <span className="media-playing-mark">
-                <MediaWave playing={media.playing} compact />
-                {mediaPosition !== null && (
-                  <span className="media-time">
-                    {formatMediaTime(mediaPosition)}
-                  </span>
-                )}
-                <span className="media-mark-slot" key={mediaBadgeShown}>
-                  {mediaBadgeShown === "quota" && idleData.quota ? (
-                    <QuotaRings
-                      items={idleData.quota.items}
-                      compact
-                      provider={idleData.quota.provider}
-                    />
-                  ) : mediaBadgeShown === "water" ? (
-                    <span
-                      className="media-badge"
-                      role="img"
-                      aria-label={`${t("喝水进度")} ${waterPercentToday}%`}
-                      title={`${t("喝水进度")} ${waterPercentToday}%`}
-                      style={
-                        {
-                          "--badge-percent": `${waterPercentToday}%`,
-                          "--badge-color": waterToneColor,
-                        } as CSSProperties
-                      }
-                    >
-                      <img src={waterDrop} alt="" />
-                    </span>
-                  ) : (
-                    <span
-                      className="media-badge"
-                      role="img"
-                      aria-label={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
-                      title={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
-                      style={
-                        {
-                          "--badge-percent": `${pomodoroBadgePercent}%`,
-                          "--badge-color": pomodoroBadgeColor,
-                        } as CSSProperties
-                      }
-                    >
-                      <img src={pomodoroClock} alt="" />
-                    </span>
-                  )}
-                </span>
-              </span>
-            </span>
-          ) : (
-            <IdleWidgets
-              key={appearance.idleWidgets.join(",")}
-              appearance={appearance}
-              data={idleData}
-              onWidthChange={setIdleWidth}
-            />
+          {alertKind && appearance.reminderStyle !== "beam" && (
+            <span className="island-alert-ring" aria-hidden="true" />
           )}
-        </button>
-        {!expanded && display === "water" && (
           <button
-            className={`island-copy island-water-add ${waterToneValue === "low" ? "is-low" : ""}`}
-            aria-label={t("喝一杯")}
-            title={`${t("喝一杯")}（${water.cupMl} ml）`}
-            onClick={() => void drinkWater(water.cupMl)}
-          >
-            <img
-              className="water-drop-sm"
-              src={waterDrop}
-              alt=""
-              draggable={false}
-            />
-          </button>
-        )}
-        {!expanded && display === "mail" && capsuleMail?.code && (
-          <button
-            className={`island-copy has-label ${capsuleCopied ? "is-copied" : ""}`}
-            aria-label={capsuleCopied ? t("已复制") : t("复制验证码")}
-            title={capsuleCopied ? t("已复制") : t("复制验证码")}
-            onClick={() =>
-              void copyCode(capsuleMail.code!, capsuleMail.expiresAt)
-            }
-          >
-            {capsuleCopied ? <Check size={12} /> : <Copy size={12} />}
-            <span>{capsuleCopied ? t("已复制") : t("复制")}</span>
-          </button>
-        )}
-        {!expanded && display === "mail" && capsuleMail && (
-          <span
-            key={`ring-${mailKey}`}
-            className="island-mail-ring"
-            aria-hidden="true"
-          />
-        )}
-        {expanded && display === "notice" && notice && (
-          <div className="system-notice-banner" role="status">
-            <NoticeIcon kind={notice.kind} />
-            <span>{notice.label}</span>
-            <strong>{notice.value}</strong>
-          </div>
-        )}
-        <div
-          className="island-details"
-          aria-hidden={!expanded}
-          inert={!expanded}
-          onWheel={handlePageWheel}
-        >
-          <div
-            className="island-head"
+            className="island-toggle"
+            aria-expanded={expanded}
+            aria-label={expanded ? t("收起灵动岛") : t("展开灵动岛")}
             onPointerDown={beginDrag}
             onPointerMove={moveDrag}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
+            onClick={() => {
+              // A drag is not a click.
+              if (dragMoved.current) {
+                dragMoved.current = false;
+                return;
+              }
+              cancelHoverExpand();
+              openReminderPage();
+              void toggleExpanded();
+            }}
           >
-            <span className={`island-page-title is-${activeTab}`}>
-              {t(
-                ISLAND_PAGES.find((page) => page.id === activeTab)?.label ??
-                  "计时器",
-              )}
-            </span>
-            <span className="island-head-clock">
-              {appearance.language === "en-US"
-                ? new Date(now).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    weekday: "short",
-                  })
-                : `${new Date(now).getMonth() + 1}月${new Date(now).getDate()}日 ${new Date(now).toLocaleDateString("zh-CN", { weekday: "short" })}`}{" "}
-              {new Date(now).toLocaleTimeString(appearance.language, {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })}
-            </span>
-            <div className="island-actions">
-              {activeTab === "music" && (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={appearance.islandLyrics}
-                  aria-label={t("岛上显示歌词")}
-                  title={
-                    appearance.islandLyrics
-                      ? t("关闭岛上歌词")
-                      : t("开启岛上歌词")
-                  }
-                  className={appearance.islandLyrics ? "is-on" : ""}
-                  onClick={toggleIslandLyrics}
-                >
-                  {appearance.islandLyrics ? (
-                    <Captions size={15} aria-hidden="true" />
-                  ) : (
-                    <CaptionsOff size={15} aria-hidden="true" />
-                  )}
-                </button>
-              )}
-              {activeTab === "ai" && (
-                <button
-                  aria-label={t("刷新额度")}
-                  title={t("刷新额度")}
-                  onClick={() => void ai.reload()}
-                >
-                  <RefreshCw size={15} aria-hidden="true" />
-                </button>
-              )}
-              {/* Without auto-collapse or hover mode this is the only way out
-                  of the expanded panel, so it stays for that case. */}
-              {appearance.expandTrigger !== "hover" &&
-                appearance.autoCollapseSeconds === 0 && (
-                  <button
-                    aria-label={t("收起灵动岛")}
-                    title={t("收起灵动岛")}
-                    onClick={() => void toggleExpanded()}
-                  >
-                    <ChevronUp size={15} aria-hidden="true" />
-                  </button>
-                )}
-              <button
-                aria-label={t("打开设置")}
-                title={t("打开设置")}
-                onClick={() => void run("open_settings")}
+            {expanded ? null : display === "notice" && notice ? (
+              <span className="island-current system-notice" role="status">
+                <NoticeIcon kind={notice.kind} />
+                <span className="system-notice-label">{notice.label}</span>
+                <strong>{notice.value}</strong>
+              </span>
+            ) : display === "water" ? (
+              <span
+                className={`island-current island-water-current ${waterToneValue === "low" ? "is-low" : ""}`}
+                role="status"
               >
-                <Settings2 size={15} aria-hidden="true" />
-              </button>
-              <button
-                aria-label={t("退出应用")}
-                title={t("退出应用")}
-                onClick={() => void run("quit_app")}
+                <img
+                  className="water-indicator water-drop-icon"
+                  src={waterDrop}
+                  alt=""
+                  draggable={false}
+                />
+                <span className="compact-copy">
+                  <span className="compact-primary">{t("该喝水了")}</span>
+                  <span className="compact-secondary">
+                    {todayWater} / {water.goalMl} ml ·{" "}
+                    {waterCups(todayWater, water.cupMl)} {t("杯")}
+                  </span>
+                </span>
+              </span>
+            ) : display === "mail" && capsuleMail ? (
+              <span
+                key={mailKey}
+                className={`island-current island-mail-current ${capsuleMail.code ? "has-code" : ""}`}
+                role="status"
               >
-                <Power size={15} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-          <div className="island-page" key={activeTab}>
-            {activeTab === "water" ? (
-              <WaterPage
-                water={water}
-                waterPercentToday={waterPercentToday}
-                waterToneValue={waterToneValue}
-                waterToneColor={waterToneColor}
-                waterAdded={waterAdded}
-                waterAddedMl={waterAddedMl}
-                todayWater={todayWater}
-                waterCupsToday={waterCupsToday}
-                customWaterOpen={customWaterOpen}
-                setCustomWaterOpen={setCustomWaterOpen}
-                customWaterMl={customWaterMl}
-                setCustomWaterMl={setCustomWaterMl}
-                waterError={waterError}
-                setWaterError={setWaterError}
-                drinkWater={drinkWater}
-              />
-            ) : activeTab === "ai" ? (
-              <QuotaPage
-                accounts={ai.accounts}
-                selectedAi={selectedAi}
-                selectedAiResult={selectedAiResult}
-                selectedItems={selectedItems}
-                selectedRings={selectedRings}
-                setSelectedAiId={setSelectedAiId}
-                language={appearance.language}
-              />
-            ) : activeTab === "mail" ? (
-              <MailPage
-                selectedMail={selectedMail}
-                recentMail={recentMail}
-                mailIndex={mailIndex}
-                setMailIndex={setMailIndex}
-                currentCopyStatus={currentCopyStatus}
-                setCopyStatus={setCopyStatus}
-                copyCode={copyCode}
-              />
-            ) : activeTab === "music" ? (
-              <MusicPage mediaState={mediaState} />
-            ) : countdownOpen ? (
-              <div className="countdown-picker">
-                {durationCountdowns.slice(0, 3).map((item) => (
-                  <button
-                    key={item.id}
-                    className="countdown-row"
-                    onClick={() => startCountdown(item)}
-                  >
-                    <span>{item.label}</span>
-                    <span className="countdown-row-value">
-                      {formatDurationSeconds(item.durationSeconds ?? 0)}
+                {/* Icon on the left; account above the code, both centered. */}
+                <Mail
+                  className={`island-mail-icon ${capsuleMail.code ? "" : "is-new"}`}
+                  size={15}
+                  aria-hidden="true"
+                />
+                <span className="compact-copy island-mail-copy">
+                  <span className="island-mail-line">
+                    <span className="island-mail-account">
+                      {capsuleMail.account}
                     </span>
-                  </button>
-                ))}
-                {durationCountdowns.length === 0 && (
-                  <span className="countdown-empty">
-                    {t("设置里还没有时长倒计时")}
                   </span>
-                )}
-                <div className="countdown-picker-actions">
-                  <button
-                    onClick={() => {
-                      setCountdownOpen(false);
-                      setCustomTimerOpen(true);
-                    }}
+                  <span
+                    className={`compact-primary ${capsuleMail.code ? "island-code" : "island-mail-title"}`}
                   >
-                    {t("临时倒计时")}
-                  </button>
-                  <button onClick={() => setCountdownOpen(false)}>
-                    {t("返回")}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="timer-view">
-                <div className="timer-status">
-                  <span>{timerModeLabel()}</span>
-                  <i aria-hidden="true" />
-                  <span>
-                    {t(
-                      timer.status === "finished"
-                        ? "已结束 · 按 Esc 关闭"
-                        : timer.status === "paused"
-                          ? "已暂停"
-                          : timer.status === "running"
-                            ? "进行中"
-                            : "选择时长",
-                    )}
-                  </span>
-                </div>
-                <div className="timer-main">
-                  {isPomodoroMode && (
-                    <img
-                      className="pomodoro-face"
-                      src={pomodoroClock}
-                      alt=""
-                      draggable={false}
-                    />
-                  )}
-                  <div
-                    className={`timer-clock is-${timer.status} mode-${timerMode}`}
-                  >
-                    {timer.status === "finished"
-                      ? t("时间到")
-                      : timer.status === "idle"
-                        ? formatRemaining(
-                            customTimerOpen
-                              ? (parseDuration(minutes, seconds) ?? 0)
-                              : presetMilliseconds() ||
-                                  (parseDuration(minutes, seconds) ?? 0),
-                          )
-                        : remaining}
-                  </div>
-                </div>
-                {isPomodoroMode && (
-                  <div className="timer-pomodoro">
-                    <span
-                      className="pomodoro-tomatoes"
-                      role="img"
-                      aria-label={`${t("本轮")} ${Math.min(
-                        pomodoroProgress.cycle,
-                        pomodoro.longBreakEvery,
-                      )}/${pomodoro.longBreakEvery}`}
-                    >
-                      {Array.from(
-                        { length: pomodoro.longBreakEvery },
-                        (_, index) =>
-                          index <
-                          Math.min(
-                            pomodoroProgress.cycle,
-                            pomodoro.longBreakEvery,
-                          ) ? (
-                            <img
+                    {capsuleMail.code ? (
+                      <>
+                        <span className="island-code-digits" aria-hidden="true">
+                          {[...capsuleMail.code].map((digit, index) => (
+                            <span
                               key={index}
-                              className="pomodoro-tomato"
-                              src={pomodoroClock}
-                              alt=""
-                              draggable={false}
-                            />
-                          ) : (
-                            <img
-                              key={index}
-                              className="pomodoro-tomato is-off"
-                              src={pomodoroClock}
-                              alt=""
-                              draggable={false}
-                            />
-                          ),
-                      )}
-                    </span>
-                    <i aria-hidden="true" />
-                    <span>
-                      {t("今日")} {pomodoroProgress.completedToday}{" "}
-                      {t("个番茄")}
-                    </span>
-                  </div>
-                )}
-                {timer.status === "idle" ? (
-                  <>
-                    {customTimerOpen ? (
-                      <form
-                        className="custom-timer"
-                        noValidate
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const duration = parseDuration(minutes, seconds);
-                          if (duration === null) {
-                            setDurationError(
-                              t("请输入有效时间（秒数为 0–59）"),
-                            );
-                            return;
-                          }
-                          setTimerMode("timer");
-                          setCountdownLabel(null);
-                          setCountdownId(null);
-                          startTimer(duration, Date.now());
-                          setCustomTimerOpen(false);
-                        }}
-                      >
-                        <label>
-                          <input
-                            aria-label={t("分钟")}
-                            inputMode="numeric"
-                            placeholder="00"
-                            value={minutes}
-                            maxLength={3}
-                            onChange={(event) => {
-                              setMinutes(event.target.value);
-                              setDurationError("");
-                            }}
-                          />
-                          <span>分</span>
-                        </label>
-                        <span className="time-separator">:</span>
-                        <label>
-                          <input
-                            aria-label={t("秒")}
-                            inputMode="numeric"
-                            placeholder="00"
-                            value={seconds}
-                            maxLength={2}
-                            onChange={(event) => {
-                              setSeconds(event.target.value);
-                              setDurationError("");
-                            }}
-                          />
-                          <span>秒</span>
-                        </label>
-                        <button type="submit">{t("开始")}</button>
-                        <button
-                          type="button"
-                          className="is-ghost"
-                          onClick={() => setCustomTimerOpen(false)}
-                        >
-                          {t("返回")}
-                        </button>
-                      </form>
+                              style={{ "--i": index } as CSSProperties}
+                            >
+                              {digit}
+                            </span>
+                          ))}
+                        </span>
+                        <span className="sr-only">{capsuleMail.code}</span>
+                      </>
                     ) : (
-                      <div className="timer-presets">
-                        <button
-                          className="timer-preset"
-                          onClick={() => {
-                            beginFocus(pomodoro.focusMinutes * 60_000);
-                            setCustomTimerOpen(false);
-                          }}
-                        >
-                          <span className="timer-preset-label">
-                            {t("专注")}
-                          </span>
-                          <span className="timer-preset-value">
-                            {pomodoro.focusMinutes} {t("分")}
-                          </span>
-                        </button>
-                        <button
-                          className="timer-preset"
-                          onClick={() => {
-                            beginBreak("break");
-                            setCustomTimerOpen(false);
-                          }}
-                        >
-                          <span className="timer-preset-label">
-                            {t("短休")}
-                          </span>
-                          <span className="timer-preset-value">
-                            {pomodoro.shortBreakMinutes} {t("分")}
-                          </span>
-                        </button>
-                        <button
-                          className="timer-preset"
-                          onClick={() => {
-                            beginBreak("longBreak");
-                            setCustomTimerOpen(false);
-                          }}
-                        >
-                          <span className="timer-preset-label">
-                            {t("长休")}
-                          </span>
-                          <span className="timer-preset-value">
-                            {pomodoro.longBreakMinutes} {t("分")}
-                          </span>
-                        </button>
-                        <button
-                          className="timer-preset is-ghost"
-                          onClick={() => {
-                            setCustomTimerOpen(false);
-                            setCountdownOpen(true);
-                          }}
-                        >
-                          <span className="timer-preset-label">
-                            {t("倒计时")}
-                          </span>
-                          <Hourglass
-                            className="timer-preset-icon"
-                            size={13}
-                            aria-hidden="true"
-                          />
-                        </button>
-                      </div>
+                      capsuleMail.subject || t("新邮件")
                     )}
-                    {durationError && (
-                      <span className="duration-error" role="alert">
-                        {durationError}
+                  </span>
+                </span>
+              </span>
+            ) : display === "timer" || display === "finished" ? (
+              <span className="island-current compact-timer timer-only">
+                {isPomodoroMode ? (
+                  <img
+                    className="timer-indicator tomato-photo"
+                    src={pomodoroClock}
+                    alt=""
+                    draggable={false}
+                  />
+                ) : (
+                  <Timer
+                    className="timer-indicator"
+                    size={15}
+                    aria-hidden="true"
+                  />
+                )}
+                <span className="compact-copy">
+                  <span className="compact-primary">
+                    {timerModeLabel()} ·{" "}
+                    {t(
+                      timer.status === "paused"
+                        ? "已暂停"
+                        : timer.status === "finished"
+                          ? "已结束 · 按 Esc 关闭"
+                          : "进行中",
+                    )}
+                  </span>
+                </span>
+                <span className={`island-timer-value mode-${timerMode}`}>
+                  {timer.status === "finished" ? t("时间到") : remaining}
+                </span>
+              </span>
+            ) : display === "media" && media?.title ? (
+              <span className="island-current island-media-current">
+                <span
+                  className={`compact-art ${media.playing && artwork?.key === mediaKey && artwork.src ? "is-spinning" : ""}`}
+                >
+                  {artwork?.key === mediaKey && artwork.src ? (
+                    <img src={artwork.src} alt="" />
+                  ) : (
+                    <Music2 size={14} aria-hidden="true" />
+                  )}
+                </span>
+                <span className="compact-copy">
+                  <span className="compact-primary">{media.title}</span>
+                  <span className="compact-secondary">
+                    {appearance.islandLyrics && currentLyric
+                      ? currentLyric
+                      : media.artist || t("未知艺术家")}
+                  </span>
+                </span>
+                <span className="media-playing-mark">
+                  <MediaWave playing={media.playing} compact />
+                  {mediaPosition !== null && (
+                    <span className="media-time">
+                      {formatMediaTime(mediaPosition)}
+                    </span>
+                  )}
+                  <span className="media-mark-slot" key={mediaBadgeShown}>
+                    {mediaBadgeShown === "quota" && idleData.quota ? (
+                      <QuotaRings
+                        items={idleData.quota.items}
+                        compact
+                        provider={idleData.quota.provider}
+                      />
+                    ) : mediaBadgeShown === "water" ? (
+                      <span
+                        className="media-badge"
+                        role="img"
+                        aria-label={`${t("喝水进度")} ${waterPercentToday}%`}
+                        title={`${t("喝水进度")} ${waterPercentToday}%`}
+                        style={
+                          {
+                            "--badge-percent": `${waterPercentToday}%`,
+                            "--badge-color": waterToneColor,
+                          } as CSSProperties
+                        }
+                      >
+                        <img src={waterDrop} alt="" />
+                      </span>
+                    ) : (
+                      <span
+                        className="media-badge"
+                        role="img"
+                        aria-label={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
+                        title={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
+                        style={
+                          {
+                            "--badge-percent": `${pomodoroBadgePercent}%`,
+                            "--badge-color": pomodoroBadgeColor,
+                          } as CSSProperties
+                        }
+                      >
+                        <img src={pomodoroClock} alt="" />
                       </span>
                     )}
-                  </>
-                ) : timer.status === "finished" ? (
-                  <div className="timer-controls">
-                    <button onClick={resetTimer}>{t("知道了")}</button>
-                    <button
-                      onClick={() =>
-                        timerMode === "focus"
-                          ? beginFocus(lastDuration)
-                          : startTimer(lastDuration, Date.now())
-                      }
-                    >
-                      {t("再计一次")}
-                    </button>
-                    {timerMode === "focus" ? (
-                      <button
-                        onClick={() =>
-                          beginBreak(
-                            isLongBreakDue(pomodoroProgress.cycle, pomodoro)
-                              ? "longBreak"
-                              : "break",
-                          )
-                        }
-                      >
-                        {isLongBreakDue(pomodoroProgress.cycle, pomodoro)
-                          ? t("开始长休")
-                          : t("开始短休")}
-                      </button>
-                    ) : timerMode === "break" || timerMode === "longBreak" ? (
-                      <button
-                        onClick={() =>
-                          beginFocus(pomodoro.focusMinutes * 60_000)
-                        }
-                      >
-                        {t("开始专注")}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="timer-controls">
-                    <button
-                      onClick={() => {
-                        const now = Date.now();
-                        setNow(now);
-                        setTimer((current) =>
-                          current.status === "running"
-                            ? pauseTimer(current, now)
-                            : resumeTimer(current, now),
-                        );
-                      }}
-                    >
-                      {timer.status === "running" ? t("暂停") : t("继续")}
-                    </button>
-                    <button onClick={resetTimer}>{t("取消")}</button>
-                    <button
-                      onClick={() => {
-                        setTimer((current) => extendTimer(current, 60_000));
-                        setLastDuration((current) => current + 60_000);
-                      }}
-                    >
-                      {t("+1 分钟")}
-                    </button>
-                  </div>
-                )}
-              </div>
+                  </span>
+                </span>
+              </span>
+            ) : (
+              <IdleWidgets
+                key={appearance.idleWidgets.join(",")}
+                appearance={appearance}
+                data={idleData}
+                onWidthChange={setIdleWidth}
+              />
             )}
-          </div>
-          <div className="island-pager">
-            <div
-              className="pager-tabs"
-              role="tablist"
-              aria-label={t("灵动岛页面")}
+          </button>
+          {!expanded && display === "water" && (
+            <button
+              className={`island-copy island-water-add ${waterToneValue === "low" ? "is-low" : ""}`}
+              aria-label={t("喝一杯")}
+              title={`${t("喝一杯")}（${water.cupMl} ml）`}
+              onClick={() => void drinkWater(water.cupMl)}
             >
-              {ISLAND_PAGES.map((page) => (
-                <button
-                  key={page.id}
-                  role="tab"
-                  aria-selected={activeTab === page.id}
-                  aria-label={t(page.label)}
-                  title={t(page.label)}
-                  className={`pager-tab is-${page.id} ${activeTab === page.id ? "active" : ""}`}
-                  onClick={() => selectPage(page.id)}
-                >
-                  <IslandPageIcon page={page.id} />
-                </button>
-              ))}
+              <img
+                className="water-drop-sm"
+                src={waterDrop}
+                alt=""
+                draggable={false}
+              />
+            </button>
+          )}
+          {!expanded && display === "mail" && capsuleMail?.code && (
+            <button
+              className={`island-copy has-label ${capsuleCopied ? "is-copied" : ""}`}
+              aria-label={capsuleCopied ? t("已复制") : t("复制验证码")}
+              title={capsuleCopied ? t("已复制") : t("复制验证码")}
+              onClick={() =>
+                void copyCode(capsuleMail.code!, capsuleMail.expiresAt)
+              }
+            >
+              {capsuleCopied ? <Check size={12} /> : <Copy size={12} />}
+              <span>{capsuleCopied ? t("已复制") : t("复制")}</span>
+            </button>
+          )}
+          {!expanded && display === "mail" && capsuleMail && (
+            <span
+              key={`ring-${mailKey}`}
+              className="island-mail-ring"
+              aria-hidden="true"
+            />
+          )}
+          {expanded && display === "notice" && notice && (
+            <div className="system-notice-banner" role="status">
+              <NoticeIcon kind={notice.kind} />
+              <span>{notice.label}</span>
+              <strong>{notice.value}</strong>
             </div>
-          </div>
-          {/* Edge steppers keep a fixed vertical slot, so they never move
+          )}
+          <div
+            className="island-details"
+            aria-hidden={!expanded}
+            inert={!expanded}
+            onWheel={handlePageWheel}
+          >
+            <div
+              className="island-head"
+              onPointerDown={beginDrag}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+            >
+              <span className={`island-page-title is-${activeTab}`}>
+                {t(
+                  ISLAND_PAGES.find((page) => page.id === activeTab)?.label ??
+                    "计时器",
+                )}
+              </span>
+              <span className="island-head-clock">
+                {appearance.language === "en-US"
+                  ? new Date(now).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      weekday: "short",
+                    })
+                  : `${new Date(now).getMonth() + 1}月${new Date(now).getDate()}日 ${new Date(now).toLocaleDateString("zh-CN", { weekday: "short" })}`}{" "}
+                {new Date(now).toLocaleTimeString(appearance.language, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })}
+              </span>
+              <div className="island-actions">
+                {activeTab === "music" && (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={appearance.islandLyrics}
+                    aria-label={t("岛上显示歌词")}
+                    title={
+                      appearance.islandLyrics
+                        ? t("关闭岛上歌词")
+                        : t("开启岛上歌词")
+                    }
+                    className={appearance.islandLyrics ? "is-on" : ""}
+                    onClick={toggleIslandLyrics}
+                  >
+                    {appearance.islandLyrics ? (
+                      <Captions size={15} aria-hidden="true" />
+                    ) : (
+                      <CaptionsOff size={15} aria-hidden="true" />
+                    )}
+                  </button>
+                )}
+                {activeTab === "ai" && (
+                  <button
+                    aria-label={t("刷新额度")}
+                    title={t("刷新额度")}
+                    onClick={() => void ai.reload()}
+                  >
+                    <RefreshCw size={15} aria-hidden="true" />
+                  </button>
+                )}
+                {/* Without auto-collapse or hover mode this is the only way out
+                  of the expanded panel, so it stays for that case. */}
+                {appearance.expandTrigger !== "hover" &&
+                  appearance.autoCollapseSeconds === 0 && (
+                    <button
+                      aria-label={t("收起灵动岛")}
+                      title={t("收起灵动岛")}
+                      onClick={() => void toggleExpanded()}
+                    >
+                      <ChevronUp size={15} aria-hidden="true" />
+                    </button>
+                  )}
+                <button
+                  aria-label={t("打开设置")}
+                  title={t("打开设置")}
+                  onClick={() => void run("open_settings")}
+                >
+                  <Settings2 size={15} aria-hidden="true" />
+                </button>
+                <button
+                  aria-label={t("退出应用")}
+                  title={t("退出应用")}
+                  onClick={() => void run("quit_app")}
+                >
+                  <Power size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <div className="island-page" key={activeTab}>
+              {activeTab === "water" ? (
+                <WaterPage
+                  water={water}
+                  waterPercentToday={waterPercentToday}
+                  waterToneValue={waterToneValue}
+                  waterToneColor={waterToneColor}
+                  waterAdded={waterAdded}
+                  waterAddedMl={waterAddedMl}
+                  todayWater={todayWater}
+                  waterCupsToday={waterCupsToday}
+                  customWaterOpen={customWaterOpen}
+                  setCustomWaterOpen={setCustomWaterOpen}
+                  customWaterMl={customWaterMl}
+                  setCustomWaterMl={setCustomWaterMl}
+                  waterError={waterError}
+                  setWaterError={setWaterError}
+                  drinkWater={drinkWater}
+                />
+              ) : activeTab === "ai" ? (
+                <QuotaPage
+                  accounts={ai.accounts}
+                  selectedAi={selectedAi}
+                  selectedAiResult={selectedAiResult}
+                  selectedItems={selectedItems}
+                  selectedRings={selectedRings}
+                  setSelectedAiId={setSelectedAiId}
+                  language={appearance.language}
+                />
+              ) : activeTab === "mail" ? (
+                <MailPage
+                  selectedMail={selectedMail}
+                  recentMail={recentMail}
+                  mailIndex={mailIndex}
+                  setMailIndex={setMailIndex}
+                  currentCopyStatus={currentCopyStatus}
+                  setCopyStatus={setCopyStatus}
+                  copyCode={copyCode}
+                />
+              ) : activeTab === "music" ? (
+                <MusicPage mediaState={mediaState} />
+              ) : countdownOpen ? (
+                <div className="countdown-picker">
+                  {durationCountdowns.slice(0, 3).map((item) => (
+                    <button
+                      key={item.id}
+                      className="countdown-row"
+                      onClick={() => startCountdown(item)}
+                    >
+                      <span>{item.label}</span>
+                      <span className="countdown-row-value">
+                        {formatDurationSeconds(item.durationSeconds ?? 0)}
+                      </span>
+                    </button>
+                  ))}
+                  {durationCountdowns.length === 0 && (
+                    <span className="countdown-empty">
+                      {t("设置里还没有时长倒计时")}
+                    </span>
+                  )}
+                  <div className="countdown-picker-actions">
+                    <button
+                      onClick={() => {
+                        setCountdownOpen(false);
+                        setCustomTimerOpen(true);
+                      }}
+                    >
+                      {t("临时倒计时")}
+                    </button>
+                    <button onClick={() => setCountdownOpen(false)}>
+                      {t("返回")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="timer-view">
+                  <div className="timer-status">
+                    <span>{timerModeLabel()}</span>
+                    <i aria-hidden="true" />
+                    <span>
+                      {t(
+                        timer.status === "finished"
+                          ? "已结束 · 按 Esc 关闭"
+                          : timer.status === "paused"
+                            ? "已暂停"
+                            : timer.status === "running"
+                              ? "进行中"
+                              : "选择时长",
+                      )}
+                    </span>
+                  </div>
+                  <div className="timer-main">
+                    {isPomodoroMode && (
+                      <img
+                        className="pomodoro-face"
+                        src={pomodoroClock}
+                        alt=""
+                        draggable={false}
+                      />
+                    )}
+                    <div
+                      className={`timer-clock is-${timer.status} mode-${timerMode}`}
+                    >
+                      {timer.status === "finished"
+                        ? t("时间到")
+                        : timer.status === "idle"
+                          ? formatRemaining(
+                              customTimerOpen
+                                ? (parseDuration(minutes, seconds) ?? 0)
+                                : presetMilliseconds() ||
+                                    (parseDuration(minutes, seconds) ?? 0),
+                            )
+                          : remaining}
+                    </div>
+                  </div>
+                  {isPomodoroMode && (
+                    <div className="timer-pomodoro">
+                      <span
+                        className="pomodoro-tomatoes"
+                        role="img"
+                        aria-label={`${t("本轮")} ${Math.min(
+                          pomodoroProgress.cycle,
+                          pomodoro.longBreakEvery,
+                        )}/${pomodoro.longBreakEvery}`}
+                      >
+                        {Array.from(
+                          { length: pomodoro.longBreakEvery },
+                          (_, index) =>
+                            index <
+                            Math.min(
+                              pomodoroProgress.cycle,
+                              pomodoro.longBreakEvery,
+                            ) ? (
+                              <img
+                                key={index}
+                                className="pomodoro-tomato"
+                                src={pomodoroClock}
+                                alt=""
+                                draggable={false}
+                              />
+                            ) : (
+                              <img
+                                key={index}
+                                className="pomodoro-tomato is-off"
+                                src={pomodoroClock}
+                                alt=""
+                                draggable={false}
+                              />
+                            ),
+                        )}
+                      </span>
+                      <i aria-hidden="true" />
+                      <span>
+                        {t("今日")} {pomodoroProgress.completedToday}{" "}
+                        {t("个番茄")}
+                      </span>
+                    </div>
+                  )}
+                  {timer.status === "idle" ? (
+                    <>
+                      {customTimerOpen ? (
+                        <form
+                          className="custom-timer"
+                          noValidate
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const duration = parseDuration(minutes, seconds);
+                            if (duration === null) {
+                              setDurationError(
+                                t("请输入有效时间（秒数为 0–59）"),
+                              );
+                              return;
+                            }
+                            setTimerMode("timer");
+                            setCountdownLabel(null);
+                            setCountdownId(null);
+                            startTimer(duration, Date.now());
+                            setCustomTimerOpen(false);
+                          }}
+                        >
+                          <label>
+                            <input
+                              aria-label={t("分钟")}
+                              inputMode="numeric"
+                              placeholder="00"
+                              value={minutes}
+                              maxLength={3}
+                              onChange={(event) => {
+                                setMinutes(event.target.value);
+                                setDurationError("");
+                              }}
+                            />
+                            <span>分</span>
+                          </label>
+                          <span className="time-separator">:</span>
+                          <label>
+                            <input
+                              aria-label={t("秒")}
+                              inputMode="numeric"
+                              placeholder="00"
+                              value={seconds}
+                              maxLength={2}
+                              onChange={(event) => {
+                                setSeconds(event.target.value);
+                                setDurationError("");
+                              }}
+                            />
+                            <span>秒</span>
+                          </label>
+                          <button type="submit">{t("开始")}</button>
+                          <button
+                            type="button"
+                            className="is-ghost"
+                            onClick={() => setCustomTimerOpen(false)}
+                          >
+                            {t("返回")}
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="timer-presets">
+                          <button
+                            className="timer-preset"
+                            onClick={() => {
+                              beginFocus(pomodoro.focusMinutes * 60_000);
+                              setCustomTimerOpen(false);
+                            }}
+                          >
+                            <span className="timer-preset-label">
+                              {t("专注")}
+                            </span>
+                            <span className="timer-preset-value">
+                              {pomodoro.focusMinutes} {t("分")}
+                            </span>
+                          </button>
+                          <button
+                            className="timer-preset"
+                            onClick={() => {
+                              beginBreak("break");
+                              setCustomTimerOpen(false);
+                            }}
+                          >
+                            <span className="timer-preset-label">
+                              {t("短休")}
+                            </span>
+                            <span className="timer-preset-value">
+                              {pomodoro.shortBreakMinutes} {t("分")}
+                            </span>
+                          </button>
+                          <button
+                            className="timer-preset"
+                            onClick={() => {
+                              beginBreak("longBreak");
+                              setCustomTimerOpen(false);
+                            }}
+                          >
+                            <span className="timer-preset-label">
+                              {t("长休")}
+                            </span>
+                            <span className="timer-preset-value">
+                              {pomodoro.longBreakMinutes} {t("分")}
+                            </span>
+                          </button>
+                          <button
+                            className="timer-preset is-ghost"
+                            onClick={() => {
+                              setCustomTimerOpen(false);
+                              setCountdownOpen(true);
+                            }}
+                          >
+                            <span className="timer-preset-label">
+                              {t("倒计时")}
+                            </span>
+                            <Hourglass
+                              className="timer-preset-icon"
+                              size={13}
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </div>
+                      )}
+                      {durationError && (
+                        <span className="duration-error" role="alert">
+                          {durationError}
+                        </span>
+                      )}
+                    </>
+                  ) : timer.status === "finished" ? (
+                    <div className="timer-controls">
+                      <button onClick={resetTimer}>{t("知道了")}</button>
+                      <button
+                        onClick={() =>
+                          timerMode === "focus"
+                            ? beginFocus(lastDuration)
+                            : startTimer(lastDuration, Date.now())
+                        }
+                      >
+                        {t("再计一次")}
+                      </button>
+                      {timerMode === "focus" ? (
+                        <button
+                          onClick={() =>
+                            beginBreak(
+                              isLongBreakDue(pomodoroProgress.cycle, pomodoro)
+                                ? "longBreak"
+                                : "break",
+                            )
+                          }
+                        >
+                          {isLongBreakDue(pomodoroProgress.cycle, pomodoro)
+                            ? t("开始长休")
+                            : t("开始短休")}
+                        </button>
+                      ) : timerMode === "break" || timerMode === "longBreak" ? (
+                        <button
+                          onClick={() =>
+                            beginFocus(pomodoro.focusMinutes * 60_000)
+                          }
+                        >
+                          {t("开始专注")}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="timer-controls">
+                      <button
+                        onClick={() => {
+                          const now = Date.now();
+                          setNow(now);
+                          setTimer((current) =>
+                            current.status === "running"
+                              ? pauseTimer(current, now)
+                              : resumeTimer(current, now),
+                          );
+                        }}
+                      >
+                        {timer.status === "running" ? t("暂停") : t("继续")}
+                      </button>
+                      <button onClick={resetTimer}>{t("取消")}</button>
+                      <button
+                        onClick={() => {
+                          setTimer((current) => extendTimer(current, 60_000));
+                          setLastDuration((current) => current + 60_000);
+                        }}
+                      >
+                        {t("+1 分钟")}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="island-pager">
+              <div
+                className="pager-tabs"
+                role="tablist"
+                aria-label={t("灵动岛页面")}
+              >
+                {ISLAND_PAGES.map((page) => (
+                  <button
+                    key={page.id}
+                    role="tab"
+                    aria-selected={activeTab === page.id}
+                    aria-label={t(page.label)}
+                    title={t(page.label)}
+                    className={`pager-tab is-${page.id} ${activeTab === page.id ? "active" : ""}`}
+                    onClick={() => selectPage(page.id)}
+                  >
+                    <IslandPageIcon page={page.id} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Edge steppers keep a fixed vertical slot, so they never move
               between pages; the wheel offers the same switching. */}
-          <button
-            className="pager-arrow is-left"
-            aria-label={t("上一页")}
-            title={t("上一页")}
-            onClick={() => cyclePage(-1)}
-          >
-            <ChevronLeft size={14} aria-hidden="true" />
-          </button>
-          <button
-            className="pager-arrow is-right"
-            aria-label={t("下一页")}
-            title={t("下一页")}
-            onClick={() => cyclePage(1)}
-          >
-            <ChevronRight size={14} aria-hidden="true" />
-          </button>
+            <button
+              className="pager-arrow is-left"
+              aria-label={t("上一页")}
+              title={t("上一页")}
+              onClick={() => cyclePage(-1)}
+            >
+              <ChevronLeft size={14} aria-hidden="true" />
+            </button>
+            <button
+              className="pager-arrow is-right"
+              aria-label={t("下一页")}
+              title={t("下一页")}
+              onClick={() => cyclePage(1)}
+            >
+              <ChevronRight size={14} aria-hidden="true" />
+            </button>
+          </div>
         </div>
-      </div>
+      </ReminderBeam>
       {error && (
         <span role="alert" className="island-error">
           {error}

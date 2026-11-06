@@ -227,9 +227,13 @@ pub fn save_appearance(
     if window.label() != "main" {
         return Err("当前窗口不能修改设置".into());
     }
-    validate_appearance(&value)?;
     let db = storage.0.lock().map_err(|e| e.to_string())?;
-    db.connection.execute("INSERT INTO settings(key,value) VALUES ('appearance',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![value.to_string()]).map_err(|e| e.to_string())?;
+    save_appearance_value(&db.connection, &value)
+}
+
+fn save_appearance_value(conn: &Connection, value: &serde_json::Value) -> Result<(), String> {
+    validate_appearance(value)?;
+    conn.execute("INSERT INTO settings(key,value) VALUES ('appearance',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![value.to_string()]).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -245,7 +249,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
     let idle_widgets_valid = match version {
-        Some(8..=10) => value
+        Some(8..=11) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -253,7 +257,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                 items.len() <= 6
                     && items.iter().all(|item| match item.as_str() {
                         Some(id)
-                            if matches!(
+                            if (matches!(
                                 id,
                                 "clock"
                                     | "quota"
@@ -267,7 +271,8 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "bluetooth"
                                     | "waterTimer"
                                     | "countdown"
-                            ) && !seen.contains(&id) =>
+                            ) || (id == "mascot" && version == Some(11)))
+                                && !seen.contains(&id) =>
                         {
                             seen.push(id);
                             true
@@ -296,21 +301,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=10) => value
+        Some(7..=11) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=10) => matches!(
+        Some(8..=11) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10) => {
+        Some(10 | 11) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -1289,6 +1294,42 @@ mod tests {
         v10["version"] = serde_json::json!(10);
         v10["reminderStyle"] = serde_json::json!("beam");
         assert!(validate_appearance(&v10).is_ok());
+        let mut v11 = v10.clone();
+        v11["version"] = serde_json::json!(11);
+        v11["idleWidgets"] = serde_json::json!(["mascot", "clock"]);
+        assert!(validate_appearance(&v11).is_ok());
+        let mut legacy_mascot = v10.clone();
+        legacy_mascot["idleWidgets"] = serde_json::json!(["mascot", "clock"]);
+        assert!(validate_appearance(&legacy_mascot).is_err());
+        v11["idleWidgets"] = serde_json::json!(["mascot", "mascot"]);
+        assert!(validate_appearance(&v11).is_err());
+        let conn = initialize_connection(Connection::open_in_memory().unwrap()).unwrap();
+        save_appearance_value(&conn, &v10).unwrap();
+        assert!(save_appearance_value(&conn, &v11).is_err());
+        let stored: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
+            v10
+        );
+        v11["idleWidgets"] = serde_json::json!(["mascot", "clock"]);
+        save_appearance_value(&conn, &v11).unwrap();
+        let stored: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
+            v11
+        );
         let mut legacy_beam = v9.clone();
         legacy_beam["reminderStyle"] = serde_json::json!("beam");
         assert!(validate_appearance(&legacy_beam).is_err());

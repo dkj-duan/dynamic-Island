@@ -13,6 +13,7 @@ export const languageOptions: { value: Language; label: string }[] = [
 const en: Record<string, string> = {
   // —— Shell / navigation ——
   灵动岛: "Dynamic Island",
+  小岛伙伴: "Island companion",
   设置: "Settings",
   设置分区: "Settings sections",
   外观: "Appearance",

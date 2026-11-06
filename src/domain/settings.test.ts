@@ -205,6 +205,37 @@ describe("parseAppearance", () => {
     expect(() => parseAppearance({ ...base, version: 9 })).toThrow();
   });
 
+  it("preserves old widget order and accepts the companion only in version 11", () => {
+    const old = {
+      version: 10,
+      theme: "dark",
+      scale: 1,
+      showClock: true,
+      autoCollapseSeconds: 3,
+      expandTrigger: "click",
+      language: "zh-CN",
+      idleWidgets: ["clock", "water"],
+      islandLyrics: false,
+      pomodoroView: "count",
+      reminderStyle: "beam",
+      reminderAutoExpand: false,
+    };
+    expect(parseAppearance(old).idleWidgets).toEqual(["clock", "water"]);
+    const widgets = ["mascot", "clock", "water"];
+    expect(
+      parseAppearance({ ...old, version: 11, idleWidgets: widgets })
+        .idleWidgets,
+    ).toEqual(widgets);
+    expect(() => parseAppearance({ ...old, idleWidgets: widgets })).toThrow();
+    expect(() =>
+      parseAppearance({
+        ...old,
+        version: 11,
+        idleWidgets: ["mascot", "mascot"],
+      }),
+    ).toThrow();
+  });
+
   it("reads the pomodoro widget view from version 8", () => {
     const base = {
       version: 8,

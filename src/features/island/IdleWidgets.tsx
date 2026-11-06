@@ -24,6 +24,7 @@ import volumeIcon from "../../assets/island/volume.png";
 import waterTimerIcon from "../../assets/island/water-timer.png";
 import waterDrop from "../../assets/water-drop.webp";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
+import mascotIcon from "../../assets/app-icon.png";
 
 function CompactClock() {
   const [now, setNow] = useState(() => new Date());
@@ -182,6 +183,7 @@ export function IdleWidgets({
     );
   }
   function widgetTitle(id: IdleWidgetId): string | undefined {
+    if (id === "mascot") return t("小岛伙伴");
     if (id === "music") return `${music.title} · ${music.artist}`;
     if (id === "water" && data.water) {
       return `${t("喝水进度")} ${data.water.percent}%`;
@@ -359,6 +361,12 @@ export function IdleWidgets({
                         : data.waterTimer.at}
                 </span>
               </>
+            )}
+            {id === "mascot" && (
+              <span className="idle-mascot" aria-hidden="true">
+                <img src={mascotIcon} alt="" draggable={false} />
+                <span className="idle-mascot-blink" />
+              </span>
             )}
             {id === "music" && (
               <>

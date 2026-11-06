@@ -33,6 +33,10 @@
   border-radius: 9px;
 }
 
+.antd-settings[data-theme="dark"] .antd-brand img {
+  filter: drop-shadow(0 0 1px #b1a593) drop-shadow(0 0 0.4px #b1a593);
+}
+
 .antd-brand strong {
   display: block;
   font-size: 14px;
@@ -797,7 +801,7 @@
   z-index: 1;
 }
 
-.reminder-style-stage > *:not(.island-alert-ring) {
+.reminder-style-stage > *:not(.island-alert-ring, .ant-border-beam) {
   position: relative;
   z-index: 2;
 }

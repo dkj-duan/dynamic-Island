@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import type { AppearanceSettings, ReminderStyle } from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
+import { ReminderBeam } from "../island/ReminderBeam";
 
 const styleOptions: { value: ReminderStyle; label: string }[] = [
   { value: "breathe", label: "呼吸描边" },
@@ -50,16 +51,20 @@ export function ReminderSettings({
                   })
                 }
               >
-                <span
-                  className="reminder-style-stage"
-                  data-reminder={option.value}
-                  style={{ "--alert-color": "#f0b26b" } as CSSProperties}
-                >
-                  <span className="island-alert-ring" aria-hidden="true" />
-                  <SoundOutlined />
-                  <span>{t("亮度")}</span>
-                  <strong>75%</strong>
-                </span>
+                <ReminderBeam enabled={option.value === "beam"}>
+                  <span
+                    className="reminder-style-stage"
+                    data-reminder={option.value}
+                    style={{ "--alert-color": "#f0b26b" } as CSSProperties}
+                  >
+                    {option.value !== "beam" && (
+                      <span className="island-alert-ring" aria-hidden="true" />
+                    )}
+                    <SoundOutlined />
+                    <span>{t("亮度")}</span>
+                    <strong>75%</strong>
+                  </span>
+                </ReminderBeam>
                 <span className="reminder-style-name">
                   {t(option.label)}
                   <CheckCircleFilled

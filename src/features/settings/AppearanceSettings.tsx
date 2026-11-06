@@ -16,6 +16,7 @@ import {
   SoundOutlined,
   ThunderboltOutlined,
   WifiOutlined,
+  SmileOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { Section } from "./ui/Section";
@@ -33,6 +34,7 @@ const idleWidgetOptions: {
   icon: ReactNode;
 }[] = [
   { id: "clock", label: "时钟", icon: <ClockCircleOutlined /> },
+  { id: "mascot", label: "小岛伙伴", icon: <SmileOutlined /> },
   { id: "quota", label: "常驻额度", icon: <RobotOutlined /> },
   { id: "water", label: "喝水进度", icon: <ThunderboltOutlined /> },
   { id: "pomodoro", label: "番茄进度", icon: <FieldTimeOutlined /> },

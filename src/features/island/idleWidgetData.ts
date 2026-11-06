@@ -32,7 +32,7 @@ export function availableIdleWidgets(
 ): IdleWidgetId[] {
   return appearance.idleWidgets
     .filter((id) => {
-      if (id === "clock") return true;
+      if (id === "clock" || id === "mascot") return true;
       if (id === "music") return data.music !== null;
       if (id === "quota") return !!data.quota;
       if (id === "water") return !!data.water;
