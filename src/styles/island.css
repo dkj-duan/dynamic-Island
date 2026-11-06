@@ -1758,25 +1758,15 @@ html.island-window #root {
   cursor: default;
 }
 
-/* Lyrics-on-island toggle, a one-word pill in the panel header. */
-.island-actions .island-lyric-toggle {
-  width: auto;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 6px;
-  color: #8b8b95;
-  font-size: 11px;
-  line-height: 16px;
+/* Lyrics toggle reads as an icon switch, matching the other header actions. */
+.island-actions button.is-on {
+  color: #7fd4c3;
+  background: rgb(127 212 195 / 0.14);
 }
 
-.island-actions .island-lyric-toggle.is-on {
-  color: #cfe9d9;
-  background: #2b4636;
-}
-
-.island-actions .island-lyric-toggle:hover {
-  background: #303036;
-  color: #d4d4db;
+.island-actions button.is-on:hover {
+  color: #9fe3d6;
+  background: rgb(127 212 195 / 0.22);
 }
 
 .media-timeline-unavailable {
@@ -2265,14 +2255,16 @@ html.island-window #root {
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
+  gap: 8px;
 }
 
 .water-hero {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .water-copy {
@@ -2284,7 +2276,7 @@ html.island-window #root {
 
 .water-copy strong {
   color: #eaf6ff;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -2381,14 +2373,15 @@ html.island-window #root {
   background: #2a2015;
 }
 
+/* Actions span the panel as one row: primary stretches, secondary stays snug. */
 .water-actions {
   display: flex;
-  gap: 5px;
-  margin-top: 2px;
+  gap: 6px;
+  width: 100%;
 }
 
 .water-actions button {
-  height: 24px;
+  height: 30px;
   border-radius: 999px;
   font-size: 12px;
   white-space: nowrap;
@@ -2397,9 +2390,11 @@ html.island-window #root {
 
 .water-add {
   display: flex;
+  flex: 1;
   align-items: center;
-  gap: 4px;
-  padding: 0 10px;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
   border: 1px solid #37618a;
   background: #1b3448;
   color: #bfe2ff;
@@ -2410,7 +2405,8 @@ html.island-window #root {
 }
 
 .water-more {
-  padding: 0 10px;
+  flex: none;
+  padding: 0 12px;
   border: 1px solid #32323a;
   background: transparent;
   color: #9aa3ad;
@@ -2423,12 +2419,36 @@ html.island-window #root {
 .water-custom-inline {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  width: 100%;
+}
+
+.water-custom-add,
+.water-custom-cancel {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.water-custom-add {
+  border: 1px solid #37618a;
+  background: #1b3448;
+  color: #bfe2ff;
+}
+
+.water-custom-cancel {
+  border: 1px solid #32323a;
+  background: transparent;
+  color: #9aa3ad;
 }
 
 .water-custom-inline input {
-  width: 58px;
-  height: 24px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
   padding: 0 8px;
   border: 1px solid #35506a;
   border-radius: 999px;

@@ -639,6 +639,24 @@ fn apply_island_window_scale(window: &tauri::WebviewWindow, scale: f64) -> Resul
     Ok(())
 }
 
+/// The island is a chrome-less surface: the WebView2 menu (reload, save as,
+/// inspect) has no place there.
+#[cfg(target_os = "windows")]
+fn disable_default_context_menu(window: &tauri::WebviewWindow) -> Result<(), String> {
+    window
+        .with_webview(|webview| unsafe {
+            let controller = webview.controller();
+            let Ok(core) = controller.CoreWebView2() else {
+                return;
+            };
+            let Ok(settings) = core.Settings() else {
+                return;
+            };
+            let _ = settings.SetAreDefaultContextMenusEnabled(false);
+        })
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(target_os = "windows")]
 fn remove_native_caption(window: &tauri::WebviewWindow) -> Result<(), String> {
     use windows_sys::Win32::UI::Shell::SetWindowSubclass;
@@ -772,7 +790,7 @@ fn apps_use_light_theme() -> Option<bool> {
     subkey.push(0);
     let mut value: Vec<u16> = "AppsUseLightTheme".encode_utf16().collect();
     value.push(0);
-    let value: Vec<u16> = "AppsUseLightTheme ".encode_utf16().collect();
+    let value: Vec<u16> = "AppsUseLightTheme\0".encode_utf16().collect();
     let mut data: u32 = 1;
     let mut size = std::mem::size_of::<u32>() as u32;
     let status = unsafe {
@@ -1093,6 +1111,7 @@ pub fn run() {
                 window.show()?;
                 #[cfg(target_os = "windows")]
                 remove_native_caption(&window).map_err(std::io::Error::other)?;
+                disable_default_context_menu(&window).map_err(std::io::Error::other)?;
                 set_island_expanded(window.clone(), false).map_err(std::io::Error::other)?;
             }
             // A tray icon is the safety rope: the settings window can be

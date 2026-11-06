@@ -88,10 +88,7 @@ const en: Record<string, string> = {
   时钟与日期: "Clock & date",
   "控制收起胶囊里显示的内容。": "Controls what the collapsed capsule shows.",
   岛上显示歌词: "Show lyrics on the island",
-  歌词: "Lyrics",
   岛上歌词: "Island lyrics",
-  把当前歌词显示在收起的小岛上:
-    "Show the current lyric on the collapsed capsule",
   "关闭时显示歌手；歌词仍可在展开的音乐页查看。":
     "When off, the artist is shown; lyrics stay available on the music page.",
   正在播放: "Now playing",
@@ -578,6 +575,8 @@ const en: Record<string, string> = {
     "No widgets picked yet; the idle island only shows its name.",
   已显示: "Shown",
   可添加: "Available",
+  关闭岛上歌词: "Hide island lyrics",
+  开启岛上歌词: "Show island lyrics",
 };
 
 let current: Language = defaultLanguage;

@@ -19,6 +19,8 @@ import {
   Sun,
   Bluetooth,
   Mail,
+  Captions,
+  CaptionsOff,
   Copy,
   Check,
   ChevronLeft,
@@ -1558,11 +1560,19 @@ export function IslandWindow() {
                   role="switch"
                   aria-checked={appearance.islandLyrics}
                   aria-label={t("岛上显示歌词")}
-                  title={t("把当前歌词显示在收起的小岛上")}
-                  className={`island-lyric-toggle ${appearance.islandLyrics ? "is-on" : ""}`}
+                  title={
+                    appearance.islandLyrics
+                      ? t("关闭岛上歌词")
+                      : t("开启岛上歌词")
+                  }
+                  className={appearance.islandLyrics ? "is-on" : ""}
                   onClick={toggleIslandLyrics}
                 >
-                  {t("歌词")}
+                  {appearance.islandLyrics ? (
+                    <Captions size={15} aria-hidden="true" />
+                  ) : (
+                    <CaptionsOff size={15} aria-hidden="true" />
+                  )}
                 </button>
               )}
               {activeTab === "ai" && (
@@ -1633,70 +1643,81 @@ export function IslandWindow() {
                           : `${t("还差")} ${water.goalMl - todayWater} ml`}
                       </span>
                     </span>
-                    <div className="water-actions">
-                      <button
-                        className="water-add"
-                        onClick={() => void drinkWater(water.cupMl)}
-                      >
-                        <img
-                          className="water-drop-sm"
-                          src={waterDrop}
-                          alt=""
-                          draggable={false}
-                        />
-                        {t("喝一杯")} {water.cupMl}ml
-                      </button>
-                      <button
-                        className="water-more"
-                        onClick={() => setCustomWaterOpen((open) => !open)}
-                      >
-                        {t("自定义")}
-                      </button>
-                    </div>
-                    {customWaterOpen && (
-                      <form
-                        className="water-custom-inline"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const amount = Number(customWaterMl);
-                          if (
-                            !Number.isInteger(amount) ||
-                            amount < 1 ||
-                            amount > 5000
-                          ) {
-                            setWaterError(t("请输入 1–5000 毫升"));
-                            return;
-                          }
-                          void drinkWater(amount);
-                          setCustomWaterOpen(false);
-                        }}
-                      >
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          maxLength={4}
-                          placeholder="300"
-                          aria-label={t("自定义毫升")}
-                          value={customWaterMl}
-                          onChange={(event) => {
-                            setCustomWaterMl(
-                              event.target.value.replace(/\D/g, ""),
-                            );
-                            setWaterError("");
-                          }}
-                        />
-                        <span>ml</span>
-                        <button type="submit">{t("添加")}</button>
-                      </form>
-                    )}
-                    {waterError && (
-                      <span className="duration-error" role="alert">
-                        {waterError}
-                      </span>
-                    )}
                   </div>
                 </div>
+                {customWaterOpen ? (
+                  <form
+                    className="water-custom-inline"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const amount = Number(customWaterMl);
+                      if (
+                        !Number.isInteger(amount) ||
+                        amount < 1 ||
+                        amount > 5000
+                      ) {
+                        setWaterError(t("请输入 1–5000 毫升"));
+                        return;
+                      }
+                      void drinkWater(amount);
+                      setCustomWaterOpen(false);
+                    }}
+                  >
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={4}
+                      placeholder="300"
+                      aria-label={t("自定义毫升")}
+                      value={customWaterMl}
+                      onChange={(event) => {
+                        setCustomWaterMl(event.target.value.replace(/\D/g, ""));
+                        setWaterError("");
+                      }}
+                    />
+                    <span>ml</span>
+                    <button type="submit" className="water-custom-add">
+                      {t("添加")}
+                    </button>
+                    <button
+                      type="button"
+                      className="water-custom-cancel"
+                      onClick={() => {
+                        setCustomWaterOpen(false);
+                        setWaterError("");
+                      }}
+                    >
+                      {t("取消")}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="water-actions">
+                    <button
+                      className="water-add"
+                      onClick={() => void drinkWater(water.cupMl)}
+                    >
+                      <img
+                        className="water-drop-sm"
+                        src={waterDrop}
+                        alt=""
+                        draggable={false}
+                      />
+                      {t("喝一杯")} · {water.cupMl} ml
+                    </button>
+                    <button
+                      className="water-more"
+                      onClick={() => setCustomWaterOpen(true)}
+                    >
+                      {t("自定义")}
+                    </button>
+                  </div>
+                )}
+                {waterError && (
+                  <span className="duration-error" role="alert">
+                    {waterError}
+                  </span>
+                )}
                 {waterAdded > 0 && (
                   <span
                     key={`water-flash-${waterAdded}`}
