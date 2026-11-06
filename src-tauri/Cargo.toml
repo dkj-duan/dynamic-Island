@@ -41,7 +41,7 @@ ureq = { version = "2.12", default-features = false, features = ["native-tls"] }
 url = "2"
 
 [target.'cfg(windows)'.dependencies]
-windows-future = "0.3"
+windows-future = "0.100"
 webview2-com = "0.39"
 base64 = "0.22"
 keyring = { version = "3", features = ["windows-native"] }
