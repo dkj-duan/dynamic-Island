@@ -6,6 +6,11 @@
 //! forwarded; nothing is written to disk or log. New notifications are
 //! deduplicated by id, and a listener started after the app never replays the
 //! notifications that already exist.
+//!
+//! The `NotificationChanged` event needs package identity, which unpackaged
+//! builds (dev, portable) do not have: the platform answers ERROR_NOT_FOUND.
+//! Enumeration still works there, so when the event cannot be registered the
+//! worker falls back to polling the same bounded query on a slow interval.
 
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -19,7 +24,10 @@ pub struct AppNotification {
     pub text: String,
 }
 
-static FORWARDING: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
+static FORWARDING: Mutex<Option<(u64, mpsc::Sender<()>)>> = Mutex::new(None);
+
+/// Identifies the live worker so a dying one only clears its own slot.
+static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[tauri::command]
 pub async fn get_notification_access() -> Result<&'static str, String> {
@@ -76,7 +84,8 @@ pub fn access_state() -> Result<&'static str, String> {
 }
 
 /// Starts or stops the listener. Starting returns once the worker thread is
-/// spawned; it reports access problems on its own thread and simply stops.
+/// spawned; it reports access problems on its own thread and keeps retrying
+/// while enabled, so the switch never lies about a dead listener.
 pub fn set_forwarding(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     let mut state = FORWARDING
         .lock()
@@ -85,9 +94,10 @@ pub fn set_forwarding(app: tauri::AppHandle, enabled: bool) -> Result<(), String
         if state.is_some() {
             return Ok(());
         }
+        let generation = GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let (tx, rx) = mpsc::channel::<()>();
-        spawn_worker(app, rx);
-        *state = Some(tx);
+        spawn_worker(app, generation, rx);
+        *state = Some((generation, tx));
         Ok(())
     } else {
         // Dropping the sender is the stop signal; the worker's last in-flight
@@ -97,17 +107,29 @@ pub fn set_forwarding(app: tauri::AppHandle, enabled: bool) -> Result<(), String
     }
 }
 
+/// Releases the forwarding slot unless a newer worker already owns it.
+fn release_slot(generation: u64) {
+    if let Ok(mut state) = FORWARDING.lock()
+        && state
+            .as_ref()
+            .is_some_and(|(current, _)| *current == generation)
+    {
+        *state = None;
+    }
+}
+
 #[cfg(target_os = "windows")]
-fn spawn_worker(app: tauri::AppHandle, stop: mpsc::Receiver<()>) {
+fn spawn_worker(app: tauri::AppHandle, generation: u64, stop: mpsc::Receiver<()>) {
     std::thread::spawn(move || {
         if let Err(error) = worker(app, stop) {
             eprintln!("notification forwarding stopped: {error}");
         }
+        release_slot(generation);
     });
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_worker(_app: tauri::AppHandle, _stop: mpsc::Receiver<()>) {
+fn spawn_worker(_app: tauri::AppHandle, _generation: u64, _stop: mpsc::Receiver<()>) {
     // Notifications are only supported on Windows; nothing to start.
 }
 
@@ -116,31 +138,33 @@ fn worker(app: tauri::AppHandle, stop: mpsc::Receiver<()>) -> Result<(), String>
     use tauri::Emitter;
     let _com = ComGuard::new()?;
     // Right after login the notification platform can answer ERROR_NOT_FOUND
-    // (0x80070490) for every listener call; retry with a bound until it is
-    // up, staying responsive to stop requests while waiting.
-    let mut setup = None;
-    let mut last_error = String::new();
-    for _ in 0..10 {
+    // (0x80070490) for every listener call. Retry fast through the startup
+    // race, then slower — while the switch is on, giving up would leave it
+    // pointing at a listener that no longer exists.
+    let mut attempt = 0u32;
+    let (listener, mut seen, token, event_rx) = loop {
+        attempt += 1;
         match setup_forwarding() {
-            Ok(prepared) => {
-                setup = Some(prepared);
-                break;
-            }
+            Ok(prepared) => break prepared,
             Err(error) => {
                 if error.permanent {
                     return Err(error.message);
                 }
-                last_error = error.message;
+                if attempt == 1 || attempt % 10 == 1 {
+                    eprintln!(
+                        "notification forwarding waiting (attempt {attempt}): {}",
+                        error.message
+                    );
+                }
             }
         }
-        match stop.recv_timeout(Duration::from_secs(3)) {
+        let wait = if attempt < 10 { 3 } else { 30 };
+        match stop.recv_timeout(Duration::from_secs(wait)) {
             Ok(()) | Err(RecvTimeoutError::Disconnected) => return Ok(()),
             Err(RecvTimeoutError::Timeout) => {}
         }
-    }
-    let Some((listener, mut seen, token, event_rx)) = setup else {
-        return Err(format!("通知平台未就绪: {last_error}"));
     };
+    let mut next_poll = Instant::now();
     let result = loop {
         match stop.recv_timeout(Duration::from_millis(500)) {
             Ok(()) | Err(RecvTimeoutError::Disconnected) => break Ok(()),
@@ -148,12 +172,17 @@ fn worker(app: tauri::AppHandle, stop: mpsc::Receiver<()>) -> Result<(), String>
         }
         // The event only carries an id; enumerate toasts once per burst and
         // forward what has not been seen yet. Ids accumulate for the whole
-        // session, but a session's worth of u32 keys is negligible.
+        // session, but a session's worth of u32 keys is negligible. Without
+        // the change event (no package identity), enumerate on the slow tick.
         let mut fresh = false;
         while let Ok(id) = event_rx.try_recv() {
             if id != 0 && seen.insert(id) {
                 fresh = true;
             }
+        }
+        if token == 0 && next_poll <= Instant::now() {
+            fresh = true;
+            next_poll = Instant::now() + POLL_INTERVAL;
         }
         if !fresh {
             continue;
@@ -170,9 +199,16 @@ fn worker(app: tauri::AppHandle, stop: mpsc::Receiver<()>) -> Result<(), String>
             }
         }
     };
-    let _ = listener.RemoveNotificationChanged(token);
+    if token != 0 {
+        let _ = listener.RemoveNotificationChanged(token);
+    }
     result
 }
+
+/// How often the polling fallback enumerates toasts. The query is bounded
+/// and one run at a time, so a slow platform can never pile up work.
+#[cfg(target_os = "windows")]
+const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Why a forwarding setup attempt failed; access denial is a user decision
 /// and must not be retried, everything else (a not-yet-ready platform) is.
@@ -202,10 +238,10 @@ fn setup_forwarding() -> Result<
     let access = wait_bounded(
         listener
             .RequestAccessAsync()
-            .map_err(|error| retryable(error.to_string()))?,
+            .map_err(|error| retryable(format!("请求通知访问失败: {error}")))?,
         Duration::from_secs(8),
     )
-    .map_err(retryable)?;
+    .map_err(|error| retryable(format!("请求通知访问失败: {error}")))?;
     if access != UserNotificationListenerAccessStatus::Allowed {
         return Err(SetupError {
             permanent: true,
@@ -219,20 +255,27 @@ fn setup_forwarding() -> Result<
         seen.insert(notification.Id().unwrap_or(0));
     }
     let (event_tx, event_rx) = mpsc::channel::<u32>();
-    let token = listener
-        .NotificationChanged(&TypedEventHandler::new(
-            move |_,
-                  args: windows::core::Ref<
-                '_,
-                windows::UI::Notifications::UserNotificationChangedEventArgs,
-            >| {
-                if let Ok(args) = args.ok() {
-                    let _ = event_tx.send(args.UserNotificationId().unwrap_or(0));
-                }
-                Ok(())
-            },
-        ))
-        .map_err(|error| retryable(error.to_string()))?;
+    // Token 0 means "no change event"; the worker then polls instead.
+    let token = match listener.NotificationChanged(&TypedEventHandler::new(
+        move |_,
+              args: windows::core::Ref<
+            '_,
+            windows::UI::Notifications::UserNotificationChangedEventArgs,
+        >| {
+            if let Ok(args) = args.ok() {
+                let _ = event_tx.send(args.UserNotificationId().unwrap_or(0));
+            }
+            Ok(())
+        },
+    )) {
+        Ok(token) => token,
+        // Without package identity the platform refuses the event sink with
+        // ERROR_NOT_FOUND; enumeration still works, so poll as a fallback.
+        Err(error) => {
+            eprintln!("notification change event unavailable, polling instead: {error}");
+            0
+        }
+    };
     Ok((listener, seen, token, event_rx))
 }
 
@@ -245,11 +288,15 @@ fn collect_toasts(
     let view = wait_bounded(
         listener
             .GetNotificationsAsync(NotificationKinds::Toast)
-            .map_err(|error| error.to_string())?,
+            .map_err(|error| format!("枚举通知失败: {error}"))?,
         timeout,
-    )?;
+    )
+    .map_err(|error| format!("枚举通知失败: {error}"))?;
     let mut items = Vec::new();
-    for index in 0..view.Size().map_err(|error| error.to_string())? {
+    for index in 0..view
+        .Size()
+        .map_err(|error| format!("枚举通知失败: {error}"))?
+    {
         if let Ok(notification) = view.GetAt(index) {
             items.push(notification);
         }

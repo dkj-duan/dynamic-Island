@@ -249,7 +249,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
     let idle_widgets_valid = match version {
-        Some(8..=13) => value
+        Some(8..=16) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -271,7 +271,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "bluetooth"
                                     | "waterTimer"
                                     | "countdown"
-                            ) || (id == "mascot" && matches!(version, Some(11..=13))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=16))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -301,21 +301,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=13) => value
+        Some(7..=16) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=13) => matches!(
+        Some(8..=16) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=13) => {
+        Some(10..=16) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -335,13 +335,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12 | 13))
+    let shape_valid = !matches!(version, Some(12..=16))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
     let hotkeys_valid = match version {
-        Some(13) => {
+        Some(13..=16) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -352,8 +352,32 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
+    let notice_valid = match version {
+        Some(14..=16) => {
+            value
+                .get("noticeExpand")
+                .and_then(|v| v.as_bool())
+                .is_some()
+                && value
+                    .get("noticeShowText")
+                    .and_then(|v| v.as_bool())
+                    .is_some()
+                && (version < Some(15)
+                    || matches!(
+                        value.get("noticeDisplaySeconds").and_then(|v| v.as_u64()),
+                        Some(3 | 5 | 10 | 15)
+                    ))
+                && (version < Some(16)
+                    || matches!(
+                        value.get("reminderDisplaySeconds").and_then(|v| v.as_u64()),
+                        Some(10 | 20 | 30 | 60)
+                    ))
+        }
+        _ => true,
+    };
     if !shape_valid
         || !hotkeys_valid
+        || !notice_valid
         || !idle_widgets_valid
         || !lyrics_valid
         || !pomodoro_view_valid
@@ -376,7 +400,8 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     Ok(())
 }
 
-/// `null` disables a hotkey; otherwise modifiers plus exactly one key.
+/// `null` disables a hotkey; otherwise modifiers plus exactly one key, or a
+/// lone Ctrl / Alt / Shift recorded as a double-press gesture.
 fn hotkey_setting_valid(value: &serde_json::Value) -> bool {
     if value.is_null() {
         return true;
@@ -384,15 +409,16 @@ fn hotkey_setting_valid(value: &serde_json::Value) -> bool {
     let Some(combo) = value.get("combo").and_then(|v| v.as_str()) else {
         return false;
     };
-    if combo.is_empty() || combo.len() > 32 || !hotkey_combo_valid(combo) {
+    let Some(double) = value.get("double").and_then(|v| v.as_bool()) else {
         return false;
-    }
-    value.get("double").and_then(|v| v.as_bool()).is_some()
+    };
+    !combo.is_empty() && combo.len() <= 32 && hotkey_combo_valid(combo, double)
 }
 
 /// Mirrors the frontend rules: Ctrl/Shift/Alt/Win at most once each, then one
-/// key. Bare letters, digits and Space would swallow normal typing.
-fn hotkey_combo_valid(combo: &str) -> bool {
+/// key. Bare letters, digits and Space would swallow normal typing; a lone
+/// Ctrl / Alt / Shift only works as a double-press gesture.
+fn hotkey_combo_valid(combo: &str, double: bool) -> bool {
     let parts: Vec<&str> = combo.split('+').map(str::trim).collect();
     let Some((key, modifier_parts)) = parts.split_last() else {
         return false;
@@ -419,19 +445,26 @@ fn hotkey_combo_valid(combo: &str) -> bool {
         && key[1..]
             .parse::<u8>()
             .is_ok_and(|number| (1..=24).contains(&number));
+    if modifier_parts.is_empty() {
+        // A lone Win would fight the Start menu and other bare keys would
+        // swallow normal typing; only the three modifiers as a double-press
+        // gesture and bare F-keys stand on their own.
+        return match key.to_ascii_lowercase().as_str() {
+            "ctrl" | "shift" | "alt" => double,
+            _ => function_key,
+        };
+    }
     if function_key {
         return true;
     }
     if *key == "Space" {
-        return !modifier_parts.is_empty();
+        return true;
     }
     let mut chars = key.chars();
-    match (chars.next(), chars.next()) {
-        (Some(c), None) if c.is_ascii_uppercase() || c.is_ascii_digit() => {
-            !modifier_parts.is_empty()
-        }
-        _ => false,
-    }
+    matches!(
+        (chars.next(), chars.next()),
+        (Some(c), None) if c.is_ascii_uppercase() || c.is_ascii_digit()
+    )
 }
 
 const POSITION_KEY: &str = "island_position";
@@ -1634,6 +1667,25 @@ mod tests {
             ))
             .is_ok()
         );
+        // A lone modifier is only valid as a double-press gesture.
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Alt", "double": true})
+            ))
+            .is_ok()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Alt", "double": false})
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_appearance(&with_hotkeys(
+                serde_json::json!({"combo": "Win", "double": true})
+            ))
+            .is_err()
+        );
         // Disabled actions must still carry the switch fields.
         assert!(validate_appearance(&with_hotkeys(serde_json::json!(true))).is_err());
         assert!(
@@ -1680,5 +1732,34 @@ mod tests {
             .unwrap()
             .remove("forwardNotifications");
         assert!(validate_appearance(&missing_forward).is_err());
+        // Version 14 adds the forwarded-notification display switches on top
+        // of everything version 13 already requires.
+        let mut v14 = with_hotkeys(serde_json::json!(null));
+        v14["version"] = serde_json::json!(14);
+        assert!(validate_appearance(&v14).is_err());
+        v14["noticeExpand"] = serde_json::json!(false);
+        assert!(validate_appearance(&v14).is_err());
+        v14["noticeShowText"] = serde_json::json!(true);
+        assert!(validate_appearance(&v14).is_ok());
+        v14["noticeExpand"] = serde_json::json!("yes");
+        assert!(validate_appearance(&v14).is_err());
+        // Version 15 adds the capsule display duration for notifications.
+        let mut v15 = v14.clone();
+        v15["noticeExpand"] = serde_json::json!(false);
+        v15["version"] = serde_json::json!(15);
+        assert!(validate_appearance(&v15).is_err());
+        v15["noticeDisplaySeconds"] = serde_json::json!(5);
+        assert!(validate_appearance(&v15).is_ok());
+        v15["noticeDisplaySeconds"] = serde_json::json!(4);
+        assert!(validate_appearance(&v15).is_err());
+        // Version 16 adds the reminder display duration on top.
+        let mut v16 = v15.clone();
+        v16["noticeDisplaySeconds"] = serde_json::json!(5);
+        v16["version"] = serde_json::json!(16);
+        assert!(validate_appearance(&v16).is_err());
+        v16["reminderDisplaySeconds"] = serde_json::json!(30);
+        assert!(validate_appearance(&v16).is_ok());
+        v16["reminderDisplaySeconds"] = serde_json::json!(45);
+        assert!(validate_appearance(&v16).is_err());
     }
 }

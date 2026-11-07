@@ -80,6 +80,20 @@ async fn get_media_state() -> Result<Option<MediaState>, String> {
         .map_err(|_| "读取媒体状态失败".to_string())?
 }
 
+/// Opens an http(s) URL in the user's default browser. The scheme is checked
+/// so the webview can never ask the shell to launch anything else.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("仅支持打开 http/https 链接".into());
+    }
+    std::process::Command::new("explorer")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 fn read_media_state() -> Result<Option<MediaState>, String> {
     #[cfg(target_os = "windows")]
     {
@@ -1300,6 +1314,7 @@ pub fn run() {
             notifications::get_notification_access,
             notifications::set_notification_forwarding,
             notifications::open_notification_settings,
+            open_external,
             is_autostart_launch,
             get_autostart,
             set_autostart,

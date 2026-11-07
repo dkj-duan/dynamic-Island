@@ -28,6 +28,14 @@ export type SystemNotice = {
   value: string;
 };
 
+/** One forwarded toast, kept for the island's notification page. */
+export type AppNoticeItem = {
+  id: number;
+  app: string;
+  text: string;
+  at: number;
+};
+
 export function systemChanges(
   previous: SystemStatus | undefined,
   current: SystemStatus,

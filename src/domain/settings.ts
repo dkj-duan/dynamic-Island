@@ -88,6 +88,14 @@ export interface AppearanceSettings {
   hotkeyIsland: HotkeySetting | null;
   /** Forward desktop toast notifications to the island capsule. */
   forwardNotifications: boolean;
+  /** Open the panel passively when a forwarded notification arrives. */
+  noticeExpand: boolean;
+  /** Show the forwarded notification text, not just the app name. */
+  noticeShowText: boolean;
+  /** How long a forwarded notification stays on the capsule, in seconds. */
+  noticeDisplaySeconds: number;
+  /** How long a reminder (water, mail, timer done) stays visible, in seconds. */
+  reminderDisplaySeconds: number;
 }
 export const defaultAppearance: AppearanceSettings = {
   expandedShape: "classic",
@@ -106,6 +114,10 @@ export const defaultAppearance: AppearanceSettings = {
   hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
   hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
   forwardNotifications: false,
+  noticeExpand: false,
+  noticeShowText: true,
+  noticeDisplaySeconds: 3,
+  reminderDisplaySeconds: 20,
 };
 
 function parseHotkey(value: unknown): HotkeySetting | null {
@@ -118,20 +130,22 @@ function parseHotkey(value: unknown): HotkeySetting | null {
     typeof item.combo !== "string" ||
     item.combo.length === 0 ||
     item.combo.length > 32 ||
-    !comboShapeValid(item.combo) ||
-    typeof item.double !== "boolean"
+    typeof item.double !== "boolean" ||
+    !comboShapeValid(item.combo, item.double)
   ) {
     throw new Error("快捷键设置无效");
   }
   return { combo: item.combo, double: item.double };
 }
 
-/** The combo must be modifiers plus exactly one non-modifier key. */
-function comboShapeValid(combo: string): boolean {
+/**
+ * The combo must be modifiers plus exactly one non-modifier key, or a lone
+ * Ctrl / Alt / Shift recorded as a double-press gesture.
+ */
+function comboShapeValid(combo: string, double: boolean): boolean {
   const parts = combo.split("+").map((part) => part.trim());
   if (parts.length < 1 || parts.length > 5) return false;
   const key = parts[parts.length - 1];
-  if (!hotkeyKeyPattern.test(key)) return false;
   const modifiers = parts.slice(0, -1).map((part) => part.toLowerCase());
   if (
     modifiers.length !== new Set(modifiers).size ||
@@ -139,8 +153,15 @@ function comboShapeValid(combo: string): boolean {
   ) {
     return false;
   }
-  // A bare letter, digit or Space would swallow normal typing system-wide.
-  if (/^[A-Z0-9]$/.test(key) || key === "Space") return modifiers.length >= 1;
+  if (modifiers.length === 0) {
+    // A lone Ctrl / Alt / Shift only works as a double-press gesture; Win
+    // would fight the Start menu and other bare keys would swallow typing.
+    if (/^(?:ctrl|shift|alt)$/i.test(key)) return double;
+    // A bare F-key stands on its own.
+    return hotkeyKeyPattern.test(key) && key.startsWith("F");
+  }
+  if (!hotkeyKeyPattern.test(key)) return false;
+  // With at least one modifier the key cannot swallow normal typing.
   return true;
 }
 
@@ -179,7 +200,10 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 10 &&
       item.version !== 11 &&
       item.version !== 12 &&
-      item.version !== 13) ||
+      item.version !== 13 &&
+      item.version !== 14 &&
+      item.version !== 15 &&
+      item.version !== 16) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -254,6 +278,38 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     forwardNotifications = item.forwardNotifications;
   }
+  let noticeExpand = defaultAppearance.noticeExpand;
+  let noticeShowText = defaultAppearance.noticeShowText;
+  if (item.version >= 14) {
+    if (
+      typeof item.noticeExpand !== "boolean" ||
+      typeof item.noticeShowText !== "boolean"
+    ) {
+      throw new Error("通知提醒设置无效");
+    }
+    noticeExpand = item.noticeExpand;
+    noticeShowText = item.noticeShowText;
+  }
+  let noticeDisplaySeconds = defaultAppearance.noticeDisplaySeconds;
+  if (item.version >= 15) {
+    if (
+      typeof item.noticeDisplaySeconds !== "number" ||
+      ![3, 5, 10, 15].includes(item.noticeDisplaySeconds)
+    ) {
+      throw new Error("通知显示时长无效");
+    }
+    noticeDisplaySeconds = item.noticeDisplaySeconds;
+  }
+  let reminderDisplaySeconds = defaultAppearance.reminderDisplaySeconds;
+  if (item.version >= 16) {
+    if (
+      typeof item.reminderDisplaySeconds !== "number" ||
+      ![10, 20, 30, 60].includes(item.reminderDisplaySeconds)
+    ) {
+      throw new Error("提醒显示时长无效");
+    }
+    reminderDisplaySeconds = item.reminderDisplaySeconds;
+  }
   return {
     expandedShape:
       expandedShape === "oval" || expandedShape === "soft"
@@ -274,5 +330,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     hotkeyWater,
     hotkeyIsland,
     forwardNotifications,
+    noticeExpand,
+    noticeShowText,
+    noticeDisplaySeconds,
+    reminderDisplaySeconds,
   };
 }

@@ -22,6 +22,10 @@ describe("parseAppearance", () => {
       hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
       hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
       forwardNotifications: false,
+      noticeExpand: false,
+      noticeShowText: true,
+      noticeDisplaySeconds: 3,
+      reminderDisplaySeconds: 20,
     });
   });
   it("migrates old shapes and rejects invalid new shapes", () => {
@@ -320,6 +324,11 @@ describe("parseAppearance", () => {
       double: false,
     });
     expect(migrated.forwardNotifications).toBe(false);
+    // Version 14 data falls back to the forwarded-notification defaults.
+    expect(migrated.noticeExpand).toBe(false);
+    expect(migrated.noticeShowText).toBe(true);
+    expect(migrated.noticeDisplaySeconds).toBe(3);
+    expect(migrated.reminderDisplaySeconds).toBe(20);
     const updated = parseAppearance({
       ...base,
       version: 13,
@@ -335,7 +344,8 @@ describe("parseAppearance", () => {
       double: false,
     });
     expect(updated.forwardNotifications).toBe(true);
-    // Combos must be modifiers plus exactly one key.
+    // Combos must be modifiers plus exactly one key; a lone modifier is only
+    // valid as a double-press gesture.
     for (const combo of [
       "",
       "Ctrl",
@@ -350,6 +360,111 @@ describe("parseAppearance", () => {
           ...base,
           version: 13,
           hotkeyWater: { combo, double: false },
+        }),
+      ).toThrow();
+    }
+    for (const combo of ["Win", "J", "Ctrl+Alt", "Space"]) {
+      expect(() =>
+        parseAppearance({
+          ...base,
+          version: 13,
+          hotkeyWater: { combo, double: true },
+        }),
+      ).toThrow();
+    }
+    const tapped = parseAppearance({
+      ...base,
+      version: 13,
+      hotkeyFocus: null,
+      hotkeyIsland: null,
+      hotkeyWater: { combo: "Alt", double: true },
+      forwardNotifications: false,
+    });
+    expect(tapped.hotkeyWater).toEqual({ combo: "Alt", double: true });
+    // Version 14 reads the forwarded-notification display switches.
+    const v14 = parseAppearance({
+      ...base,
+      version: 14,
+      hotkeyFocus: null,
+      hotkeyIsland: null,
+      hotkeyWater: null,
+      forwardNotifications: true,
+      noticeExpand: true,
+      noticeShowText: false,
+    });
+    expect(v14.noticeExpand).toBe(true);
+    expect(v14.noticeShowText).toBe(false);
+    for (const notice of [
+      { noticeExpand: "yes", noticeShowText: true },
+      { noticeExpand: true, noticeShowText: 1 },
+    ]) {
+      expect(() =>
+        parseAppearance({
+          ...base,
+          version: 14,
+          hotkeyFocus: null,
+          hotkeyIsland: null,
+          hotkeyWater: null,
+          forwardNotifications: true,
+          ...notice,
+        }),
+      ).toThrow();
+    }
+    // Version 15 reads the capsule display duration for notifications.
+    const v15 = parseAppearance({
+      ...base,
+      version: 15,
+      hotkeyFocus: null,
+      hotkeyIsland: null,
+      hotkeyWater: null,
+      forwardNotifications: true,
+      noticeExpand: true,
+      noticeShowText: false,
+      noticeDisplaySeconds: 10,
+    });
+    expect(v15.noticeDisplaySeconds).toBe(10);
+    for (const seconds of [4, "5", null]) {
+      expect(() =>
+        parseAppearance({
+          ...base,
+          version: 15,
+          hotkeyFocus: null,
+          hotkeyIsland: null,
+          hotkeyWater: null,
+          forwardNotifications: true,
+          noticeExpand: true,
+          noticeShowText: true,
+          noticeDisplaySeconds: seconds,
+        }),
+      ).toThrow();
+    }
+    // Version 16 reads the reminder display duration.
+    const v16 = parseAppearance({
+      ...base,
+      version: 16,
+      hotkeyFocus: null,
+      hotkeyIsland: null,
+      hotkeyWater: null,
+      forwardNotifications: true,
+      noticeExpand: true,
+      noticeShowText: true,
+      noticeDisplaySeconds: 10,
+      reminderDisplaySeconds: 30,
+    });
+    expect(v16.reminderDisplaySeconds).toBe(30);
+    for (const seconds of [45, "30", true]) {
+      expect(() =>
+        parseAppearance({
+          ...base,
+          version: 16,
+          hotkeyFocus: null,
+          hotkeyIsland: null,
+          hotkeyWater: null,
+          forwardNotifications: true,
+          noticeExpand: true,
+          noticeShowText: true,
+          noticeDisplaySeconds: 10,
+          reminderDisplaySeconds: seconds,
         }),
       ).toThrow();
     }
