@@ -664,7 +664,7 @@ async fn set_audio_device(window: tauri::WebviewWindow, device_id: String) -> Re
 }
 
 /// Island zoom tier for a monitor's CSS-pixel width. The island window is
-/// laid out for a fixed 360×320 CSS viewport, which renders too small on
+/// laid out for a fixed 440×320 CSS viewport, which renders too small on
 /// high-resolution monitors; the same viewport is rendered through a native
 /// webview zoom while the window grows proportionally. Kept in sync with the
 /// tier tables in src/services/display.ts.
@@ -734,12 +734,14 @@ fn island_auto_scale() -> f64 {
 
 /// Sizes the island window and its webview zoom for a combined scale factor
 /// and records it for the native hit-region maths. The layout viewport stays
-/// 360×320 CSS px regardless of the scale.
+/// 440×320 CSS px regardless of the scale; the extra width over the 340px
+/// panel is where the CSS drop shadow fades out instead of being clipped
+/// into a hard rectangular frame by the window edge.
 fn apply_island_window_scale(window: &tauri::WebviewWindow, scale: f64) -> Result<(), String> {
     let dpr = window.scale_factor().map_err(|e| e.to_string())?;
     window
         .set_size(PhysicalSize::new(
-            (360.0 * dpr * scale).round() as u32,
+            (440.0 * dpr * scale).round() as u32,
             (320.0 * dpr * scale).round() as u32,
         ))
         .map_err(|e| e.to_string())?;
@@ -1066,9 +1068,11 @@ fn set_island_panel_bounds(
         use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
         let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
-        // The arrival pop scales the panel up by 6%; keep a small margin so
-        // it is not clipped by the region during that beat.
-        let pad = 12.0 * scale;
+        // The arrival pop scales the panel up by 6%; keep a margin so it is
+        // not clipped by the region during that beat. The margin also carries
+        // the CSS drop shadow (~16–30px of fade); clipping it would paint a
+        // hard rectangular frame around the rounded panel.
+        let pad = 24.0 * scale;
         let size = window.outer_size().map_err(|e| e.to_string())?;
         let left = (x * scale - pad).floor().clamp(0.0, size.width as f64) as i32;
         let top = (y * scale - pad).floor().clamp(0.0, size.height as f64) as i32;
@@ -1215,17 +1219,67 @@ fn apply_fullscreen_visibility(
     fullscreen: bool,
 ) {
     ISLAND_HIDDEN_BY_FS.store(hidden_by_fs, std::sync::atomic::Ordering::SeqCst);
-    if hidden_by_fs {
-        let _ = window.hide();
-    } else {
-        let _ = window.show();
-    }
+    // Hide through the layered alpha instead of ShowWindow: tearing the
+    // window down with hide()/show() makes WebView2 rebuild its transparent
+    // composition, which after fullscreen round-trips froze the window into
+    // its raw decorated form. An alpha-0 layered window keeps the same
+    // composition; the emptied hit region keeps it from swallowing clicks.
+    let target = window.clone();
+    let _ = window.run_on_main_thread(move || {
+        set_island_alpha_hidden(&target, hidden_by_fs);
+    });
     let _ = tauri::Emitter::emit_to(
         window.app_handle(),
         "island",
         "fullscreen-changed",
         fullscreen,
     );
+}
+
+/// Fades the island in or out of sight without ShowWindow. While hidden the
+/// hit region is emptied so the invisible surface cannot intercept clicks
+/// meant for the fullscreen app; unhide restores the last reported panel
+/// region (an empty region matches the startup state until the next report).
+#[cfg(target_os = "windows")]
+fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) {
+    use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, GetWindowLongPtrW, LWA_ALPHA, SetLayeredWindowAttributes, SetWindowLongPtrW,
+        WS_EX_LAYERED,
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    unsafe {
+        let ex_style = GetWindowLongPtrW(hwnd.0, GWL_EXSTYLE) as u32;
+        if ex_style & WS_EX_LAYERED == 0 {
+            SetWindowLongPtrW(hwnd.0, GWL_EXSTYLE, (ex_style | WS_EX_LAYERED) as isize);
+        }
+        // A layered window without alpha stops rendering entirely; set the
+        // alpha together with the style, every time.
+        if SetLayeredWindowAttributes(hwnd.0, 0, if hidden { 0 } else { 255 }, LWA_ALPHA) == 0 {
+            return;
+        }
+        let region = if hidden {
+            CreateRectRgn(0, 0, 0, 0)
+        } else {
+            match *ISLAND_HIT_RECT
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+            {
+                Some((left, top, right, bottom)) => CreateRectRgn(left, top, right, bottom),
+                None => std::ptr::null_mut(),
+            }
+        };
+        if region.is_null() && !hidden {
+            // No stored region: clearing the region matches the startup
+            // state, and the next bounds report tightens it again.
+            SetWindowRgn(hwnd.0, std::ptr::null_mut(), 1);
+        } else if SetWindowRgn(hwnd.0, region, 1) == 0 && !region.is_null() {
+            // SetWindowRgn failed; the region still belongs to us.
+            DeleteObject(region);
+        }
+    }
 }
 
 /// Watches the foreground window and hides the island while a fullscreen app
@@ -1349,9 +1403,9 @@ fn set_island_expanded(
         let old_size = window.outer_size().map_err(|e| e.to_string())?;
         let zoom = island_scale();
         let (width, height) = if expanded {
-            (360.0, 320.0)
+            (440.0, 320.0)
         } else {
-            (300.0, 64.0)
+            (380.0, 64.0)
         };
         let scale = window.scale_factor().map_err(|e| e.to_string())?;
         let x =
@@ -1536,7 +1590,7 @@ pub fn run() {
                 let storage = app.state::<storage::Storage>();
                 // Scale the island for the monitor it will sit on before the
                 // position is restored, so saved coordinates match the final
-                // window size. The layout viewport stays 360×320 CSS px.
+                // window size. The layout viewport stays 440×320 CSS px.
                 let monitor = window.current_monitor()?.or(window.primary_monitor()?);
                 let auto = monitor
                     .as_ref()
