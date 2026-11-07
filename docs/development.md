@@ -20,15 +20,16 @@ npm run tauri dev
 
 ## 常用命令
 
-| 命令                                              | 作用                                              |
-| ------------------------------------------------- | ------------------------------------------------- |
-| `npm run tauri dev`                               | 启动桌面应用（Vite + Rust）                       |
-| `npm run dev`                                     | 仅浏览器预览样式                                  |
-| `npm run check`                                   | Prettier 检查、ESLint、Vitest、`tsc` 与 Vite 构建 |
-| `npm run format`                                  | 格式化前端与文档                                  |
-| `npm run tauri build`                             | 构建 NSIS 安装包                                  |
-| `cargo fmt --manifest-path src-tauri/Cargo.toml`  | 格式化 Rust                                       |
-| `cargo test --manifest-path src-tauri/Cargo.toml` | Rust 单元测试                                     |
+| 命令                                              | 作用                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------- |
+| `npm run tauri dev`                               | 启动桌面应用（Vite + Rust）                                   |
+| `npm run dev`                                     | 仅浏览器预览样式                                              |
+| `npm run check`                                   | Prettier 检查、ESLint、Vitest、`tsc` 与 Vite 构建             |
+| `npm run format`                                  | 格式化前端与文档                                              |
+| `npm run tauri build`                             | 构建 NSIS 安装包                                              |
+| `npm run installer -- 0.2.0`                      | 写入版本号并打包安装包（双击根目录 build-installer.cmd 亦可） |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml`  | 格式化 Rust                                                   |
+| `cargo test --manifest-path src-tauri/Cargo.toml` | Rust 单元测试                                                 |
 
 ## 代码约定
 

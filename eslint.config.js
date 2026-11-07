@@ -6,6 +6,10 @@ import globals from "globals";
 
 export default tseslint.config(
   { ignores: ["dist", "node_modules", "src-tauri/target"] },
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: globals.node },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
