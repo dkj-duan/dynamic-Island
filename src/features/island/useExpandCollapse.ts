@@ -39,7 +39,8 @@ function waitForFrame(): Promise<void> {
   });
 }
 
-type AlertKind = "timer" | "mail" | "water" | "notification" | "notice";
+type AlertKind =
+  "timer" | "mail" | "water" | "sedentary" | "notification" | "notice";
 
 /**
  * The island's open/close lifecycle: click and hover expansion, the

@@ -5,6 +5,7 @@ export type DailyStat = {
   waterMl: number;
   pomodoros: number;
   focusSeconds: number;
+  sedentaryBreaks: number;
 };
 
 export type DailyValue = { day: string; value: number };

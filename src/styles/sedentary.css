@@ -1,0 +1,319 @@
+/* —— Stand ring: sitting time filling toward the reminder interval —— */
+.stand-ring {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.stand-ring-settings {
+  width: 104px;
+  height: 104px;
+}
+
+.stand-ring-island {
+  width: 58px;
+  height: 58px;
+}
+
+.stand-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.stand-ring circle {
+  fill: none;
+  stroke-width: 4.5;
+}
+
+.stand-ring-track {
+  stroke: var(--stand-track, rgb(255 255 255 / 0.14));
+}
+
+.stand-ring-value {
+  stroke: var(--stand-color, #6fd39a);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stand-ring.tone-near {
+  --stand-color: #f0b26b;
+}
+
+.stand-ring.tone-over {
+  --stand-color: #ef7d68;
+}
+
+.stand-ring.tone-fresh {
+  --stand-color: #6fd39a;
+}
+
+.stand-ring-label {
+  position: relative;
+  color: var(--stand-color, #eaf6ff);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stand-ring-settings .stand-ring-label {
+  font-size: 15px;
+}
+
+/* The chair art sits inside the ring; the minutes move to the copy line. */
+.stand-ring-art {
+  position: relative;
+  object-fit: contain;
+}
+
+.stand-ring-island .stand-ring-art {
+  width: 34px;
+  height: 34px;
+}
+
+.stand-ring-settings .stand-ring-art {
+  width: 56px;
+  height: 56px;
+}
+
+/* On the light settings card the track needs a darker tint. */
+.settings-sedentary-hero .stand-ring {
+  --stand-track: rgb(0 0 0 / 0.08);
+}
+
+/* —— Settings hero card, mirroring the water hero grid —— */
+.settings-sedentary-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  padding: 18px 22px;
+}
+
+.antd-plain-card .settings-sedentary-hero {
+  padding-right: 52px;
+}
+
+.settings-sedentary-ring-wrap {
+  display: grid;
+  place-items: center;
+}
+
+.settings-sedentary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settings-sedentary-value {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.settings-sedentary-value strong {
+  color: var(--settings-text-strong);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-sedentary-value span {
+  color: var(--settings-muted);
+  font-size: 13px;
+}
+
+.settings-sedentary-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+.settings-sedentary-meta i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--settings-faint);
+}
+
+.settings-sedentary-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.settings-sedentary-actions > .ant-btn {
+  width: 128px;
+}
+
+@media (max-width: 860px) {
+  .settings-sedentary-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-sedentary-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+}
+
+/* —— Island expanded page —— */
+.stand-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.stand-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.stand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stand-copy strong {
+  color: #eaf6ff;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.stand-copy strong span {
+  color: #b4c0cc;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stand-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #b4c0cc;
+  font-size: 12px;
+}
+
+.stand-tone-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+/* —— Capsule pill states —— */
+.island-sedentary-current .compact-primary {
+  font-size: 13px;
+}
+
+.sedentary-indicator {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.sedentary-chair-sm {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+}
+
+.island-sedentary-current.is-logged .compact-primary {
+  color: #79d6a3;
+}
+
+.island-sedentary-current.is-logged {
+  animation: island-current-in 240ms ease-out;
+}
+
+.island-panel.is-sedentary-reminder {
+  border-color: rgb(239 125 104 / 0.55);
+}
+
+.island-panel[data-alert="sedentary"] {
+  --alert-color: #ef7d68;
+}
+
+/* —— Idle widget: minutes since the last break —— */
+.idle-widget-sedentary span {
+  color: #79d6a3;
+}
+
+.idle-widget-sedentary.is-near span {
+  color: #f0b26b;
+}
+
+.idle-widget-sedentary.is-over span {
+  color: #ef7d68;
+}
+
+.idle-widget-sedentary.is-over img {
+  filter: drop-shadow(0 0 5px rgb(239 125 104 / 0.6));
+}
+
+/* —— Actions and flash, mirroring the water page —— */
+.stand-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.stand-actions button {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 9px;
+  background: rgb(255 255 255 / 0.1);
+  color: #eaf6ff;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.stand-actions button:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+
+.stand-actions .stand-add {
+  background: rgb(111 211 154 / 0.2);
+}
+
+.stand-actions .stand-add:hover {
+  background: rgb(111 211 154 / 0.3);
+}
+
+.stand-flash {
+  position: absolute;
+  top: 4px;
+  right: 10px;
+  color: #79d6a3;
+  font-size: 13px;
+  font-weight: 600;
+  animation: water-flash 1100ms var(--ease-out) forwards;
+  pointer-events: none;
+}

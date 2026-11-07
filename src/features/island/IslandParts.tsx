@@ -7,6 +7,7 @@ import {
   Headphones,
   Mail,
   Music2,
+  PersonStanding,
   PlugZap,
   Sun,
   Timer,
@@ -69,11 +70,13 @@ export function IslandPageIcon({ page }: { page: IslandTab }) {
           ? Mail
           : page === "water"
             ? Droplet
-            : page === "notice"
-              ? BellRing
-              : page === "device"
-                ? Headphones
-                : Bot;
+            : page === "sedentary"
+              ? PersonStanding
+              : page === "notice"
+                ? BellRing
+                : page === "device"
+                  ? Headphones
+                  : Bot;
   return <Icon size={13} aria-hidden="true" />;
 }
 

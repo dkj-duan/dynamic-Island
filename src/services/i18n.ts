@@ -421,6 +421,32 @@ const en: Record<string, string> = {
   重置: "Resets",
   已重置今日饮水: "Today's water reset",
 
+  // —— Sedentary ——
+  久坐: "Sitting",
+  久坐提醒: "Sedentary reminders",
+  久坐时长: "Sitting time",
+  久坐提醒设置: "Sedentary reminder settings",
+  该起身活动了: "Time to stand up",
+  起身一下: "Stand up",
+  已记录起身: "Stand-up logged",
+  已坐: "Sitting for",
+  次: "times",
+  今日起身: "Today's stand-ups",
+  "每日目标（次）": "Daily goal (times)",
+  "久坐提醒间隔（分钟）": "Sedentary reminder interval (minutes)",
+  "连续静坐达到该时长后提醒，起身记录会重新计时。":
+    "Remind after sitting this long; logging a stand-up restarts the clock.",
+  开启久坐提醒: "Enable sedentary reminders",
+  "提醒只在灵动岛显示，不会弹系统通知；每日目标仅用于统计展示。":
+    "Reminders stay on the island; no system notifications. The daily goal is display-only.",
+  "近 30 天起身": "Stand-ups in the last 30 days",
+  重置今日起身: "Reset today's stand-ups",
+  "重置今日起身？": "Reset today's stand-ups?",
+  "清零今天的起身次数，统计历史不受影响。":
+    "Clears today's stand-up count; history stays intact.",
+  已重置今日起身: "Today's stand-ups reset",
+  "久坐设置超出允许范围，未保存": "Sedentary settings out of range — not saved",
+
   // —— Focus stats ——
   专注统计: "Focus stats",
   "近 30 天的完成情况，今天高亮显示。":
@@ -624,8 +650,8 @@ const en: Record<string, string> = {
   "喝水、新邮件等提醒在胶囊上停留的时间，自动展开的面板也按此收起；验证码保持到过期，计时完成等你确认。":
     "How long reminders like water and new mail stay visible; an auto-expanded panel collapses on the same clock. Codes stay until they expire, a finished timer waits for you.",
   已记录一杯水: "Water logged",
-  "验证码、喝水和计时结束时会自动打开面板。":
-    "Opens the panel automatically for mail codes, water and finished timers.",
+  "验证码、喝水、久坐和计时结束时会自动打开面板。":
+    "Opens the panel automatically for mail codes, water, stand-ups and finished timers.",
   胶囊交互: "Capsule behaviour",
   全局快捷键: "Global hotkeys",
   "组合键（如 Ctrl+Alt+S）和 F 键直接录制；快速按两次 Ctrl、Alt 或 Shift 录为双击触发；被其他程序占用的组合键会在下方列出。":

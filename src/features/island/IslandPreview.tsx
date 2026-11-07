@@ -32,6 +32,7 @@ export function IslandPreview({
     waterTimer: { minutes: 23 },
     countdown: { label: "下班", remainingMs: 2 * 3600_000, reached: false },
     pomodoroCycle: { done: 2, total: 4 },
+    sedentary: { minutes: 23, over: false },
   };
   return (
     // Zoom only the capsule, so the stage around it keeps a stable size.

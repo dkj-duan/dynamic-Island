@@ -39,9 +39,11 @@ import { useAudioDevices } from "./useAudioDevices";
 import { useIslandMedia } from "./useIslandMedia";
 import { useIslandTimer } from "./useIslandTimer";
 import { useIslandWater } from "./useIslandWater";
+import { useIslandSedentary } from "./useIslandSedentary";
 import { useExpandCollapse } from "./useExpandCollapse";
 import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
+import { SedentaryPage } from "./SedentaryPage";
 import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
 import { NoticePage } from "./NoticePage";
@@ -62,11 +64,13 @@ import {
   waterTone,
   waterToneColors,
 } from "../../domain/water";
+import { sedentaryTone, sedentaryToneColors } from "../../domain/sedentary";
 import { useDailyStats } from "../stats/useDailyStats";
 import { focusStreak } from "../../domain/dailyStats";
 import { setLanguage, t } from "../../services/i18n";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
 import waterDrop from "../../assets/water-drop.webp";
+import sedentaryChair from "../../assets/island/away-chair.png";
 
 /** The media capsule shows one of these next to the track, picked at random. */
 type MediaBadge = "pomodoro" | "water" | "quota";
@@ -176,6 +180,18 @@ export function IslandWindow() {
     appearance.language,
     appearance.reminderDisplaySeconds,
   );
+  const {
+    sedentary,
+    lastBreakAt,
+    sedentaryReminder,
+    setSedentaryReminder,
+    sedentaryAdded,
+    sedentaryLogged,
+    sedentaryError,
+    setSedentaryError,
+    standNow,
+    sedentaryWidgetState,
+  } = useIslandSedentary(now, appearance.reminderDisplaySeconds);
   const mediaState = useIslandMedia();
   const { media, mediaKey, artwork, mediaPosition, currentLyric } = mediaState;
   const [mediaBadge, setMediaBadge] = useState<MediaBadge>("quota");
@@ -200,6 +216,8 @@ export function IslandWindow() {
     notice: !!displayNotice,
     water: waterReminder,
     waterLogged,
+    sedentary: sedentaryReminder,
+    sedentaryLogged,
     // Paused media stays in the panel but gives the island back. When island
     // lyrics are off, music only appears through the idle music widget.
     media: !!(media?.title && media.playing && appearance.islandLyrics),
@@ -215,11 +233,13 @@ export function IslandWindow() {
         ? "mail"
         : display === "water"
           ? "water"
-          : display === "notice"
-            ? displayNotice?.kind === "notification"
-              ? "notification"
-              : "notice"
-            : null;
+          : display === "sedentary"
+            ? "sedentary"
+            : display === "notice"
+              ? displayNotice?.kind === "notification"
+                ? "notification"
+                : "notice"
+              : null;
   const alertToken = alertKind
     ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}${
         alertKind === "notification"
@@ -438,6 +458,8 @@ export function IslandWindow() {
       if (acknowledge) dismissHighlight();
     } else if (display === "water" || display === "waterLogged") {
       setActiveTab("water");
+    } else if (display === "sedentary" || display === "sedentaryLogged") {
+      setActiveTab("sedentary");
     } else if (display === "notice" && displayNotice?.kind === "notification") {
       // A forwarded notification opens onto its own page.
       setActiveTab("notice");
@@ -464,15 +486,31 @@ export function IslandWindow() {
       if (alertKind === "timer") resetTimer();
       else if (alertKind === "mail") dismissHighlight();
       else if (alertKind === "water") setWaterReminder(false);
+      else if (alertKind === "sedentary") setSedentaryReminder(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [alertKind, dismissHighlight, resetTimer, setWaterReminder]);
+  }, [
+    alertKind,
+    dismissHighlight,
+    resetTimer,
+    setWaterReminder,
+    setSedentaryReminder,
+  ]);
 
   const waterPercentToday = waterPercent(todayWater, water.goalMl);
   const waterCupsToday = waterCups(todayWater, water.cupMl);
   const waterToneValue = waterTone(todayWater, water.goalMl);
   const waterToneColor = waterToneColors[waterToneValue];
+  const todaySedentaryBreaks = todayStat?.sedentaryBreaks ?? 0;
+  const sedentaryWidget = sedentaryWidgetState();
+  const sedentarySitting = sedentaryWidget?.minutes ?? 0;
+  const sedentaryToneValue = sedentaryTone(
+    lastBreakAt,
+    now,
+    sedentary.reminderMinutes,
+  );
+  const sedentaryToneColor = sedentaryToneColors[sedentaryToneValue];
   // The mail capsule needs a little more room for the account line.
   // Only the capsule grows with the size setting; type stays the same.
   // Only real playback earns the music widget; the settings preview supplies
@@ -536,6 +574,7 @@ export function IslandWindow() {
         : null,
     waterTimer: waterTimerState(),
     countdown: idleCountdown,
+    sedentary: sedentaryWidget,
     pomodoroCycle: {
       done: Math.min(pomodoroProgress.cycle, pomodoro.longBreakEvery),
       total: pomodoro.longBreakEvery,
@@ -638,7 +677,7 @@ export function IslandWindow() {
       >
         <div
           ref={panel}
-          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${popping && alertKind ? "is-popping" : ""}`}
+          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${display === "sedentary" ? "is-sedentary-reminder" : ""} ${popping && alertKind ? "is-popping" : ""}`}
           data-alert={alertKind ?? undefined}
           data-reminder={alertKind ? appearance.reminderStyle : undefined}
           style={
@@ -722,6 +761,44 @@ export function IslandWindow() {
                   <span className="compact-primary">{t("已记录一杯水")}</span>
                   <span className="compact-secondary">
                     +{waterAddedMl} ml · {todayWater} / {water.goalMl} ml
+                  </span>
+                </span>
+              </span>
+            ) : display === "sedentary" ? (
+              <span
+                className="island-current island-sedentary-current"
+                role="status"
+              >
+                <img
+                  className="water-indicator sedentary-indicator"
+                  src={sedentaryChair}
+                  alt=""
+                  draggable={false}
+                />
+                <span className="compact-copy">
+                  <span className="compact-primary">{t("该起身活动了")}</span>
+                  <span className="compact-secondary">
+                    {t("已坐")} {sedentarySitting} {t("分钟")}
+                  </span>
+                </span>
+              </span>
+            ) : display === "sedentaryLogged" ? (
+              <span
+                key={`sedentary-logged-${sedentaryAdded}`}
+                className="island-current island-sedentary-current is-logged"
+                role="status"
+              >
+                <img
+                  className="water-indicator sedentary-indicator"
+                  src={sedentaryChair}
+                  alt=""
+                  draggable={false}
+                />
+                <span className="compact-copy">
+                  <span className="compact-primary">{t("已记录起身")}</span>
+                  <span className="compact-secondary">
+                    {t("今日")} {todaySedentaryBreaks} / {sedentary.goalBreaks}{" "}
+                    {t("次")}
                   </span>
                 </span>
               </span>
@@ -889,6 +966,21 @@ export function IslandWindow() {
               />
             </button>
           )}
+          {!expanded && display === "sedentary" && (
+            <button
+              className="island-copy island-sedentary-add"
+              aria-label={t("起身一下")}
+              title={t("起身一下")}
+              onClick={() => void standNow()}
+            >
+              <img
+                className="sedentary-chair-sm"
+                src={sedentaryChair}
+                alt=""
+                draggable={false}
+              />
+            </button>
+          )}
           {!expanded && display === "mail" && capsuleMail?.code && (
             <button
               className={`island-copy has-label ${capsuleCopied ? "is-copied" : ""}`}
@@ -1047,6 +1139,18 @@ export function IslandWindow() {
                   waterError={waterError}
                   setWaterError={setWaterError}
                   drinkWater={drinkWater}
+                />
+              ) : activeTab === "sedentary" ? (
+                <SedentaryPage
+                  sedentary={sedentary}
+                  sittingMin={sedentarySitting}
+                  tone={sedentaryToneValue}
+                  toneColor={sedentaryToneColor}
+                  sedentaryAdded={sedentaryAdded}
+                  todayBreaks={todaySedentaryBreaks}
+                  standNow={standNow}
+                  standError={sedentaryError}
+                  setStandError={setSedentaryError}
                 />
               ) : activeTab === "ai" ? (
                 <QuotaPage

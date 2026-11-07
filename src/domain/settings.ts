@@ -19,6 +19,7 @@ export const idleWidgetIds = [
   "bluetooth",
   "waterTimer",
   "countdown",
+  "sedentary",
   "mascot",
 ] as const;
 export type IdleWidgetId = (typeof idleWidgetIds)[number];

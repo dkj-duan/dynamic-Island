@@ -12,6 +12,7 @@ import {
   PlusOutlined,
   PoweroffOutlined,
   RobotOutlined,
+  RiseOutlined,
   SoundOutlined,
   ThunderboltOutlined,
   WifiOutlined,
@@ -45,6 +46,7 @@ const idleWidgetOptions: {
   { id: "bluetooth", label: "蓝牙耳机电量", icon: <WifiOutlined /> },
   { id: "waterTimer", label: "喝水倒计时", icon: <BellOutlined /> },
   { id: "countdown", label: "倒计时", icon: <HourglassOutlined /> },
+  { id: "sedentary", label: "久坐时长", icon: <RiseOutlined /> },
 ];
 
 const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [

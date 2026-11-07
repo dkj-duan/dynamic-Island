@@ -24,6 +24,7 @@ export type IdleData = {
   waterTimer?: IdleWaterTimer | null;
   countdown?: { label: string; remainingMs: number; reached: boolean } | null;
   pomodoroCycle?: { done: number; total: number } | null;
+  sedentary?: { minutes: number; over: boolean } | null;
 };
 
 export function availableIdleWidgets(
@@ -43,6 +44,7 @@ export function availableIdleWidgets(
       if (id === "bluetooth") return !!data.bluetooth;
       if (id === "waterTimer") return !!data.waterTimer;
       if (id === "countdown") return !!data.countdown;
+      if (id === "sedentary") return !!data.sedentary;
       if (appearance.pomodoroView === "focus") {
         return data.focusMinutes != null;
       }
