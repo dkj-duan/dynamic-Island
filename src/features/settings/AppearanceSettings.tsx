@@ -5,7 +5,6 @@ import {
   BellOutlined,
   CalendarOutlined,
   ClockCircleOutlined,
-  CloseOutlined,
   CustomerServiceOutlined,
   FieldTimeOutlined,
   FireOutlined,
@@ -73,9 +72,6 @@ export function AppearancePage({
   preview: ReactNode;
   canEdit: boolean;
 }) {
-  const available = idleWidgetOptions.filter(
-    (option) => !appearance.idleWidgets.includes(option.id),
-  );
   const limitReached = appearance.idleWidgets.length >= MAX_IDLE_WIDGETS;
 
   function toggleIdleWidget(id: IdleWidgetId) {
@@ -129,25 +125,54 @@ export function AppearancePage({
           </span>
         }
       >
-        <div className="antd-widget-group">
-          <div className="antd-widget-group-label">{t("已显示")}</div>
-          <div className="antd-widget-chips">
-            {appearance.idleWidgets.map((id, index) => {
-              const option = idleWidgetOptions.find((item) => item.id === id)!;
-              return (
-                <div className="antd-widget-chip is-on" key={id}>
-                  <span className="antd-widget-icon" aria-hidden="true">
-                    {option.icon}
-                  </span>
-                  <span className="antd-widget-label">{t(option.label)}</span>
-                  <span className="antd-chip-actions">
+        {/* One grid for every widget: click to put it on the island, click
+            again to take it off. Selected chips carry the reorder arrows. */}
+        <div className="antd-widget-chips is-unified">
+          {idleWidgetOptions.map((option) => {
+            const on = appearance.idleWidgets.includes(option.id);
+            const index = appearance.idleWidgets.indexOf(option.id);
+            return (
+              <div
+                role="button"
+                tabIndex={canEdit ? 0 : -1}
+                key={option.id}
+                className={`antd-widget-chip is-widget-toggle ${
+                  on ? "is-on" : "is-off"
+                }`}
+                aria-pressed={on}
+                title={
+                  on
+                    ? `${t("移除")} ${t(option.label)}`
+                    : `${t("添加")} ${t(option.label)}`
+                }
+                onClick={() => {
+                  if (!canEdit || (!on && limitReached)) return;
+                  toggleIdleWidget(option.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  if (!canEdit || (!on && limitReached)) return;
+                  toggleIdleWidget(option.id);
+                }}
+              >
+                <span className="antd-widget-icon" aria-hidden="true">
+                  {option.icon}
+                </span>
+                <span className="antd-widget-label">{t(option.label)}</span>
+                {on ? (
+                  <span
+                    className="antd-chip-actions"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
                     <button
                       type="button"
                       className="antd-chip-btn"
                       aria-label={t("上移")}
                       title={t("上移")}
                       disabled={!canEdit || index === 0}
-                      onClick={() => moveIdleWidget(id, -1)}
+                      onClick={() => moveIdleWidget(option.id, -1)}
                     >
                       <ArrowUpOutlined />
                     </button>
@@ -159,57 +184,18 @@ export function AppearancePage({
                       disabled={
                         !canEdit || index === appearance.idleWidgets.length - 1
                       }
-                      onClick={() => moveIdleWidget(id, 1)}
+                      onClick={() => moveIdleWidget(option.id, 1)}
                     >
                       <ArrowDownOutlined />
                     </button>
-                    <button
-                      type="button"
-                      className="antd-chip-btn is-remove"
-                      aria-label={t("移除")}
-                      title={t("移除")}
-                      disabled={!canEdit}
-                      onClick={() => toggleIdleWidget(id)}
-                    >
-                      <CloseOutlined />
-                    </button>
                   </span>
-                </div>
-              );
-            })}
-            {appearance.idleWidgets.length === 0 && (
-              <span className="antd-widget-empty">
-                {t("还没有选择组件，空闲时只显示灵动岛名称。")}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {available.length > 0 && (
-          <div className="antd-widget-group">
-            <div className="antd-widget-group-label">{t("可添加")}</div>
-            <div className="antd-widget-more">
-              <div className="antd-widget-chips">
-                {available.map((option) => (
-                  <button
-                    type="button"
-                    key={option.id}
-                    className="antd-widget-chip is-off"
-                    disabled={!canEdit || limitReached}
-                    title={`${t("添加")} ${t(option.label)}`}
-                    onClick={() => toggleIdleWidget(option.id)}
-                  >
-                    <span className="antd-widget-icon" aria-hidden="true">
-                      {option.icon}
-                    </span>
-                    <span className="antd-widget-label">{t(option.label)}</span>
-                    <PlusOutlined className="antd-chip-add" />
-                  </button>
-                ))}
+                ) : (
+                  <PlusOutlined className="antd-chip-add" />
+                )}
               </div>
-            </div>
-          </div>
-        )}
+            );
+          })}
+        </div>
 
         <Divider style={{ margin: "16px 0 12px" }} />
         <div className="antd-setting-row">

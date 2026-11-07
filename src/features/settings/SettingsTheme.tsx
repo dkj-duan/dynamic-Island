@@ -11,30 +11,30 @@ const fontFamily =
 const baseTheme = {
   token: {
     fontFamily,
-    fontSize: 13,
+    fontSize: 12.5,
     borderRadius: 10,
   },
   components: {
     Card: {
-      headerFontSize: 14,
-      headerHeight: 44,
+      headerFontSize: 13.5,
+      headerHeight: 42,
       paddingLG: 18,
     },
     Menu: {
-      itemHeight: 34,
+      itemHeight: 32,
       itemBorderRadius: 8,
       itemMarginInline: 8,
-      iconSize: 15,
+      iconSize: 14,
       groupTitleFontSize: 11,
     },
     Button: {
       fontWeight: 500,
     },
     Input: {
-      controlHeight: 32,
+      controlHeight: 30,
     },
     Select: {
-      controlHeight: 32,
+      controlHeight: 30,
     },
     Switch: {
       trackHeight: 24,
