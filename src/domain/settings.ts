@@ -96,6 +96,8 @@ export interface AppearanceSettings {
   noticeDisplaySeconds: number;
   /** How long a reminder (water, mail, timer done) stays visible, in seconds. */
   reminderDisplaySeconds: number;
+  /** Step aside while a fullscreen app owns the screen. */
+  fullscreenAvoid: boolean;
 }
 export const defaultAppearance: AppearanceSettings = {
   expandedShape: "classic",
@@ -118,6 +120,7 @@ export const defaultAppearance: AppearanceSettings = {
   noticeShowText: true,
   noticeDisplaySeconds: 3,
   reminderDisplaySeconds: 20,
+  fullscreenAvoid: true,
 };
 
 function parseHotkey(value: unknown): HotkeySetting | null {
@@ -203,7 +206,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 13 &&
       item.version !== 14 &&
       item.version !== 15 &&
-      item.version !== 16) ||
+      item.version !== 16 &&
+      item.version !== 17) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -310,6 +314,13 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     reminderDisplaySeconds = item.reminderDisplaySeconds;
   }
+  let fullscreenAvoid = defaultAppearance.fullscreenAvoid;
+  if (item.version >= 17) {
+    if (typeof item.fullscreenAvoid !== "boolean") {
+      throw new Error("全屏避让设置无效");
+    }
+    fullscreenAvoid = item.fullscreenAvoid;
+  }
   return {
     expandedShape:
       expandedShape === "oval" || expandedShape === "soft"
@@ -334,5 +345,6 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     noticeShowText,
     noticeDisplaySeconds,
     reminderDisplaySeconds,
+    fullscreenAvoid,
   };
 }

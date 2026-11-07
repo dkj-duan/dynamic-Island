@@ -288,6 +288,15 @@ export function BehaviorSettings({
             ]}
           />
         </SettingRow>
+        <SettingRow title={t("全屏时隐藏灵动岛")}>
+          <Switch
+            checked={appearance.fullscreenAvoid}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, fullscreenAvoid: checked })
+            }
+          />
+        </SettingRow>
         <SettingRow
           title={t("鼠标离开后自动收起")}
           description={t(

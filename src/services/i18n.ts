@@ -619,6 +619,7 @@ const en: Record<string, string> = {
   边框流光: "Border beam",
   仅颜色: "Colour only",
   提醒时自动展开: "Expand on reminder",
+  全屏时隐藏灵动岛: "Hide the island in fullscreen",
   提醒显示时长: "Reminder display time",
   "喝水、新邮件等提醒在胶囊上停留的时间，自动展开的面板也按此收起；验证码保持到过期，计时完成等你确认。":
     "How long reminders like water and new mail stay visible; an auto-expanded panel collapses on the same clock. Codes stay until they expire, a finished timer waits for you.",

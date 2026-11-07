@@ -694,6 +694,16 @@ static ISLAND_AUTO_SCALE: std::sync::Mutex<f64> = std::sync::Mutex::new(1.0);
 /// hit-region is only refreshed while it is not.
 static ISLAND_EXPANDED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Whether the capsule should step aside while a fullscreen app owns the
+/// screen. Flipped by the settings window; the watcher thread reads it.
+static FULLSCREEN_AVOID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+/// Live detection result, kept so visibility only flips on real changes.
+static FULLSCREEN_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Whether this watcher — and not a user action — is holding the island
+/// window hidden, so a disable always restores it.
+static ISLAND_HIDDEN_BY_FS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 /// True when Windows launched us from the login autostart entry.
 static AUTOSTART_LAUNCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -1162,6 +1172,103 @@ fn spawn_passive_hover_watch(window: tauri::WebviewWindow) {
     });
 }
 
+/// Whether the foreground window covers the monitor the island lives on —
+/// the classic fullscreen-app signature. Desktop shells are excluded: they
+/// cover the screen at all times but are never something to hide from.
+#[cfg(target_os = "windows")]
+fn foreground_covers_island_monitor(window: &tauri::WebviewWindow) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetClassNameW, GetForegroundWindow, GetWindowRect,
+    };
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return false;
+        }
+        let mut name = [0u16; 64];
+        let len = GetClassNameW(hwnd, name.as_mut_ptr(), name.len() as i32);
+        if matches!(
+            String::from_utf16_lossy(&name[..len as usize]).as_str(),
+            "Progman" | "WorkerW"
+        ) {
+            return false;
+        }
+        let mut rect = windows_sys::Win32::Foundation::RECT::default();
+        if GetWindowRect(hwnd, &mut rect) == 0 {
+            return false;
+        }
+        let Ok(Some(monitor)) = window.current_monitor() else {
+            return false;
+        };
+        let (mx, my) = (monitor.position().x, monitor.position().y);
+        let (mw, mh) = (monitor.size().width as i32, monitor.size().height as i32);
+        rect.left <= mx && rect.top <= my && rect.right >= mx + mw && rect.bottom >= my + mh
+    }
+}
+
+/// Applies the wanted visibility for the current fullscreen state and tells
+/// the island webview, so reminder auto-expansions can hold off.
+#[cfg(target_os = "windows")]
+fn apply_fullscreen_visibility(
+    window: &tauri::WebviewWindow,
+    hidden_by_fs: bool,
+    fullscreen: bool,
+) {
+    ISLAND_HIDDEN_BY_FS.store(hidden_by_fs, std::sync::atomic::Ordering::SeqCst);
+    if hidden_by_fs {
+        let _ = window.hide();
+    } else {
+        let _ = window.show();
+    }
+    let _ = tauri::Emitter::emit_to(
+        window.app_handle(),
+        "island",
+        "fullscreen-changed",
+        fullscreen,
+    );
+}
+
+/// Watches the foreground window and hides the island while a fullscreen app
+/// owns the screen. Polls cheaply; visibility only flips on real changes so
+/// the user's own show/hide actions are never fought over.
+#[cfg(target_os = "windows")]
+fn spawn_fullscreen_watch(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            let Some(window) = app.get_webview_window("island") else {
+                continue;
+            };
+            let fullscreen = foreground_covers_island_monitor(&window);
+            if fullscreen == FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
+                continue;
+            }
+            FULLSCREEN_ACTIVE.store(fullscreen, std::sync::atomic::Ordering::SeqCst);
+            let avoid = FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst);
+            if avoid {
+                apply_fullscreen_visibility(&window, fullscreen, fullscreen);
+            } else if ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst) {
+                // The switch was turned off mid-fullscreen: bring the island back.
+                apply_fullscreen_visibility(&window, false, false);
+            }
+        }
+    });
+}
+
+/// Mirrors the fullscreen-avoidance switch so the watcher honors it at once.
+#[tauri::command]
+fn set_fullscreen_avoid(window: tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
+    if window.label() != "island" {
+        return Err("invalid window".into());
+    }
+    FULLSCREEN_AVOID.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    let hidden = ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst);
+    if !enabled && hidden {
+        apply_fullscreen_visibility(&window, false, false);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn set_island_expanded(
     window: tauri::WebviewWindow,
@@ -1310,6 +1417,7 @@ pub fn run() {
             quit_app,
             set_island_expanded,
             set_island_panel_bounds,
+            set_fullscreen_avoid,
             hotkeys::apply_hotkeys,
             notifications::get_notification_access,
             notifications::set_notification_forwarding,
@@ -1370,6 +1478,12 @@ pub fn run() {
             }
             app.manage(storage::initialize(app.handle()).map_err(std::io::Error::other)?);
             app.manage(mail::MailMonitor::default());
+            // Fullscreen avoidance: hide the capsule while a fullscreen app
+            // owns the screen (guarded by the settings switch).
+            #[cfg(target_os = "windows")]
+            if app.get_webview_window("island").is_some() {
+                spawn_fullscreen_watch(app.handle().clone());
+            }
             // Scale the settings window with the monitor so every page fits
             // without a scrollbar on common desktop resolutions.
             if let Some(window) = app.get_webview_window("main")

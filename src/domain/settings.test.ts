@@ -26,6 +26,7 @@ describe("parseAppearance", () => {
       noticeShowText: true,
       noticeDisplaySeconds: 3,
       reminderDisplaySeconds: 20,
+      fullscreenAvoid: true,
     });
   });
   it("migrates old shapes and rejects invalid new shapes", () => {
@@ -329,6 +330,7 @@ describe("parseAppearance", () => {
     expect(migrated.noticeShowText).toBe(true);
     expect(migrated.noticeDisplaySeconds).toBe(3);
     expect(migrated.reminderDisplaySeconds).toBe(20);
+    expect(migrated.fullscreenAvoid).toBe(true);
     const updated = parseAppearance({
       ...base,
       version: 13,
@@ -452,6 +454,36 @@ describe("parseAppearance", () => {
       reminderDisplaySeconds: 30,
     });
     expect(v16.reminderDisplaySeconds).toBe(30);
+    // Version 17 reads the fullscreen-avoidance switch.
+    const v17 = parseAppearance({
+      ...base,
+      version: 17,
+      hotkeyFocus: null,
+      hotkeyIsland: null,
+      hotkeyWater: null,
+      forwardNotifications: true,
+      noticeExpand: true,
+      noticeShowText: true,
+      noticeDisplaySeconds: 10,
+      reminderDisplaySeconds: 30,
+      fullscreenAvoid: false,
+    });
+    expect(v17.fullscreenAvoid).toBe(false);
+    expect(() =>
+      parseAppearance({
+        ...base,
+        version: 17,
+        hotkeyFocus: null,
+        hotkeyIsland: null,
+        hotkeyWater: null,
+        forwardNotifications: true,
+        noticeExpand: true,
+        noticeShowText: true,
+        noticeDisplaySeconds: 10,
+        reminderDisplaySeconds: 30,
+        fullscreenAvoid: "on",
+      }),
+    ).toThrow();
     for (const seconds of [45, "30", true]) {
       expect(() =>
         parseAppearance({

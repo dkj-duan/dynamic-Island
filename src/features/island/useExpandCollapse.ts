@@ -56,6 +56,8 @@ export function useExpandCollapse(options: {
   noticeDisplaySeconds: number;
   /** How long a reminder (water, mail, timer done) stays visible, in seconds. */
   reminderDisplaySeconds: number;
+  /** A fullscreen app owns the screen: never auto-open the panel. */
+  fullscreenSuppressed: boolean;
   /** Native window scale; the hit region tracks layout at the current zoom. */
   scale: number;
   /** Destination page when the panel opens from a reminder. */
@@ -74,6 +76,7 @@ export function useExpandCollapse(options: {
     noticeAutoExpand,
     noticeDisplaySeconds,
     reminderDisplaySeconds,
+    fullscreenSuppressed,
     scale,
     openReminderPage,
     onError,
@@ -300,6 +303,9 @@ export function useExpandCollapse(options: {
     if (!alertToken) autoExpandedRef.current = "";
   }, [alertToken]);
   useEffect(() => {
+    // A fullscreen app owns the screen (the window is hidden): never pop the
+    // panel over it.
+    if (fullscreenSuppressed) return;
     if (!alertToken) return;
     // System notices stay transient so volume keys do not keep popping the
     // panel; forwarded notifications follow their own switch instead.
@@ -334,6 +340,7 @@ export function useExpandCollapse(options: {
     noticeDisplaySeconds,
     reminderAutoExpand,
     reminderDisplaySeconds,
+    fullscreenSuppressed,
   ]);
   // The hold is measured from the moment the panel actually opens; wait for
   // the expansion transition to finish before arming the collapse timer.

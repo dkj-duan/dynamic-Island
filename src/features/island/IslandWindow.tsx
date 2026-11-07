@@ -227,6 +227,34 @@ export function IslandWindow() {
           : ""
       }`
     : "";
+  // Fullscreen avoidance: the native watcher hides the window while a
+  // fullscreen app owns the screen; reminders must not auto-expand then.
+  const [fullscreenHidden, setFullscreenHidden] = useState(false);
+  useEffect(() => {
+    void invoke("set_fullscreen_avoid", {
+      enabled: appearance.fullscreenAvoid,
+    }).catch(() => {});
+  }, [appearance.fullscreenAvoid]);
+  useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<boolean>(
+      "fullscreen-changed",
+      ({ payload }) => {
+        if (active) setFullscreenHidden(!!payload);
+      },
+      { target: "island" },
+    )
+      .then((dispose) => {
+        if (active) unlisten = dispose;
+        else dispose();
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
   const {
     expanded,
     panel,
@@ -248,6 +276,7 @@ export function IslandWindow() {
     noticeAutoExpand: appearance.noticeExpand,
     noticeDisplaySeconds: appearance.noticeDisplaySeconds,
     reminderDisplaySeconds: appearance.reminderDisplaySeconds,
+    fullscreenSuppressed: fullscreenHidden,
     scale: appearance.scale,
     openReminderPage,
     onError: (message) => setError(message),
