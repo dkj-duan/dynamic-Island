@@ -79,9 +79,42 @@
 }
 
 .antd-page {
-  max-width: 960px;
+  max-width: 1280px;
+  min-height: 100%;
   margin: 0 auto;
   padding: 10px 32px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.antd-page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Pages that should use the full window height (marked `is-fill`): the
+   first row (hero card) keeps its natural height and the second row (the
+   growing section) absorbs the leftover page height. */
+.antd-stack.is-fill {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* A section whose body stretches to the leftover page height. */
+.section-grow {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.section-grow > .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .antd-page-title {
@@ -894,16 +927,135 @@
   color: #9a9aa4;
 }
 
-/* Output and input endpoints share one card, split by a small heading. */
+/* Output and input endpoints share one card, split by a small heading.
+   Two columns keep the whole status page inside one window height. */
 .antd-device-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 18px;
+  align-items: start;
 }
 
 .antd-device-group-title {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-size: 12px;
   opacity: 0.7;
+}
+
+/* The status page compresses its lists so any device count fits one screen
+   without a page scrollbar. */
+.status-page .ant-list-item {
+  padding: 5px 0;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px 10px;
+  border-radius: 10px;
+  background: rgb(128 128 128 / 0.07);
+}
+
+.status-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.status-tile-head strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-tile-head .antd-list-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.status-tile-value {
+  padding-left: 34px;
+  font-size: 12px;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Countdown entries as a wrapping card grid: many entries fill the width
+   instead of stacking into a scroll. */
+.countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 8px;
+}
+
+.countdown-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px 8px;
+  border-radius: 10px;
+  border: 1px solid rgb(128 128 128 / 0.18);
+  background: rgb(128 128 128 / 0.05);
+}
+
+.countdown-card.is-island {
+  border-color: rgb(22 119 255 / 0.45);
+  background: rgb(22 119 255 / 0.07);
+}
+
+.countdown-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.countdown-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.countdown-card-time {
+  padding-left: 38px;
+  font-size: 12px;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.countdown-card-actions {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.countdown-card-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }

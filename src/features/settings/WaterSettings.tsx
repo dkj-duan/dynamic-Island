@@ -135,7 +135,7 @@ export function WaterSettings() {
     Number.isInteger(customAmount) && customAmount >= 1 && customAmount <= 5000;
 
   return (
-    <div className="antd-stack">
+    <div className="antd-stack is-fill">
       <Card className="antd-plain-card">
         <Button
           className="antd-hero-settings"
@@ -252,6 +252,7 @@ export function WaterSettings() {
       </Card>
 
       <Section
+        className="section-grow"
         title={t("近 30 天饮水")}
         description={t("虚线为每日目标，今天高亮显示。")}
       >

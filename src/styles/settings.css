@@ -1537,6 +1537,9 @@ html.settings-booted .settings-shell {
 
 /* —— Daily chart —— */
 .daily-chart {
+  /* Inside a stretching section the chart absorbs the leftover height. */
+  flex: 1;
+  min-height: 0;
   --chart-color: #7fb8f2;
   display: flex;
   flex-direction: column;
@@ -1546,7 +1549,9 @@ html.settings-booted .settings-shell {
 
 .daily-chart-plot {
   position: relative;
-  height: 132px;
+  flex: 1;
+  min-height: 132px;
+  max-height: 320px;
 }
 
 .daily-chart-grid {

@@ -126,6 +126,8 @@ const en: Record<string, string> = {
   "5 秒": "5 s",
   "10 秒": "10 s",
   "15 秒": "15 s",
+  "20 秒": "20 s",
+  "60 秒": "60 s",
   "鼠标移回胶囊会取消收起计时；快捷键呼出的面板，等你把鼠标放上去之后再按此设置收起。":
     "Moving back over the capsule cancels the countdown; a panel opened by hotkey only starts this countdown after the pointer has reached it.",
 
@@ -297,6 +299,9 @@ const en: Record<string, string> = {
   账户已保存并开始查询: "Account saved; querying now",
   "已保存；灵动岛会同步刷新": "Saved; the island refreshes with it",
   "正在查询…": "Checking…",
+  "正在查询所有账户…": "Checking every account…",
+  "等待查询…": "Waiting to check…",
+  上次查询: "Last checked",
   "Codex（本机登录）": "Codex (local login)",
   "使用已登录的本机 Codex CLI 查询 ChatGPT 额度，不需要复制密钥。":
     "Queries ChatGPT quota through the signed-in local Codex CLI — no key needed.",
@@ -614,16 +619,21 @@ const en: Record<string, string> = {
   边框流光: "Border beam",
   仅颜色: "Colour only",
   提醒时自动展开: "Expand on reminder",
+  提醒显示时长: "Reminder display time",
+  "喝水、新邮件等提醒在胶囊上停留的时间，自动展开的面板也按此收起；验证码保持到过期，计时完成等你确认。":
+    "How long reminders like water and new mail stay visible; an auto-expanded panel collapses on the same clock. Codes stay until they expire, a finished timer waits for you.",
+  已记录一杯水: "Water logged",
   "验证码、喝水和计时结束时会自动打开面板。":
     "Opens the panel automatically for mail codes, water and finished timers.",
   胶囊交互: "Capsule behaviour",
   全局快捷键: "Global hotkeys",
-  "录制时快速按两次同一组合即录为双击触发；被其他程序占用的组合键会在下方列出。":
-    "Press the same combo twice while recording to make it a double press; combos held by other programs are listed below.",
+  "组合键（如 Ctrl+Alt+S）和 F 键直接录制；快速按两次 Ctrl、Alt 或 Shift 录为双击触发；被其他程序占用的组合键会在下方列出。":
+    "Combos (like Ctrl+Alt+S) and F-keys record directly; quickly pressing Ctrl, Alt or Shift twice records a double press; combos held by other programs are listed below.",
   "按下组合键，Esc 取消": "Press a combo, Esc to cancel",
   录制: "Record",
-  "再按一次录为双击，等待则录为单次":
-    "Press again for double press, or wait for a single press",
+  "再按一次录为双击，等待则取消":
+    "Press it again for a double press, or wait to cancel",
+  双击: "Double",
   "（双击）": " (double press)",
   已关闭: "Off",
   "开始 / 暂停专注": "Start / pause focus",
@@ -632,6 +642,25 @@ const en: Record<string, string> = {
   "注册失败，可能被其他程序占用：":
     "Registration failed, possibly held by another program: ",
   应用通知转发: "Notification forwarding",
+  通知: "Notifications",
+  通知页: "Notification page",
+  暂无通知: "No notifications yet",
+  "转发到灵动岛的系统通知会显示在这里。":
+    "System notifications forwarded to the island appear here.",
+  "在提醒设置中开启通知转发后，系统通知会显示在这里。":
+    "Turn on notification forwarding in the reminder settings and they appear here.",
+  清空通知: "Clear notifications",
+  收到通知时: "When a notification arrives",
+  "展开灵动岛会被动打开面板，不打断鼠标和键盘；显示在胶囊上只闪现几秒。":
+    "Expanding opens the panel passively without grabbing your pointer or keyboard; the capsule flash only shows for a few seconds.",
+  显示在胶囊上: "Show on the capsule",
+  显示消息内容: "Show message content",
+  通知显示时长: "Notification display time",
+  "通知在胶囊上停留的时间，展开面板的横幅同样生效。":
+    "How long a notification stays on the capsule; the expanded banner follows it too.",
+  "关闭后胶囊只显示来源应用名，不显示消息文字。":
+    "When off, the capsule only names the source app and never shows the message text.",
+  新通知: "New notification",
   "把系统通知转发到灵动岛胶囊，内容只在本地显示；需要在系统设置中授予通知访问权限。":
     "Forward desktop notifications to the island capsule; content stays local. Grant notification access in system settings first.",
   转发系统通知: "Forward notifications",

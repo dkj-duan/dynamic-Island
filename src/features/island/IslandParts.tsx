@@ -69,9 +69,11 @@ export function IslandPageIcon({ page }: { page: IslandTab }) {
           ? Mail
           : page === "water"
             ? Droplet
-            : page === "device"
-              ? Headphones
-              : Bot;
+            : page === "notice"
+              ? BellRing
+              : page === "device"
+                ? Headphones
+                : Bot;
   return <Icon size={13} aria-hidden="true" />;
 }
 

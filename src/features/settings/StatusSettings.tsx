@@ -193,46 +193,44 @@ export function StatusSettings() {
   ];
 
   return (
-    <div className="antd-stack">
+    <div className="antd-stack status-page">
       <Section
         title={t("当前状态")}
         description={t("状态发生变化时，灵动岛会短暂显示对应提示。")}
         extra={
           <Button
+            size="small"
             icon={<ReloadOutlined />}
             onClick={refresh}
             disabled={!desktop}
-          >
-            {t("刷新状态")}
-          </Button>
+            title={t("刷新状态")}
+            aria-label={t("刷新状态")}
+          />
         }
       >
-        <List
-          dataSource={rows}
-          renderItem={(row) => (
-            <List.Item
-              actions={[
+        <div className="status-grid">
+          {rows.map((row) => (
+            <div
+              className="status-tile"
+              key={row.title}
+              title={row.description}
+            >
+              <div className="status-tile-head">
+                <span className="antd-list-icon">{row.icon}</span>
+                <strong>{row.title}</strong>
                 <Button
-                  key="demo"
                   type="link"
+                  size="small"
                   disabled={!desktop}
                   onClick={() => void preview(row.notice)}
                 >
                   {t("演示")}
-                </Button>,
-              ]}
-            >
-              <div className="antd-list-row">
-                <span className="antd-list-icon">{row.icon}</span>
-                <div className="antd-list-copy">
-                  <strong>{row.title}</strong>
-                  <small>{row.description}</small>
-                </div>
-                <span className="antd-list-value">{row.status}</span>
+                </Button>
               </div>
-            </List.Item>
-          )}
-        />
+              <span className="status-tile-value">{row.status}</span>
+            </div>
+          ))}
+        </div>
         <Typography.Text type="secondary" className="antd-hint">
           {previewMessage || t("演示使用示例数据，不会修改系统设置。")}
         </Typography.Text>
@@ -245,12 +243,13 @@ export function StatusSettings() {
         )}
         extra={
           <Button
+            size="small"
             icon={<ReloadOutlined />}
             onClick={refresh}
             disabled={!desktop || switching !== ""}
-          >
-            {t("刷新")}
-          </Button>
+            title={t("刷新")}
+            aria-label={t("刷新")}
+          />
         }
       >
         {!desktop ? (

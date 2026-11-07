@@ -1,11 +1,5 @@
 import { App, Button, Segmented, Space, Switch, Typography } from "antd";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -29,6 +23,23 @@ function capturedKey(event: KeyboardEvent): string | null {
 /** Same window the native layer uses to decide a double press. */
 const DOUBLE_PRESS_WINDOW = 700;
 
+/** Maps a lone modifier keydown to its recorded name, or null to ignore it.
+ * Win is excluded: its double press fights the Start menu. */
+function modifierFromKey(key: string): string | null {
+  if (key === "Control") return "Ctrl";
+  if (key === "Shift") return "Shift";
+  if (key === "Alt") return "Alt";
+  return null;
+}
+
+/** A lone modifier recorded as a double press reads as「双击 Alt」. */
+function formatHotkey(setting: HotkeySetting): string {
+  if (setting.double && /^(?:Ctrl|Shift|Alt)$/i.test(setting.combo)) {
+    return `${t("双击")} ${setting.combo}`;
+  }
+  return `${setting.combo}${setting.double ? t("（双击）") : ""}`;
+}
+
 const hotkeyTitles: Record<string, string> = {
   focus: t("开始 / 暂停专注"),
   water: t("记一杯水"),
@@ -49,29 +60,20 @@ function HotkeyRow({
   onChange: (next: HotkeySetting | null) => void;
 }) {
   const [recording, setRecording] = useState(false);
-  const [pending, setPending] = useState<string | null>(null);
-  const pendingTimer = useRef<number | null>(null);
-  function stopRecording() {
-    if (pendingTimer.current !== null) {
-      window.clearTimeout(pendingTimer.current);
-      pendingTimer.current = null;
+  // A lone modifier waits for a quick second press; without one the gesture
+  // is discarded, because a single modifier cannot be a global hotkey.
+  const [pendingModifier, setPendingModifier] = useState<string | null>(null);
+  const modifierTimer = useRef<number | null>(null);
+  function clearPendingModifier() {
+    if (modifierTimer.current !== null) {
+      window.clearTimeout(modifierTimer.current);
+      modifierTimer.current = null;
     }
-    setPending(null);
-    setRecording(false);
+    setPendingModifier(null);
   }
-  // A single press commits itself once the double-press window has passed;
-  // pressing the same combo again inside the window records it as a double.
-  function scheduleSingle(combo: string) {
-    if (pendingTimer.current !== null) {
-      window.clearTimeout(pendingTimer.current);
-    }
-    setPending(combo);
-    pendingTimer.current = window.setTimeout(() => {
-      pendingTimer.current = null;
-      setPending(null);
-      onChange({ combo, double: false });
-      setRecording(false);
-    }, DOUBLE_PRESS_WINDOW + 50);
+  function stopRecording() {
+    clearPendingModifier();
+    setRecording(false);
   }
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -80,48 +82,59 @@ function HotkeyRow({
       stopRecording();
       return;
     }
+    // Held keys auto-repeat and would fake a double press.
+    if (event.repeat) return;
     const key = capturedKey(event);
-    if (key === null) return;
-    const modifiers: string[] = [];
-    if (event.ctrlKey) modifiers.push("Ctrl");
-    if (event.shiftKey) modifiers.push("Shift");
-    if (event.altKey) modifiers.push("Alt");
-    if (event.metaKey) modifiers.push("Win");
-    // A bare letter, digit or Space would swallow normal typing system-wide.
-    if ((/^[A-Z0-9]$/.test(key) || key === "Space") && modifiers.length === 0) {
-      return;
-    }
-    const combo = [...modifiers, key].join("+");
-    if (pending === combo) {
-      // The same combo twice inside the window: record it as a double press.
-      if (pendingTimer.current !== null) {
-        window.clearTimeout(pendingTimer.current);
-        pendingTimer.current = null;
+    if (key !== null) {
+      const modifiers: string[] = [];
+      if (event.ctrlKey) modifiers.push("Ctrl");
+      if (event.shiftKey) modifiers.push("Shift");
+      if (event.altKey) modifiers.push("Alt");
+      if (event.metaKey) modifiers.push("Win");
+      // A bare letter, digit or Space would swallow normal typing system-wide.
+      if (
+        (/^[A-Z0-9]$/.test(key) || key === "Space") &&
+        modifiers.length === 0
+      ) {
+        clearPendingModifier();
+        return;
       }
-      setPending(null);
-      onChange({ combo, double: true });
+      clearPendingModifier();
+      onChange({ combo: [...modifiers, key].join("+"), double: false });
       setRecording(false);
       return;
     }
-    scheduleSingle(combo);
+    const modifier = modifierFromKey(event.key);
+    if (modifier === null) return;
+    if (pendingModifier === modifier) {
+      clearPendingModifier();
+      onChange({ combo: modifier, double: true });
+      setRecording(false);
+      return;
+    }
+    clearPendingModifier();
+    setPendingModifier(modifier);
+    modifierTimer.current = window.setTimeout(() => {
+      modifierTimer.current = null;
+      setPendingModifier(null);
+    }, DOUBLE_PRESS_WINDOW + 50);
   }
-  useEffect(() => stopRecording, []);
+  // Recording state dies with the row; only the pending timer must be
+  // cleared so a late fire cannot touch an unmounted component.
+  useEffect(() => {
+    const timer = modifierTimer;
+    return () => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+      }
+    };
+  }, []);
   return (
     <SettingRow
       title={title}
-      description={
-        setting
-          ? `${setting.combo}${setting.double ? t("（双击）") : ""}`
-          : t("已关闭")
-      }
+      description={setting ? formatHotkey(setting) : t("已关闭")}
     >
       <Space size={8}>
-        <Switch
-          size="small"
-          disabled={disabled}
-          checked={!!setting}
-          onChange={(checked) => onChange(checked ? fallback : null)}
-        />
         {recording ? (
           <Button
             size="small"
@@ -130,21 +143,26 @@ function HotkeyRow({
             onKeyDown={handleKeyDown}
             onBlur={stopRecording}
           >
-            {pending
-              ? t("再按一次录为双击，等待则录为单次")
+            {pendingModifier
+              ? t("再按一次录为双击，等待则取消")
               : t("按下组合键，Esc 取消")}
           </Button>
         ) : (
           <Button
             size="small"
+            style={{ minWidth: 132 }}
             disabled={disabled || !setting}
             onClick={() => setRecording(true)}
           >
-            {setting
-              ? `${setting.combo}${setting.double ? " ×2" : ""}`
-              : t("录制")}
+            {setting ? formatHotkey(setting) : t("录制")}
           </Button>
         )}
+        <Switch
+          size="small"
+          disabled={disabled}
+          checked={!!setting}
+          onChange={(checked) => onChange(checked ? fallback : null)}
+        />
       </Space>
     </SettingRow>
   );
@@ -165,19 +183,7 @@ export function BehaviorSettings({
   const [hotkeyFailures, setHotkeyFailures] = useState<
     { action: string; combo: string }[]
   >([]);
-  const [notificationAccess, setNotificationAccess] = useState<
-    "allowed" | "denied" | "unspecified" | null
-  >(null);
   const { message } = App.useApp();
-  const refreshNotificationAccess = useCallback(() => {
-    if (!isTauri()) return;
-    void invoke<"allowed" | "denied" | "unspecified">("get_notification_access")
-      .then((value) => setNotificationAccess(value))
-      .catch(() => setNotificationAccess(null));
-  }, []);
-  useEffect(() => {
-    refreshNotificationAccess();
-  }, [refreshNotificationAccess]);
   // Applying here too shows which combos another program already holds; the
   // island applies the same configuration for its own runtime.
   useEffect(() => {
@@ -249,10 +255,7 @@ export function BehaviorSettings({
   }
   return (
     <div className="antd-stack">
-      <Section
-        title={t("胶囊交互")}
-        description={t("悬停模式把指针移到胶囊上就会展开，不用点击。")}
-      >
+      <Section title={t("胶囊交互")}>
         <SettingRow title={t("展开方式")}>
           <Segmented
             value={appearance.expandTrigger}
@@ -269,7 +272,7 @@ export function BehaviorSettings({
             ]}
           />
         </SettingRow>
-        <SettingRow title={t("展开样式")} description={t("选择展开面板的轮廓")}>
+        <SettingRow title={t("展开样式")}>
           <Segmented
             value={appearance.expandedShape}
             disabled={!canEdit}
@@ -333,7 +336,7 @@ export function BehaviorSettings({
       <Section
         title={t("全局快捷键")}
         description={t(
-          "录制时快速按两次同一组合即录为双击触发；被其他程序占用的组合键会在下方列出。",
+          "快速按两次 Ctrl、Alt 或 Shift 录为双击触发；被其他程序占用的组合键会在下方列出。",
         )}
       >
         <HotkeyRow
@@ -373,48 +376,6 @@ export function BehaviorSettings({
               .join("、")}
           </Typography.Text>
         )}
-      </Section>
-
-      <Section
-        title={t("应用通知转发")}
-        description={t(
-          "把系统通知转发到灵动岛胶囊，内容只在本地显示；需要在系统设置中授予通知访问权限。",
-        )}
-      >
-        <SettingRow title={t("转发系统通知")}>
-          <Switch
-            checked={appearance.forwardNotifications}
-            disabled={!canEdit}
-            onChange={(checked) => {
-              onAppearanceChange({
-                ...appearance,
-                forwardNotifications: checked,
-              });
-              refreshNotificationAccess();
-            }}
-          />
-        </SettingRow>
-        <SettingRow
-          title={t("通知访问权限")}
-          description={
-            notificationAccess === null
-              ? t("正在读取权限状态…")
-              : notificationAccess === "allowed"
-                ? t("已授权，新通知会显示在岛上。")
-                : t("未授权，请在系统设置中允许应用访问通知。")
-          }
-        >
-          {notificationAccess !== "allowed" && (
-            <Button
-              disabled={!isTauri()}
-              onClick={() =>
-                void invoke("open_notification_settings").catch(() => undefined)
-              }
-            >
-              {t("打开系统设置")}
-            </Button>
-          )}
-        </SettingRow>
       </Section>
 
       <Section

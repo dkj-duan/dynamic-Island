@@ -20,7 +20,26 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
   });
 }
 
-type AlertKind = "timer" | "mail" | "water" | "notice";
+/**
+ * Waits two compositor frames so the resized layout is committed before the
+ * native window reads it. A throttled or suspended webview can stop firing
+ * rAF entirely; the timeout keeps the expansion state machine alive, since a
+ * stuck frame would block every future expand and collapse.
+ */
+function waitForFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(done));
+    window.setTimeout(done, 120);
+  });
+}
+
+type AlertKind = "timer" | "mail" | "water" | "notification" | "notice";
 
 /**
  * The island's open/close lifecycle: click and hover expansion, the
@@ -31,6 +50,12 @@ export function useExpandCollapse(options: {
   expandTrigger: ExpandTrigger;
   autoCollapseSeconds: number;
   reminderAutoExpand: boolean;
+  /** Passively open the panel when a forwarded notification arrives. */
+  noticeAutoExpand: boolean;
+  /** How long a forwarded notification stays visible, in seconds. */
+  noticeDisplaySeconds: number;
+  /** How long a reminder (water, mail, timer done) stays visible, in seconds. */
+  reminderDisplaySeconds: number;
   /** Native window scale; the hit region tracks layout at the current zoom. */
   scale: number;
   /** Destination page when the panel opens from a reminder. */
@@ -46,6 +71,9 @@ export function useExpandCollapse(options: {
     expandTrigger,
     autoCollapseSeconds,
     reminderAutoExpand,
+    noticeAutoExpand,
+    noticeDisplaySeconds,
+    reminderDisplaySeconds,
     scale,
     openReminderPage,
     onError,
@@ -73,9 +101,11 @@ export function useExpandCollapse(options: {
       collapseTimeout.current = null;
     }
   }
-  // A panel opened by a reminder gets 20s to be noticed. As soon as the
-  // pointer reaches it the reminder has been seen, so the hold is dropped and
-  // the normal "collapse after leaving" delay applies again.
+  // A panel opened by a reminder gets 20s to be noticed. A panel opened by a
+  // forwarded notification is the notification's display itself, so it stays
+  // exactly as long as the configured flash time, then collapses. As soon as
+  // the pointer reaches the panel the reminder has been seen, so the hold is
+  // dropped and the normal "collapse after leaving" delay applies again.
   const reminderHold = useRef(0);
   function reminderHoldRemaining() {
     return Math.max(0, reminderHold.current - Date.now());
@@ -227,9 +257,7 @@ export function useExpandCollapse(options: {
         const animation = waitForPanelTransition(panel.current);
         setExpanded(false);
         await animation;
-        await new Promise<void>((resolve) =>
-          window.requestAnimationFrame(() => resolve()),
-        );
+        await waitForFrame();
         await invoke("set_island_expanded", {
           expanded: false,
           passive: false,
@@ -237,11 +265,7 @@ export function useExpandCollapse(options: {
       } else {
         engagedRef.current = engaged && !passive;
         await invoke("set_island_expanded", { expanded: true, passive });
-        await new Promise<void>((resolve) =>
-          window.requestAnimationFrame(() =>
-            window.requestAnimationFrame(() => resolve()),
-          ),
-        );
+        await waitForFrame();
         const animation = waitForPanelTransition(panel.current);
         setExpanded(true);
         await animation;
@@ -276,17 +300,41 @@ export function useExpandCollapse(options: {
     if (!alertToken) autoExpandedRef.current = "";
   }, [alertToken]);
   useEffect(() => {
-    if (!alertToken || !reminderAutoExpand) return;
+    if (!alertToken) return;
+    // System notices stay transient so volume keys do not keep popping the
+    // panel; forwarded notifications follow their own switch instead.
+    const wantExpand =
+      alertKind === "notice"
+        ? false
+        : alertKind === "notification"
+          ? noticeAutoExpand
+          : reminderAutoExpand;
+    if (!wantExpand) return;
     if (autoExpandedRef.current === alertToken) return;
-    if (!alertKind || alertKind === "notice") return;
+    if (!alertKind) return;
     autoExpandedRef.current = alertToken;
     const current = reminderActions.current;
     if (current.expanded || current.transitioning) return;
-    reminderHold.current = Date.now() + 20_000;
+    // The passive panel is the alert's display itself: a forwarded
+    // notification collapses with the notification flash time, a reminder
+    // with the reminder display time. The 600ms buffer lets the collapse
+    // start as the content fades instead of clipping it mid-frame.
+    reminderHold.current =
+      Date.now() +
+      (alertKind === "notification"
+        ? noticeDisplaySeconds * 1000 + 600
+        : reminderDisplaySeconds * 1000 + 600);
     current.open(false);
     // Passive: the panel is a hint only, never a focus or pointer grab.
     void current.expand(true);
-  }, [alertToken, alertKind, reminderAutoExpand]);
+  }, [
+    alertToken,
+    alertKind,
+    noticeAutoExpand,
+    noticeDisplaySeconds,
+    reminderAutoExpand,
+    reminderDisplaySeconds,
+  ]);
   // The hold is measured from the moment the panel actually opens; wait for
   // the expansion transition to finish before arming the collapse timer.
   useEffect(() => {

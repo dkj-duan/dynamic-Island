@@ -12,13 +12,14 @@ export function ReminderBeam({
   children: ReactElement;
 }) {
   return (
+    // antd's default beam run; only the colour follows the reminder type.
     <BorderBeam
       color="var(--alert-color, #e4a65d)"
       count={2}
       duration={3}
-      lineWidth={2.5}
+      lineWidth={2}
       outset={0}
-      size={100}
+      size={50}
       items={enabled ? undefined : noBeams}
     >
       {children}

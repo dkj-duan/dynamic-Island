@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { t } from "../../services/i18n";
 import {
   deviceChanges,
   systemChanges,
+  type AppNoticeItem,
   type BluetoothStatus,
   type SystemNotice,
   type SystemStatus,
@@ -15,10 +16,30 @@ export type DeviceSnapshot = {
   bluetooth: BluetoothStatus[] | null;
 };
 
-export function useSystemNotice() {
+/** The notification page shows the latest forwarded toast only, as detail. */
+const NOTIFICATION_HISTORY = 1;
+
+export function useSystemNotice({
+  notificationSeconds,
+}: {
+  notificationSeconds: number;
+}) {
   const [notice, setNotice] = useState<SystemNotice | null>(null);
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [devices, setDevices] = useState<DeviceSnapshot | null>(null);
+  const [notifications, setNotifications] = useState<AppNoticeItem[]>([]);
+  const notificationId = useRef(0);
+  // The listeners register once, but the duration follows the settings, so
+  // the flash timer reads it through a per-render ref.
+  const secondsRef = useRef(notificationSeconds);
+  useEffect(() => {
+    secondsRef.current = notificationSeconds;
+  }, [notificationSeconds]);
+  function flashDuration(kind: SystemNotice["kind"]) {
+    return kind === "notification"
+      ? Math.max(1, secondsRef.current) * 1000
+      : 3000;
+  }
   useEffect(() => {
     let active = true;
     let previous: SystemStatus | undefined;
@@ -32,7 +53,8 @@ export function useSystemNotice() {
     function advance() {
       current = pending.shift() ?? null;
       setNotice(current);
-      if (current) dismissal = window.setTimeout(advance, 3000);
+      if (current)
+        dismissal = window.setTimeout(advance, flashDuration(current.kind));
     }
     function show(next: SystemNotice) {
       if (
@@ -46,7 +68,7 @@ export function useSystemNotice() {
         window.clearTimeout(dismissal);
         current = next;
         setNotice(next);
-        dismissal = window.setTimeout(advance, 3000);
+        dismissal = window.setTimeout(advance, flashDuration(next.kind));
       } else {
         if (
           next.kind === "volume" ||
@@ -75,16 +97,29 @@ export function useSystemNotice() {
       .catch((error) =>
         console.error("Unable to listen for notice previews", error),
       );
-    // Forwarded desktop toasts arrive as their own transient kind.
+    // Forwarded desktop toasts arrive as their own transient kind; each one
+    // also joins the session history for the notification page.
     void listen<{ app: string; text: string }>(
       "app-notification",
       ({ payload }) => {
-        if (active)
-          show({
-            kind: "notification",
-            label: payload.app,
-            value: payload.text,
-          });
+        if (!active) return;
+        show({
+          kind: "notification",
+          label: payload.app,
+          value: payload.text,
+        });
+        notificationId.current += 1;
+        setNotifications((list) =>
+          [
+            {
+              id: notificationId.current,
+              app: payload.app,
+              text: payload.text,
+              at: Date.now(),
+            },
+            ...list,
+          ].slice(0, NOTIFICATION_HISTORY),
+        );
       },
       { target: "island" },
     )
@@ -144,5 +179,8 @@ export function useSystemNotice() {
       window.clearTimeout(dismissal);
     };
   }, []);
-  return { notice, system, devices };
+  function clearNotifications() {
+    setNotifications([]);
+  }
+  return { notice, system, devices, notifications, clearNotifications };
 }

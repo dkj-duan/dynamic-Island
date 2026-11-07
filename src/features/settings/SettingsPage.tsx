@@ -147,6 +147,18 @@ export function SettingsPage({
     };
   }, [dark]);
 
+  // The desktop menu belongs to the app, not the browser engine: right click
+  // shows nothing except inside editable fields, where copy/paste stays.
+  useEffect(() => {
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      event.preventDefault();
+    };
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
+  }, []);
+
   const menuItems = useMemo(
     () =>
       navGroups.map((group) => ({

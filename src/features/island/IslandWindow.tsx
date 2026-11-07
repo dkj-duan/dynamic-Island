@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Hourglass,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, emitTo } from "@tauri-apps/api/event";
@@ -43,6 +44,7 @@ import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
 import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
+import { NoticePage } from "./NoticePage";
 import { MusicPage } from "./MusicPage";
 import { DevicePage } from "./DevicePage";
 import { DEVICE_HINT_HEIGHT, deviceLayout } from "./deviceLayout";
@@ -70,7 +72,6 @@ import waterDrop from "../../assets/water-drop.webp";
 type MediaBadge = "pomodoro" | "water" | "quota";
 
 export function IslandWindow() {
-  const { notice, system, devices } = useSystemNotice();
   const ai = useAiQuota();
   const reloadAiQuota = ai.reload;
   const pinnedAi = ai.accounts.find((account) => account.pinned);
@@ -83,16 +84,17 @@ export function IslandWindow() {
   const selectedAiResult = selectedAi ? ai.results[selectedAi.id] : undefined;
   const selectedItems = selectedAiResult?.quota?.items ?? [];
   const selectedRings = quotaRings(selectedItems);
-  const {
-    recent: recentMail,
-    highlight: mailHighlight,
-    dismissHighlight,
-  } = useMail();
   const [copyStatus, setCopyStatus] = useState<{
     code: string;
     message: string;
   } | null>(null);
   const [mailIndex, setMailIndex] = useState(0);
+  const [appearance, setAppearance] = useState(defaultAppearance);
+  const {
+    recent: recentMail,
+    highlight: mailHighlight,
+    dismissHighlight,
+  } = useMail({ highlightSeconds: appearance.reminderDisplaySeconds });
   const selectedMail = recentMail[Math.min(mailIndex, recentMail.length - 1)];
   const capsuleMail = recentMail[0];
   const capsuleCopied =
@@ -104,7 +106,10 @@ export function IslandWindow() {
     : "";
   const currentCopyStatus =
     selectedMail?.code === copyStatus?.code ? copyStatus?.message : "";
-  const [appearance, setAppearance] = useState(defaultAppearance);
+  const { notice, system, devices, notifications, clearNotifications } =
+    useSystemNotice({
+      notificationSeconds: appearance.noticeDisplaySeconds,
+    });
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
   useEffect(() => watchDisplayTier(setLargeDisplay), []);
@@ -156,6 +161,7 @@ export function IslandWindow() {
     setWaterReminder,
     waterAdded,
     waterAddedMl,
+    waterLogged,
     customWaterOpen,
     setCustomWaterOpen,
     customWaterMl,
@@ -164,7 +170,12 @@ export function IslandWindow() {
     setWaterError,
     drinkWater,
     waterTimerState,
-  } = useIslandWater(todayWater, now, appearance.language);
+  } = useIslandWater(
+    todayWater,
+    now,
+    appearance.language,
+    appearance.reminderDisplaySeconds,
+  );
   const mediaState = useIslandMedia();
   const { media, mediaKey, artwork, mediaPosition, currentLyric } = mediaState;
   const [mediaBadge, setMediaBadge] = useState<MediaBadge>("quota");
@@ -177,17 +188,26 @@ export function IslandWindow() {
     const timeout = window.setTimeout(() => setError(""), 6_000);
     return () => window.clearTimeout(timeout);
   }, [error]);
+  // The forwarded notification text is optional; hiding it leaves the app
+  // name only, so private content never reaches the capsule.
+  const displayNotice =
+    notice && notice.kind === "notification" && !appearance.noticeShowText
+      ? { ...notice, value: t("新通知") }
+      : notice;
   const display = selectIslandDisplay({
     timer: timer.status,
     mail: !!(mailHighlight && recentMail.length),
-    notice: !!notice,
+    notice: !!displayNotice,
     water: waterReminder,
+    waterLogged,
     // Paused media stays in the panel but gives the island back. When island
     // lyrics are off, music only appears through the idle music widget.
     media: !!(media?.title && media.playing && appearance.islandLyrics),
   });
   // Reminder-aware chrome: the capsule pops once when a reminder arrives and
-  // keeps a colour-coded breathing ring until it is acknowledged.
+  // keeps a colour-coded breathing ring until it is acknowledged. Forwarded
+  // notifications are their own kind so they can auto-expand on their own
+  // switch, while volume and brightness notices never do.
   const alertKind =
     display === "finished"
       ? "timer"
@@ -196,10 +216,16 @@ export function IslandWindow() {
         : display === "water"
           ? "water"
           : display === "notice"
-            ? "notice"
+            ? displayNotice?.kind === "notification"
+              ? "notification"
+              : "notice"
             : null;
   const alertToken = alertKind
-    ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}`
+    ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}${
+        alertKind === "notification"
+          ? `:${displayNotice?.label}:${displayNotice?.value}`
+          : ""
+      }`
     : "";
   const {
     expanded,
@@ -219,6 +245,9 @@ export function IslandWindow() {
     expandTrigger: appearance.expandTrigger,
     autoCollapseSeconds: appearance.autoCollapseSeconds,
     reminderAutoExpand: appearance.reminderAutoExpand,
+    noticeAutoExpand: appearance.noticeExpand,
+    noticeDisplaySeconds: appearance.noticeDisplaySeconds,
+    reminderDisplaySeconds: appearance.reminderDisplaySeconds,
     scale: appearance.scale,
     openReminderPage,
     onError: (message) => setError(message),
@@ -378,8 +407,11 @@ export function IslandWindow() {
       // A user opening the panel counts as handling the reminder; an
       // automatic expansion must keep it alive.
       if (acknowledge) dismissHighlight();
-    } else if (display === "water") {
+    } else if (display === "water" || display === "waterLogged") {
       setActiveTab("water");
+    } else if (display === "notice" && displayNotice?.kind === "notification") {
+      // A forwarded notification opens onto its own page.
+      setActiveTab("notice");
     } else if (display === "finished") {
       setActiveTab("timer");
     }
@@ -531,7 +563,14 @@ export function IslandWindow() {
     deviceLayout(deviceState.devices).panelHeight +
     (deviceHasHint ? DEVICE_HINT_HEIGHT : 0);
   // A transient banner floats over the panel bottom; make room for it.
-  const panelHasBanner = expanded && display === "notice" && !!notice;
+  // The banner is the only feedback for volume/power style notices. A
+  // forwarded notification already lands on the notification page, so the
+  // extra text banner would just cover the list.
+  const panelHasBanner =
+    expanded &&
+    display === "notice" &&
+    !!displayNotice &&
+    displayNotice.kind !== "notification";
   function toggleIslandLyrics() {
     const next = !appearance.islandLyrics;
     setAppearance((current) => ({ ...current, islandLyrics: next }));
@@ -611,11 +650,13 @@ export function IslandWindow() {
             onPointerCancel={endDrag}
             onClick={handleToggleClick}
           >
-            {expanded ? null : display === "notice" && notice ? (
+            {expanded ? null : display === "notice" && displayNotice ? (
               <span className="island-current system-notice" role="status">
-                <NoticeIcon kind={notice.kind} />
-                <span className="system-notice-label">{notice.label}</span>
-                <strong>{notice.value}</strong>
+                <NoticeIcon kind={displayNotice.kind} />
+                <span className="system-notice-label">
+                  {displayNotice.label}
+                </span>
+                <strong>{displayNotice.value}</strong>
               </span>
             ) : display === "water" ? (
               <span
@@ -633,6 +674,25 @@ export function IslandWindow() {
                   <span className="compact-secondary">
                     {todayWater} / {water.goalMl} ml ·{" "}
                     {waterCups(todayWater, water.cupMl)} {t("杯")}
+                  </span>
+                </span>
+              </span>
+            ) : display === "waterLogged" ? (
+              <span
+                key={`water-logged-${waterAdded}`}
+                className="island-current island-water-current is-logged"
+                role="status"
+              >
+                <img
+                  className="water-indicator water-drop-icon"
+                  src={waterDrop}
+                  alt=""
+                  draggable={false}
+                />
+                <span className="compact-copy">
+                  <span className="compact-primary">{t("已记录一杯水")}</span>
+                  <span className="compact-secondary">
+                    +{waterAddedMl} ml · {todayWater} / {water.goalMl} ml
                   </span>
                 </span>
               </span>
@@ -820,13 +880,16 @@ export function IslandWindow() {
               aria-hidden="true"
             />
           )}
-          {expanded && display === "notice" && notice && (
-            <div className="system-notice-banner" role="status">
-              <NoticeIcon kind={notice.kind} />
-              <span>{notice.label}</span>
-              <strong>{notice.value}</strong>
-            </div>
-          )}
+          {expanded &&
+            display === "notice" &&
+            displayNotice &&
+            displayNotice.kind !== "notification" && (
+              <div className="system-notice-banner" role="status">
+                <NoticeIcon kind={displayNotice.kind} />
+                <span>{displayNotice.label}</span>
+                <strong>{displayNotice.value}</strong>
+              </div>
+            )}
           <div
             className="island-details"
             aria-hidden={!expanded}
@@ -900,6 +963,15 @@ export function IslandWindow() {
                     <RefreshCw size={15} aria-hidden="true" />
                   </button>
                 )}
+                {activeTab === "notice" && notifications.length > 0 && (
+                  <button
+                    aria-label={t("清空通知")}
+                    title={t("清空通知")}
+                    onClick={clearNotifications}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                )}
                 {/* Without auto-collapse or hover mode this is the only way out
                   of the expanded panel, so it stays for that case. */}
                 {appearance.expandTrigger !== "hover" &&
@@ -971,6 +1043,12 @@ export function IslandWindow() {
                 <MusicPage mediaState={mediaState} />
               ) : activeTab === "device" ? (
                 <DevicePage deviceState={deviceState} />
+              ) : activeTab === "notice" ? (
+                <NoticePage
+                  notifications={notifications}
+                  forwardingEnabled={appearance.forwardNotifications}
+                  language={appearance.language}
+                />
               ) : countdownOpen ? (
                 <div className="countdown-picker">
                   {durationCountdowns.slice(0, 3).map((item) => (

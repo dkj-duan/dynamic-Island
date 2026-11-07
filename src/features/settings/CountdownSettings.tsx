@@ -6,7 +6,6 @@ import {
   Empty,
   Form,
   Input,
-  List,
   Modal,
   Popconfirm,
   Row,
@@ -212,18 +211,19 @@ export function CountdownSettings() {
     <div className="antd-stack">
       <Section
         title={t("倒计时")}
-        description={t("用于下班、午休或任意时长；空闲胶囊只显示选中的一条。")}
+        description={t("空闲胶囊只显示选中的一条。")}
         extra={
           <Button
+            size="small"
             type="primary"
             icon={<PlusOutlined />}
             disabled={
               !desktop || busy || settings.items.length >= MAX_COUNTDOWNS
             }
             onClick={() => setDraft(draftFor())}
-          >
-            {t("添加倒计时")}
-          </Button>
+            title={t("添加倒计时")}
+            aria-label={t("添加倒计时")}
+          />
         }
       >
         <div className="antd-setting-row">
@@ -259,76 +259,79 @@ export function CountdownSettings() {
             )}
           </Empty>
         ) : (
-          <List
-            dataSource={settings.items}
-            renderItem={(item) => (
-              <List.Item
-                actions={[
-                  islandItem?.id === item.id ? (
-                    <Tag key="island" color="blue">
-                      {t("显示在岛上")}
-                    </Tag>
-                  ) : (
-                    <Button
-                      key="show"
-                      type="link"
-                      disabled={!desktop || busy}
-                      onClick={() =>
-                        void persist({ ...settings, islandId: item.id })
-                      }
-                    >
-                      {t("显示在岛上")}
-                    </Button>
-                  ),
-                  <Button
-                    key="edit"
-                    type="text"
-                    icon={<EditOutlined />}
-                    disabled={!desktop || busy}
-                    aria-label={`${t("编辑")} ${item.label}`}
-                    title={`${t("编辑")} ${item.label}`}
-                    onClick={() => setDraft(draftFor(item))}
-                  />,
-                  <Popconfirm
-                    key="delete"
-                    title={t("删除倒计时？")}
-                    description={`${item.label} ${t("会从列表和空闲胶囊中移除。")}`}
-                    okText={t("删除")}
-                    cancelText={t("取消")}
-                    okButtonProps={{ danger: true }}
-                    onConfirm={() => void remove(item)}
-                  >
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      disabled={!desktop || busy}
-                      aria-label={`${t("删除")} ${item.label}`}
-                      title={`${t("删除")} ${item.label}`}
-                    />
-                  </Popconfirm>,
-                ]}
-              >
-                <div className="antd-list-row">
-                  <span className="antd-list-icon">
-                    {item.kind === "target" ? (
-                      <ClockCircleOutlined />
-                    ) : (
-                      <HourglassOutlined />
+          <div className="countdown-grid">
+            {settings.items.map((item) => {
+              const onIsland = islandItem?.id === item.id;
+              return (
+                <div
+                  key={item.id}
+                  className={`countdown-card ${onIsland ? "is-island" : ""}`}
+                >
+                  <div className="countdown-card-head">
+                    <span className="antd-list-icon">
+                      {item.kind === "target" ? (
+                        <ClockCircleOutlined />
+                      ) : (
+                        <HourglassOutlined />
+                      )}
+                    </span>
+                    <strong className="countdown-card-title">
+                      {item.label}
+                    </strong>
+                    {onIsland && <Tag color="blue">{t("显示在岛上")}</Tag>}
+                  </div>
+                  <small className="countdown-card-time">
+                    {item.kind === "target"
+                      ? `${t("目标时间")} ${item.targetTime}`
+                      : `${t("时长")} ${formatDurationSeconds(item.durationSeconds ?? 0)}`}
+                  </small>
+                  <div className="countdown-card-actions">
+                    {!onIsland && (
+                      <Button
+                        type="link"
+                        size="small"
+                        disabled={!desktop || busy}
+                        onClick={() =>
+                          void persist({ ...settings, islandId: item.id })
+                        }
+                      >
+                        {t("显示在岛上")}
+                      </Button>
                     )}
-                  </span>
-                  <div className="antd-list-copy">
-                    <strong>{item.label}</strong>
-                    <small>
-                      {item.kind === "target"
-                        ? `${t("目标时间")} ${item.targetTime}`
-                        : `${t("时长")} ${formatDurationSeconds(item.durationSeconds ?? 0)}`}
-                    </small>
+                    <span className="countdown-card-tools">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        disabled={!desktop || busy}
+                        aria-label={`${t("编辑")} ${item.label}`}
+                        title={`${t("编辑")} ${item.label}`}
+                        onClick={() => setDraft(draftFor(item))}
+                      />
+                      <Popconfirm
+                        title={t("删除倒计时？")}
+                        description={`${item.label} ${t("会从列表和空闲胶囊中移除。")}`}
+                        okText={t("删除")}
+                        cancelText={t("取消")}
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => void remove(item)}
+                      >
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          disabled={!desktop || busy}
+                          aria-label={`${t("删除")} ${item.label}`}
+                          title={`${t("删除")} ${item.label}`}
+                        />
+                      </Popconfirm>
+                    </span>
                   </div>
                 </div>
-              </List.Item>
-            )}
-          />
+              );
+            })}
+          </div>
         )}
       </Section>
 

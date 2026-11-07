@@ -60,7 +60,8 @@ const providers = [
 
 export function AiSettings() {
   const { message } = App.useApp();
-  const { accounts, results, error, reload } = useAiQuota();
+  const { accounts, results, error, reload, refreshing, querying } =
+    useAiQuota();
   const desktop = isTauri();
   const [addOpen, setAddOpen] = useState(false);
   const [provider, setProvider] = useState<string>(providers[0].id);
@@ -143,26 +144,27 @@ export function AiSettings() {
     <div className="antd-stack">
       <Section
         title={t("账户与额度")}
-        description={t(
-          "每两分钟自动刷新一次，常驻账户的额度会显示在灵动岛上。",
-        )}
+        description={t("每两分钟自动刷新一次，常驻账户显示在岛上。")}
         extra={
           <Space>
             <Button
+              size="small"
               icon={<ReloadOutlined />}
+              loading={refreshing}
               disabled={!desktop || busy}
               onClick={() => void reload()}
-            >
-              {t("刷新")}
-            </Button>
+              title={t("刷新")}
+              aria-label={t("刷新")}
+            />
             <Button
+              size="small"
               type="primary"
               icon={<PlusOutlined />}
               disabled={!desktop || busy}
               onClick={openAdd}
-            >
-              {t("添加账户")}
-            </Button>
+              title={t("添加账户")}
+              aria-label={t("添加账户")}
+            />
           </Space>
         }
       >
@@ -235,11 +237,13 @@ export function AiSettings() {
                         : account.provider}
                     </small>
                     <span className="antd-list-value">
-                      {results[account.id]?.quota?.items
-                        .map((item) => `${item.label} ${item.value}`)
-                        .join(" · ") ??
-                        results[account.id]?.error ??
-                        t("正在查询…")}
+                      {querying.includes(account.id)
+                        ? t("正在查询…")
+                        : (results[account.id]?.quota?.items
+                            .map((item) => `${item.label} ${item.value}`)
+                            .join(" · ") ??
+                          results[account.id]?.error ??
+                          t("等待查询…"))}
                     </span>
                   </div>
                 </div>
@@ -247,14 +251,22 @@ export function AiSettings() {
             )}
           />
         )}
-      </Section>
-
-      <Section title={t("灵动岛上的额度显示")}>
-        <Typography.Paragraph type="secondary">
-          {t("常驻账户以圆环加进度条显示剩余额度，收起时也能看到。")}
-          <br />
-          {t("每两分钟自动查询一次，可随时手动刷新。")}
-        </Typography.Paragraph>
+        {desktop && accounts.length > 0 && (
+          <Typography.Text type="secondary" className="antd-hint">
+            {refreshing
+              ? t("正在查询所有账户…")
+              : `${t("上次查询")} ${new Date(
+                  Math.max(
+                    ...Object.values(results).map((result) => result.updatedAt),
+                  ),
+                ).toLocaleTimeString(undefined, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+                })}`}
+          </Typography.Text>
+        )}
       </Section>
 
       <Modal

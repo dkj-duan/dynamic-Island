@@ -95,7 +95,7 @@ export function PomodoroSettings() {
   }
 
   return (
-    <div className="antd-stack">
+    <div className="antd-stack is-fill">
       <Card className="antd-plain-card">
         <Button
           className="antd-hero-settings"
@@ -138,6 +138,7 @@ export function PomodoroSettings() {
       </Card>
 
       <Section
+        className="section-grow"
         title={t("专注统计")}
         description={t("近 30 天的完成情况，今天高亮显示。")}
       >

@@ -17,12 +17,24 @@ export function useIslandWater(
   todayWater: number,
   now: number,
   language: string,
+  reminderSeconds: number,
 ) {
   const [water, setWater] = useState<WaterSettings>(defaultWaterSettings);
   const waterRef = useRef(water);
   const [waterReminder, setWaterReminder] = useState(false);
+  // The nudge stays configurable long; the timer reads it through a ref so
+  // the interval effect never needs to re-register.
+  const reminderSecondsRef = useRef(reminderSeconds);
+  useEffect(() => {
+    reminderSecondsRef.current = reminderSeconds;
+  }, [reminderSeconds]);
   const [waterAdded, setWaterAdded] = useState(0);
   const [waterAddedMl, setWaterAddedMl] = useState(0);
+  // A just-logged cup confirms itself on the capsule for a few seconds. The
+  // timestamp is set when logging; the derived flag follows the `now` tick,
+  // so quick repeats simply move the moment it fades out.
+  const [waterLoggedAt, setWaterLoggedAt] = useState(0);
+  const waterLogged = waterAdded > 0 && now - waterLoggedAt < 3_000;
   const [customWaterOpen, setCustomWaterOpen] = useState(false);
   const [customWaterMl, setCustomWaterMl] = useState("300");
   const [waterError, setWaterError] = useState("");
@@ -91,7 +103,10 @@ export function useIslandWater(
   }, []);
   useEffect(() => {
     if (!waterReminder) return;
-    const id = window.setTimeout(() => setWaterReminder(false), 30_000);
+    const id = window.setTimeout(
+      () => setWaterReminder(false),
+      Math.max(3, reminderSecondsRef.current) * 1000,
+    );
     return () => window.clearTimeout(id);
   }, [waterReminder]);
   // The idle widget mirrors the reminder rules and always names the next
@@ -137,6 +152,7 @@ export function useIslandWater(
       setWaterReminder(false);
       setWaterAddedMl(amountMl);
       setWaterAdded((count) => count + 1);
+      setWaterLoggedAt(Date.now());
     } catch (error) {
       setWaterError(String(error));
     }
@@ -147,6 +163,7 @@ export function useIslandWater(
     setWaterReminder,
     waterAdded,
     waterAddedMl,
+    waterLogged,
     customWaterOpen,
     setCustomWaterOpen,
     customWaterMl,

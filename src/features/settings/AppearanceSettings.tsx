@@ -215,9 +215,6 @@ export function AppearancePage({
         <div className="antd-setting-row">
           <div className="antd-setting-copy">
             <div className="antd-setting-title">{t("番茄组件显示")}</div>
-            <span className="antd-setting-desc">
-              {t("选择番茄进度在胶囊里显示今日个数、专注分钟或本轮轮次。")}
-            </span>
           </div>
           <Segmented
             value={appearance.pomodoroView}

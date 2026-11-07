@@ -20,6 +20,10 @@ export function useAiQuota() {
   const [accounts, setAccounts] = useState<AiAccount[]>([]);
   const [results, setResults] = useState<Record<string, AiResult>>({});
   const [error, setError] = useState("");
+  /** True while a full query cycle is in progress (the refresh spinner). */
+  const [refreshing, setRefreshing] = useState(false);
+  /** Accounts with a query in flight, so rows can show live feedback. */
+  const [querying, setQuerying] = useState<string[]>([]);
   const active = useRef(false);
   const running = useRef(false);
   const pending = useRef(false);
@@ -30,6 +34,7 @@ export function useAiQuota() {
       return;
     }
     running.current = true;
+    setRefreshing(true);
     try {
       const list = await invoke<AiAccount[]>("list_ai_accounts");
       if (!active.current) return;
@@ -43,6 +48,9 @@ export function useAiQuota() {
       for (let i = 0; i < list.length && active.current; i += 3) {
         await Promise.all(
           list.slice(i, i + 3).map(async (account) => {
+            setQuerying((old) =>
+              old.includes(account.id) ? old : [...old, account.id],
+            );
             try {
               const quota = await invoke<AiQuota>("query_ai_quota", {
                 id: account.id,
@@ -58,6 +66,8 @@ export function useAiQuota() {
                   ...old,
                   [account.id]: { error: String(error), updatedAt: Date.now() },
                 }));
+            } finally {
+              setQuerying((old) => old.filter((id) => id !== account.id));
             }
           }),
         );
@@ -66,6 +76,7 @@ export function useAiQuota() {
       if (active.current) setError("无法读取 AI 账户");
     } finally {
       running.current = false;
+      setRefreshing(false);
       if (pending.current && active.current) {
         pending.current = false;
         void reload();
@@ -103,5 +114,5 @@ export function useAiQuota() {
       unlisteners.forEach((fn) => fn());
     };
   }, [reload]);
-  return { accounts, results, error, reload };
+  return { accounts, results, error, reload, refreshing, querying };
 }

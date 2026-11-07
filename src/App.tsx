@@ -14,6 +14,7 @@ import { statForDay } from "./domain/dailyStats";
 import { waterPercent } from "./domain/water";
 import { useDailyStats } from "./features/stats/useDailyStats";
 import {
+  APPEARANCE_VERSION,
   hasDesktopStorage,
   loadAppearance,
   saveAppearance,
@@ -191,7 +192,7 @@ export default function App() {
     setStatus({ text: t("正在同步…"), error: false });
     try {
       await emitTo("island", "appearance-changed", {
-        version: 13,
+        version: APPEARANCE_VERSION,
         ...normalized,
       });
     } catch {
@@ -234,7 +235,10 @@ export default function App() {
     setDirty(false);
     setStatus({ text: t("已切换数据目录"), error: false });
     await Promise.all([
-      emitTo("island", "appearance-changed", { version: 13, ...value }),
+      emitTo("island", "appearance-changed", {
+        version: APPEARANCE_VERSION,
+        ...value,
+      }),
       emitTo("island", "mail-accounts-changed"),
       emitTo("island", "ai-accounts-changed"),
     ]);

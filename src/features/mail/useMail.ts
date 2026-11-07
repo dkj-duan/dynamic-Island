@@ -6,14 +6,18 @@ import type { MailAccount, MailNotice } from "./types";
 export type RecentMail = MailNotice & { expiresAt: number };
 
 /** A code waits for the user (the notice itself lives for five minutes);
- *  plain mail only gets a short heads-up. */
+ *  plain mail gets the configured heads-up duration. */
 const CODE_HIGHLIGHT_MS = 300_000;
-const MAIL_HIGHLIGHT_MS = 10_000;
 
-export function useMail() {
+export function useMail({ highlightSeconds }: { highlightSeconds: number }) {
   const [recent, setRecent] = useState<RecentMail[]>([]);
   const [highlight, setHighlight] = useState(false);
   const highlightTimer = useRef<number | undefined>(undefined);
+  // The poll loop registers once; the highlight duration follows settings.
+  const highlightSecondsRef = useRef(highlightSeconds);
+  useEffect(() => {
+    highlightSecondsRef.current = highlightSeconds;
+  }, [highlightSeconds]);
   /** Called when the user copies the code or opens the panel. */
   const dismissHighlight = useCallback(() => {
     window.clearTimeout(highlightTimer.current);
@@ -61,7 +65,7 @@ export function useMail() {
             window.clearTimeout(highlightTimer.current);
             const duration = notices.some((item) => item.code)
               ? CODE_HIGHLIGHT_MS
-              : MAIL_HIGHLIGHT_MS;
+              : Math.max(3, highlightSecondsRef.current) * 1000;
             highlightTimer.current = window.setTimeout(() => {
               highlightTimer.current = undefined;
               setHighlight(false);

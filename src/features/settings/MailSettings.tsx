@@ -170,13 +170,14 @@ export function MailSettings() {
               {accounts.length ? `${accounts.length} ${t("个")}` : t("未添加")}
             </span>
             <Button
+              size="small"
               type="primary"
               icon={<PlusOutlined />}
               disabled={!desktop || busy}
               onClick={openAdd}
-            >
-              {t("添加邮箱")}
-            </Button>
+              title={t("添加邮箱")}
+              aria-label={t("添加邮箱")}
+            />
           </Space>
         }
       >
@@ -235,16 +236,6 @@ export function MailSettings() {
             )}
           </Empty>
         )}
-      </Section>
-
-      <Section title={t("灵动岛上的邮件提醒")}>
-        <Typography.Paragraph type="secondary">
-          {t("收到新邮件时，胶囊直接显示验证码或主题；展开面板可一键复制。")}
-          <br />
-          {t("可添加多个邮箱，最近一封新邮件优先显示。")}
-          <br />
-          {t("不保存邮件正文，提醒只在内存保留约 5 分钟。")}
-        </Typography.Paragraph>
       </Section>
 
       <Modal
