@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   Button,
   Card,
@@ -18,7 +18,6 @@ import {
   CloudOutlined,
   CustomerServiceOutlined,
   FolderOpenOutlined,
-  GithubOutlined,
   MailOutlined,
   RobotOutlined,
 } from "@ant-design/icons";
@@ -60,8 +59,6 @@ const aboutFeatures = [
   },
 ];
 
-const REPO_URL = "https://github.com/dkj-duan/dynamic-Island";
-
 export function AboutSettings({ onStorage }: { onStorage: () => void }) {
   const [version, setVersion] = useState(packageVersion);
   useEffect(() => {
@@ -70,15 +67,6 @@ export function AboutSettings({ onStorage }: { onStorage: () => void }) {
       .then(setVersion)
       .catch(() => undefined);
   }, []);
-  // The webview has no new-window handler, so links must go through the
-  // shell; the browser preview keeps plain anchors.
-  function openRepo() {
-    if (!isTauri()) {
-      window.open(REPO_URL, "_blank", "noopener");
-      return;
-    }
-    void invoke("open_external", { url: REPO_URL }).catch(() => undefined);
-  }
 
   return (
     <div className="antd-stack">
@@ -97,9 +85,6 @@ export function AboutSettings({ onStorage }: { onStorage: () => void }) {
           <Space className="antd-about-actions" wrap>
             <Button icon={<FolderOpenOutlined />} onClick={onStorage}>
               {t("查看数据目录")}
-            </Button>
-            <Button icon={<GithubOutlined />} onClick={openRepo}>
-              GitHub
             </Button>
           </Space>
         </div>
@@ -123,24 +108,6 @@ export function AboutSettings({ onStorage }: { onStorage: () => void }) {
               key: "data",
               label: t("数据"),
               children: t("本机 SQLite，凭据使用 Windows 用户加密"),
-            },
-            {
-              key: "repo",
-              label: t("项目地址"),
-              children: (
-                <a
-                  href={REPO_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(event) => {
-                    if (!isTauri()) return;
-                    event.preventDefault();
-                    openRepo();
-                  }}
-                >
-                  github.com/dkj-duan/dynamic-Island
-                </a>
-              ),
             },
           ]}
         />
