@@ -6,6 +6,7 @@ const stat = (day: string, focusSeconds: number): DailyStat => ({
   waterMl: 0,
   pomodoros: 1,
   focusSeconds,
+  sedentaryBreaks: 0,
 });
 
 describe("focus streak", () => {

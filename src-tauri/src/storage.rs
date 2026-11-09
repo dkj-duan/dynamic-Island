@@ -9,7 +9,7 @@ use std::{
 use tauri::{Emitter, Manager, State};
 
 const DB_NAME: &str = "dynamic-island.sqlite3";
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 #[derive(Serialize, Deserialize)]
 struct Bootstrap {
@@ -105,6 +105,11 @@ fn initialize_connection(mut conn: Connection) -> Result<Connection, String> {
                 .map_err(|e| e.to_string())?;
             }
         }
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+    if version < 5 {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch("ALTER TABLE daily_stats ADD COLUMN sedentary_breaks INTEGER NOT NULL DEFAULT 0; PRAGMA user_version = 5;").map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
     }
     Ok(conn)
@@ -271,6 +276,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "bluetooth"
                                     | "waterTimer"
                                     | "countdown"
+                                    | "sedentary"
                             ) || (id == "mascot" && matches!(version, Some(11..=17))))
                                 && !seen.contains(&id) =>
                         {
@@ -476,6 +482,8 @@ const POSITION_KEY: &str = "island_position";
 const POMODORO_KEY: &str = "pomodoro";
 const POMODORO_PROGRESS_KEY: &str = "pomodoro_progress";
 const WATER_KEY: &str = "water";
+const SEDENTARY_KEY: &str = "sedentary";
+const SEDENTARY_PROGRESS_KEY: &str = "sedentary_progress";
 const COUNTDOWNS_KEY: &str = "countdowns";
 const TIMER_KEY: &str = "timer";
 
@@ -598,6 +606,7 @@ pub struct DailyStat {
     water_ml: i64,
     pomodoros: i64,
     focus_seconds: i64,
+    sedentary_breaks: i64,
 }
 
 fn validate_water(value: &serde_json::Value) -> Result<(), String> {
@@ -642,6 +651,80 @@ pub fn save_water(
     }
     validate_water(&value)?;
     save_json_setting(storage.inner(), WATER_KEY, &value)
+}
+
+fn validate_sedentary(value: &serde_json::Value) -> Result<(), String> {
+    let start = value.get("activeStart").and_then(serde_json::Value::as_u64);
+    let end = value.get("activeEnd").and_then(serde_json::Value::as_u64);
+    let (Some(start), Some(end)) = (start, end) else {
+        return Err("久坐设置格式无效，未保存".into());
+    };
+    if value.get("version").and_then(serde_json::Value::as_u64) != Some(1)
+        || value
+            .get("enabled")
+            .and_then(serde_json::Value::as_bool)
+            .is_none()
+        || !setting_number(value, "goalBreaks", 1, 50)
+        || !setting_number(value, "reminderMinutes", 5, 240)
+        || start > 23
+        || !(1..=24).contains(&end)
+        || start >= end
+    {
+        return Err("久坐设置格式无效，未保存".into());
+    }
+    Ok(())
+}
+
+fn validate_sedentary_progress(value: &serde_json::Value) -> Result<(), String> {
+    let day_valid = value
+        .get("day")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(valid_day);
+    if value.get("version").and_then(serde_json::Value::as_u64) != Some(1)
+        || !day_valid
+        || !setting_number(value, "lastBreakAt", 0, i64::MAX as u64)
+    {
+        return Err("久坐进度格式无效，未保存".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_sedentary(storage: State<'_, Storage>) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), SEDENTARY_KEY)
+}
+
+#[tauri::command]
+pub fn save_sedentary(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能修改久坐设置".into());
+    }
+    validate_sedentary(&value)?;
+    save_json_setting(storage.inner(), SEDENTARY_KEY, &value)
+}
+
+#[tauri::command]
+pub fn load_sedentary_progress(
+    storage: State<'_, Storage>,
+) -> Result<Option<serde_json::Value>, String> {
+    load_json_setting(storage.inner(), SEDENTARY_PROGRESS_KEY)
+}
+
+#[tauri::command]
+pub fn save_sedentary_progress(
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if !matches!(window.label(), "island" | "main") {
+        return Err("当前窗口不能保存久坐进度".into());
+    }
+    validate_sedentary_progress(&value)?;
+    save_json_setting(storage.inner(), SEDENTARY_PROGRESS_KEY, &value)
 }
 
 #[tauri::command]
@@ -852,7 +935,7 @@ fn validate_timer(value: &serde_json::Value) -> Result<(), String> {
 fn read_daily_stat(connection: &Connection, day: &str) -> Result<DailyStat, String> {
     connection
         .query_row(
-            "SELECT day, water_ml, pomodoros, focus_seconds FROM daily_stats WHERE day=?1",
+            "SELECT day, water_ml, pomodoros, focus_seconds, sedentary_breaks FROM daily_stats WHERE day=?1",
             [day],
             |row| {
                 Ok(DailyStat {
@@ -860,6 +943,7 @@ fn read_daily_stat(connection: &Connection, day: &str) -> Result<DailyStat, Stri
                     water_ml: row.get(1)?,
                     pomodoros: row.get(2)?,
                     focus_seconds: row.get(3)?,
+                    sedentary_breaks: row.get(4)?,
                 })
             },
         )
@@ -872,7 +956,7 @@ pub fn get_daily_stats(storage: State<'_, Storage>, limit: u32) -> Result<Vec<Da
     let db = storage.0.lock().map_err(|e| e.to_string())?;
     let mut statement = db
         .connection
-        .prepare("SELECT day, water_ml, pomodoros, focus_seconds FROM daily_stats ORDER BY day DESC LIMIT ?1")
+        .prepare("SELECT day, water_ml, pomodoros, focus_seconds, sedentary_breaks FROM daily_stats ORDER BY day DESC LIMIT ?1")
         .map_err(|e| e.to_string())?;
     let rows = statement
         .query_map([limit], |row| {
@@ -881,6 +965,7 @@ pub fn get_daily_stats(storage: State<'_, Storage>, limit: u32) -> Result<Vec<Da
                 water_ml: row.get(1)?,
                 pomodoros: row.get(2)?,
                 focus_seconds: row.get(3)?,
+                sedentary_breaks: row.get(4)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -922,7 +1007,7 @@ fn reset_water_for_day(connection: &Connection, day: &str) -> Result<DailyStat, 
         .map_err(|e| e.to_string())?;
     connection
         .query_row(
-            "SELECT day, water_ml, pomodoros, focus_seconds FROM daily_stats WHERE day=?1",
+            "SELECT day, water_ml, pomodoros, focus_seconds, sedentary_breaks FROM daily_stats WHERE day=?1",
             [day],
             |row| {
                 Ok(DailyStat {
@@ -930,6 +1015,7 @@ fn reset_water_for_day(connection: &Connection, day: &str) -> Result<DailyStat, 
                     water_ml: row.get(1)?,
                     pomodoros: row.get(2)?,
                     focus_seconds: row.get(3)?,
+                    sedentary_breaks: row.get(4)?,
                 })
             },
         )
@@ -941,6 +1027,7 @@ fn reset_water_for_day(connection: &Connection, day: &str) -> Result<DailyStat, 
                 water_ml: 0,
                 pomodoros: 0,
                 focus_seconds: 0,
+                sedentary_breaks: 0,
             })
         })
 }
@@ -989,6 +1076,88 @@ pub fn record_pomodoro(
             )
             .map_err(|e| e.to_string())?;
         read_daily_stat(&db.connection, &day)?
+    };
+    let _ = app.emit("daily-stats-changed", &stat);
+    Ok(stat)
+}
+
+#[tauri::command]
+pub fn record_sedentary(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    day: String,
+) -> Result<DailyStat, String> {
+    if !matches!(window.label(), "main" | "island") {
+        return Err("当前窗口不能记录起身".into());
+    }
+    if !valid_day(&day) {
+        return Err("日期无效".into());
+    }
+    let stat = {
+        let db = storage.0.lock().map_err(|e| e.to_string())?;
+        db.connection
+            .execute(
+                "INSERT INTO daily_stats(day, sedentary_breaks) VALUES (?1, 1) ON CONFLICT(day) DO UPDATE SET sedentary_breaks = sedentary_breaks + 1",
+                params![day],
+            )
+            .map_err(|e| e.to_string())?;
+        read_daily_stat(&db.connection, &day)?
+    };
+    let _ = app.emit("daily-stats-changed", &stat);
+    Ok(stat)
+}
+
+fn reset_sedentary_for_day(connection: &Connection, day: &str) -> Result<DailyStat, String> {
+    connection
+        .execute(
+            "UPDATE daily_stats SET sedentary_breaks = 0 WHERE day=?1",
+            [day],
+        )
+        .map_err(|e| e.to_string())?;
+    connection
+        .query_row(
+            "SELECT day, water_ml, pomodoros, focus_seconds, sedentary_breaks FROM daily_stats WHERE day=?1",
+            [day],
+            |row| {
+                Ok(DailyStat {
+                    day: row.get(0)?,
+                    water_ml: row.get(1)?,
+                    pomodoros: row.get(2)?,
+                    focus_seconds: row.get(3)?,
+                    sedentary_breaks: row.get(4)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| e.to_string())
+        .map(|stat| {
+            stat.unwrap_or(DailyStat {
+                day: day.to_string(),
+                water_ml: 0,
+                pomodoros: 0,
+                focus_seconds: 0,
+                sedentary_breaks: 0,
+            })
+        })
+}
+
+#[tauri::command]
+pub fn reset_sedentary(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    storage: State<'_, Storage>,
+    day: String,
+) -> Result<DailyStat, String> {
+    if window.label() != "main" {
+        return Err("当前窗口不能重置起身数据".into());
+    }
+    if !valid_day(&day) {
+        return Err("日期无效".into());
+    }
+    let stat = {
+        let db = storage.0.lock().map_err(|e| e.to_string())?;
+        reset_sedentary_for_day(&db.connection, &day)?
     };
     let _ = app.emit("daily-stats-changed", &stat);
     Ok(stat)
@@ -1179,6 +1348,17 @@ fn open_existing_directory(storage: &Storage, directory: String) -> Result<Strin
     if version >= 3 {
         check
             .prepare("SELECT id,provider,name,secret,pinned FROM ai_accounts LIMIT 0")
+            .map_err(|_| "数据库结构无效，未切换数据目录")?;
+    }
+    if version >= 4 {
+        // A v4 database gains sedentary_breaks during the upgrade below.
+        let stats_columns = if version >= 5 {
+            "SELECT day,water_ml,pomodoros,focus_seconds,sedentary_breaks FROM daily_stats LIMIT 0"
+        } else {
+            "SELECT day,water_ml,pomodoros,focus_seconds FROM daily_stats LIMIT 0"
+        };
+        check
+            .prepare(stats_columns)
             .map_err(|_| "数据库结构无效，未切换数据目录")?;
     }
     drop(check);
@@ -1519,7 +1699,7 @@ mod tests {
                 .connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            4
+            5
         );
         let conn = Connection::open(broken.join(DB_NAME)).unwrap();
         conn.execute_batch("CREATE TABLE settings (bad TEXT); CREATE TABLE mail_accounts (bad TEXT); PRAGMA user_version = 2;").unwrap();
@@ -1543,7 +1723,7 @@ mod tests {
         assert_eq!(
             conn.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            4
+            5
         );
         assert!(
             conn.prepare("SELECT id,provider,name,secret,pinned FROM ai_accounts")
@@ -1553,6 +1733,105 @@ mod tests {
             conn.prepare("SELECT day,water_ml,pomodoros,focus_seconds FROM daily_stats")
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn upgrades_v4_adding_sedentary_breaks() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL); CREATE TABLE mail_accounts (id TEXT PRIMARY KEY NOT NULL, email TEXT NOT NULL, host TEXT NOT NULL, port INTEGER NOT NULL, uid_validity INTEGER NOT NULL, last_uid INTEGER NOT NULL); CREATE TABLE ai_accounts (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, name TEXT NOT NULL, secret BLOB NOT NULL, pinned INTEGER NOT NULL DEFAULT 0); CREATE TABLE daily_stats (day TEXT PRIMARY KEY NOT NULL, water_ml INTEGER NOT NULL DEFAULT 0, pomodoros INTEGER NOT NULL DEFAULT 0, focus_seconds INTEGER NOT NULL DEFAULT 0); INSERT INTO daily_stats VALUES ('2026-11-07', 1200, 3, 4500); PRAGMA user_version = 4;").unwrap();
+        let conn = initialize_connection(conn).unwrap();
+        assert_eq!(
+            conn.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            5
+        );
+        let (water_ml, pomodoros, sedentary_breaks): (i64, i64, i64) = conn
+            .query_row(
+                "SELECT water_ml, pomodoros, sedentary_breaks FROM daily_stats WHERE day='2026-11-07'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(water_ml, 1200);
+        assert_eq!(pomodoros, 3);
+        assert_eq!(sedentary_breaks, 0);
+    }
+
+    #[test]
+    fn validates_sedentary_settings() {
+        let valid = serde_json::json!({
+            "version": 1,
+            "goalBreaks": 10,
+            "reminderMinutes": 45,
+            "activeStart": 9,
+            "activeEnd": 21,
+            "enabled": true
+        });
+        assert!(validate_sedentary(&valid).is_ok());
+        let mut short_interval = valid.clone();
+        short_interval["reminderMinutes"] = serde_json::json!(5);
+        assert!(validate_sedentary(&short_interval).is_ok());
+        let mut tiny_interval = valid.clone();
+        tiny_interval["reminderMinutes"] = serde_json::json!(4);
+        assert!(validate_sedentary(&tiny_interval).is_err());
+        let mut long_interval = valid.clone();
+        long_interval["reminderMinutes"] = serde_json::json!(241);
+        assert!(validate_sedentary(&long_interval).is_err());
+        let mut reversed = valid.clone();
+        reversed["activeStart"] = serde_json::json!(21);
+        reversed["activeEnd"] = serde_json::json!(9);
+        assert!(validate_sedentary(&reversed).is_err());
+        let mut zero_goal = valid.clone();
+        zero_goal["goalBreaks"] = serde_json::json!(0);
+        assert!(validate_sedentary(&zero_goal).is_err());
+        let mut large_goal = valid;
+        large_goal["goalBreaks"] = serde_json::json!(51);
+        assert!(validate_sedentary(&large_goal).is_err());
+    }
+
+    #[test]
+    fn validates_sedentary_progress() {
+        let valid = serde_json::json!({
+            "version": 1,
+            "day": "2026-11-07",
+            "lastBreakAt": 1762480800000i64
+        });
+        assert!(validate_sedentary_progress(&valid).is_ok());
+        let mut bad_day = valid.clone();
+        bad_day["day"] = serde_json::json!("2026-11-7");
+        assert!(validate_sedentary_progress(&bad_day).is_err());
+        let mut negative = valid.clone();
+        negative["lastBreakAt"] = serde_json::json!(-1);
+        assert!(validate_sedentary_progress(&negative).is_err());
+        let mut wrong_version = valid;
+        wrong_version["version"] = serde_json::json!(2);
+        assert!(validate_sedentary_progress(&wrong_version).is_err());
+    }
+
+    #[test]
+    fn records_and_resets_sedentary_for_a_day() {
+        let storage = memory_storage();
+        let db = storage.0.lock().unwrap();
+        db.connection
+            .execute(
+                "INSERT INTO daily_stats(day, water_ml, pomodoros, focus_seconds) VALUES ('2026-11-07', 1200, 3, 4500)",
+                [],
+            )
+            .unwrap();
+        db.connection
+            .execute(
+                "INSERT INTO daily_stats(day, sedentary_breaks) VALUES ('2026-11-07', 1) ON CONFLICT(day) DO UPDATE SET sedentary_breaks = sedentary_breaks + 1",
+                [],
+            )
+            .unwrap();
+        let stat = reset_sedentary_for_day(&db.connection, "2026-11-07").unwrap();
+        assert_eq!(stat.sedentary_breaks, 0);
+        assert_eq!(stat.water_ml, 1200);
+        assert_eq!(stat.pomodoros, 3);
+        assert_eq!(stat.focus_seconds, 4500);
+        let empty = reset_sedentary_for_day(&db.connection, "2026-11-08").unwrap();
+        assert_eq!(empty.sedentary_breaks, 0);
+        assert_eq!(empty.pomodoros, 0);
     }
 
     #[test]

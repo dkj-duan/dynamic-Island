@@ -23,6 +23,7 @@ import {
   MailOutlined,
   NotificationOutlined,
   RobotOutlined,
+  RiseOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import type { AppearanceSettings } from "../../domain/settings";
@@ -37,6 +38,7 @@ import { MailSettings } from "./MailSettings";
 import { AiSettings } from "./AiSettings";
 import { PomodoroSettings } from "./PomodoroSettings";
 import { WaterSettings } from "./WaterSettings";
+import { SedentarySettings } from "./SedentarySettings";
 import { SettingsTheme } from "./SettingsTheme";
 import { t } from "../../services/i18n";
 import {
@@ -53,6 +55,7 @@ type Page =
   | "pomodoro"
   | "status"
   | "water"
+  | "sedentary"
   | "countdown"
   | "mail"
   | "ai"
@@ -66,6 +69,7 @@ const pageMeta: Record<Page, { title: string }> = {
   pomodoro: { title: "番茄钟" },
   status: { title: "系统状态" },
   water: { title: "喝水提醒" },
+  sedentary: { title: "久坐提醒" },
   countdown: { title: "倒计时" },
   mail: { title: "邮箱提醒" },
   ai: { title: "AI 额度" },
@@ -97,7 +101,7 @@ const navGroups: { label: string; ids: Page[]; icon: ReactNode }[] = [
   },
   {
     label: "功能",
-    ids: ["pomodoro", "water", "countdown"],
+    ids: ["pomodoro", "water", "sedentary", "countdown"],
     icon: <ThunderboltOutlined />,
   },
   { label: "服务", ids: ["mail", "ai"], icon: <MailOutlined /> },
@@ -114,6 +118,7 @@ const navIcons: Record<Page, ReactNode> = {
   reminder: <BellOutlined />,
   pomodoro: <FieldTimeOutlined />,
   water: <ThunderboltOutlined />,
+  sedentary: <RiseOutlined />,
   countdown: <HourglassOutlined />,
   status: <NotificationOutlined />,
   mail: <MailOutlined />,
@@ -298,6 +303,7 @@ export function SettingsPage({
               {page === "pomodoro" && <PomodoroSettings />}
               {page === "status" && <StatusSettings />}
               {page === "water" && <WaterSettings />}
+              {page === "sedentary" && <SedentarySettings />}
               {page === "countdown" && <CountdownSettings />}
               {page === "storage" && (
                 <StorageSettings

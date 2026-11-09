@@ -22,6 +22,7 @@ import musicIcon from "../../assets/island/music.png";
 import streakIcon from "../../assets/island/streak.png";
 import volumeIcon from "../../assets/island/volume.png";
 import waterTimerIcon from "../../assets/island/water-timer.png";
+import sedentaryChair from "../../assets/island/away-chair.png";
 import waterDrop from "../../assets/water-drop.webp";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
 import mascotIcon from "../../assets/app-icon.png";
@@ -229,6 +230,9 @@ export function IdleWidgets({
       }
       return `${t("下次喝水提醒")} · ${data.waterTimer.tomorrow ? `${t("明天")} ` : ""}${data.waterTimer.at}`;
     }
+    if (id === "sedentary" && data.sedentary) {
+      return `${t("已坐")} ${data.sedentary.minutes} ${t("分钟")}`;
+    }
     return undefined;
   }
   return (
@@ -243,9 +247,12 @@ export function IdleWidgets({
         const waterDone =
           id === "waterTimer" && !!data.waterTimer && "done" in data.waterTimer;
         const countdownDone = id === "countdown" && !!data.countdown?.reached;
+        const sedentaryNear =
+          id === "sedentary" && !!data.sedentary && !data.sedentary.over;
+        const sedentaryOver = id === "sedentary" && !!data.sedentary?.over;
         return (
           <span
-            className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone ? "is-done" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""}`}
+            className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone ? "is-done" : ""} ${sedentaryNear ? "is-near" : ""} ${sedentaryOver ? "is-over" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""}`}
             key={id}
             data-idle-widget={id}
             title={widgetTitle(id)}
@@ -360,6 +367,12 @@ export function IdleWidgets({
                         ? `${data.waterTimer.minutes}${t("分")}`
                         : data.waterTimer.at}
                 </span>
+              </>
+            )}
+            {id === "sedentary" && data.sedentary && (
+              <>
+                <img className="idle-widget-img" src={sedentaryChair} alt="" />
+                <span>{`${data.sedentary.minutes}${t("分")}`}</span>
               </>
             )}
             {id === "mascot" && (

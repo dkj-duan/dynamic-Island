@@ -89,7 +89,7 @@ export function ReminderSettings({
         <Divider style={{ margin: "10px 0 8px" }} />
         <SettingRow
           title={t("提醒时自动展开")}
-          description={t("验证码、喝水和计时结束时会自动打开面板。")}
+          description={t("验证码、喝水、久坐和计时结束时会自动打开面板。")}
         >
           <Switch
             checked={appearance.reminderAutoExpand}

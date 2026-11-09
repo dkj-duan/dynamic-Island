@@ -8,6 +8,8 @@ describe("island display priority", () => {
     notice: false,
     water: false,
     waterLogged: false,
+    sedentary: false,
+    sedentaryLogged: false,
     media: false,
   };
   it("keeps a completed timer above transient notices", () => {
@@ -18,6 +20,8 @@ describe("island display priority", () => {
         notice: true,
         water: true,
         waterLogged: true,
+        sedentary: true,
+        sedentaryLogged: true,
         media: true,
       }),
     ).toBe("finished");
@@ -30,6 +34,8 @@ describe("island display priority", () => {
         notice: true,
         water: true,
         waterLogged: true,
+        sedentary: true,
+        sedentaryLogged: true,
         media: true,
       }),
     ).toBe("notice");
@@ -49,6 +55,8 @@ describe("island display priority", () => {
         notice: false,
         water: false,
         waterLogged: false,
+        sedentary: false,
+        sedentaryLogged: false,
         media: true,
       }),
     ).toBe("mail");
@@ -59,6 +67,17 @@ describe("island display priority", () => {
     );
     expect(
       selectIslandDisplay({ ...idle, timer: "running", water: true }),
+    ).toBe("timer");
+  });
+  it("shows a stand-up reminder below the water one and never during focus", () => {
+    expect(selectIslandDisplay({ ...idle, water: true, sedentary: true })).toBe(
+      "water",
+    );
+    expect(selectIslandDisplay({ ...idle, sedentary: true, media: true })).toBe(
+      "sedentary",
+    );
+    expect(
+      selectIslandDisplay({ ...idle, timer: "running", sedentary: true }),
     ).toBe("timer");
   });
   it("confirms a logged cup below reminders and without interrupting focus", () => {
@@ -75,6 +94,20 @@ describe("island display priority", () => {
     expect(
       selectIslandDisplay({ ...idle, waterLogged: true, media: true }),
     ).toBe("waterLogged");
+  });
+  it("confirms a logged stand below the reminder and media", () => {
+    expect(
+      selectIslandDisplay({ ...idle, sedentary: true, sedentaryLogged: true }),
+    ).toBe("sedentary");
+    expect(selectIslandDisplay({ ...idle, sedentaryLogged: true })).toBe(
+      "sedentaryLogged",
+    );
+    expect(
+      selectIslandDisplay({ ...idle, sedentaryLogged: true, media: true }),
+    ).toBe("sedentaryLogged");
+    expect(
+      selectIslandDisplay({ ...idle, timer: "running", sedentaryLogged: true }),
+    ).toBe("timer");
   });
   it("falls back through notice, timer, media and idle", () => {
     expect(selectIslandDisplay({ ...idle, notice: true, media: true })).toBe(

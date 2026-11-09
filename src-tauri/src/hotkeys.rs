@@ -93,7 +93,18 @@ pub struct HotkeyFailure {
 }
 
 #[tauri::command]
-pub fn apply_hotkeys(
+pub async fn apply_hotkeys(
+    app: tauri::AppHandle,
+    config: HotkeyConfig,
+) -> Result<Vec<HotkeyFailure>, String> {
+    // The hotkey thread answers over SendMessage, which would freeze the
+    // window thread if it ever wedged; keep the wait off the main thread.
+    tauri::async_runtime::spawn_blocking(move || apply_hotkeys_blocking(app, config))
+        .await
+        .map_err(|_| "快捷键应用失败".to_string())?
+}
+
+fn apply_hotkeys_blocking(
     app: tauri::AppHandle,
     config: HotkeyConfig,
 ) -> Result<Vec<HotkeyFailure>, String> {
