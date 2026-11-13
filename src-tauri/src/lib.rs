@@ -17,6 +17,7 @@ mod netease_timeline;
 mod notifications;
 mod storage;
 mod system_status;
+mod wechat;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1016,6 +1017,97 @@ fn reset_island_position(
     Ok(())
 }
 
+/// Runtime layout mode; the saved preference is owned by appearance settings.
+static TASKBAR_MODE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(target_os = "windows")]
+fn taskbar_bounds(window: &tauri::WebviewWindow) -> Result<(i32, i32, i32, i32), String> {
+    use windows_sys::Win32::UI::Shell::{
+        ABE_BOTTOM, ABM_GETSTATE, ABM_GETTASKBARPOS, ABS_AUTOHIDE, APPBARDATA, SHAppBarMessage,
+    };
+    let mut bar = APPBARDATA {
+        cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+        ..Default::default()
+    };
+    if unsafe { SHAppBarMessage(ABM_GETTASKBARPOS, &mut bar) } == 0 || bar.uEdge != ABE_BOTTOM {
+        return Err("仅支持主屏幕底部任务栏".into());
+    }
+    if unsafe { SHAppBarMessage(ABM_GETSTATE, &mut bar) } & ABS_AUTOHIDE as usize != 0 {
+        return Err("任务栏自动隐藏时无法使用此模式".into());
+    }
+    let rect = bar.rc;
+    let _ = window;
+    if rect.bottom <= rect.top {
+        return Err("无法读取任务栏区域".into());
+    }
+    Ok((rect.left, rect.top, rect.right, rect.bottom))
+}
+
+#[tauri::command]
+fn check_taskbar_mode(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let island = app.get_webview_window("island").ok_or("灵动岛未就绪")?;
+        taskbar_bounds(&island).map(|_| ())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("仅支持 Windows 底部任务栏".into())
+    }
+}
+
+/// Places the bottom-anchored 38px capsule at the taskbar's centre.
+#[cfg(any(target_os = "windows", test))]
+fn taskbar_window_y(top: i32, bottom: i32, window_height: u32, scale: f64) -> i32 {
+    let capsule_bottom = ((top as f64 + bottom as f64) / 2.0 + 19.0 * scale).min(bottom as f64);
+    (capsule_bottom + 13.0 * scale - window_height as f64).round() as i32
+}
+
+#[tauri::command]
+fn set_taskbar_mode(window: tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    if window.label() != "island" {
+        return Err("当前窗口不支持该操作".into());
+    }
+    #[cfg(target_os = "windows")]
+    if enabled {
+        let (left, top, _right, bottom) = taskbar_bounds(&window)?;
+        let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
+        let size = window.outer_size().map_err(|e| e.to_string())?;
+        // The bottom-aligned capsule has 13 CSS px margin and is 38px tall.
+        let y = taskbar_window_y(top, bottom, size.height, scale);
+        let current = window.outer_position().map_err(|e| e.to_string())?;
+        // A saved taskbar position already on this row keeps its horizontal drag offset.
+        let x = if (current.y - y).abs() <= 3 {
+            current.x
+        } else {
+            left
+        };
+        window
+            .set_position(PhysicalPosition::new(x, y))
+            .map_err(|e| e.to_string())?;
+        raise_island(&window)?;
+        TASKBAR_MODE.store(true, Ordering::SeqCst);
+        return Ok(());
+    }
+    #[cfg(not(target_os = "windows"))]
+    if enabled {
+        return Err("仅支持 Windows 底部任务栏".into());
+    }
+    if TASKBAR_MODE.swap(false, Ordering::SeqCst)
+        && let Some(monitor) = window.primary_monitor().map_err(|e| e.to_string())?
+    {
+        let size = window.outer_size().map_err(|e| e.to_string())?;
+        let x = monitor.position().x + (monitor.size().width as i32 - size.width as i32) / 2;
+        let y = monitor.position().y + (8.0 * monitor.scale_factor()).round() as i32;
+        window
+            .set_position(PhysicalPosition::new(x, y))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Drags the island window while the pointer is held down.
 #[tauri::command]
 fn start_island_drag(window: tauri::WebviewWindow) -> Result<(), String> {
@@ -1268,6 +1360,37 @@ fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) {
     }
 }
 
+/// Explorer can promote the taskbar above other topmost windows when another
+/// application activates. Only repair ordering when the primary taskbar has
+/// actually moved above the island; never activate or focus either window.
+#[cfg(target_os = "windows")]
+fn taskbar_covers_island(window: &tauri::WebviewWindow) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, GW_HWNDPREV, GetWindow, IsWindowVisible,
+    };
+    let Ok(island) = window.hwnd() else {
+        return false;
+    };
+    let class: Vec<u16> = "Shell_TrayWnd\0".encode_utf16().collect();
+    unsafe {
+        let taskbar = FindWindowW(class.as_ptr(), std::ptr::null());
+        if taskbar.is_null() || IsWindowVisible(taskbar) == 0 {
+            return false;
+        }
+        let mut candidate = GetWindow(island.0, GW_HWNDPREV);
+        for _ in 0..4096 {
+            if candidate.is_null() {
+                return false;
+            }
+            if candidate == taskbar {
+                return true;
+            }
+            candidate = GetWindow(candidate, GW_HWNDPREV);
+        }
+    }
+    false
+}
+
 /// Watches the foreground window and hides the island while a fullscreen app
 /// owns the screen. Polls cheaply; visibility only flips on real changes so
 /// the user's own show/hide actions are never fought over.
@@ -1280,11 +1403,18 @@ fn spawn_fullscreen_watch(app: tauri::AppHandle) {
                 continue;
             };
             let fullscreen = foreground_covers_island_monitor(&window);
+            let avoid = FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst);
+            if TASKBAR_MODE.load(std::sync::atomic::Ordering::SeqCst)
+                && !(fullscreen && avoid)
+                && !ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst)
+                && taskbar_covers_island(&window)
+            {
+                let _ = raise_island(&window);
+            }
             if fullscreen == FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
                 continue;
             }
             FULLSCREEN_ACTIVE.store(fullscreen, std::sync::atomic::Ordering::SeqCst);
-            let avoid = FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst);
             if avoid {
                 apply_fullscreen_visibility(&window, fullscreen, fullscreen);
             } else if ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1420,11 +1550,19 @@ fn apply_island_scale(window: tauri::WebviewWindow, scale: f64) -> Result<(), St
     let combined = island_auto_scale() * user;
     let old_position = window.outer_position().map_err(|e| e.to_string())?;
     let old_size = window.outer_size().map_err(|e| e.to_string())?;
+    let old_scale = island_scale();
+    let dpi = window.scale_factor().map_err(|e| e.to_string())?;
     apply_island_window_scale(&window, combined)?;
     let new_size = window.outer_size().map_err(|e| e.to_string())?;
     let x = old_position.x + (old_size.width as i32 - new_size.width as i32) / 2;
+    let y = if TASKBAR_MODE.load(std::sync::atomic::Ordering::SeqCst) {
+        old_position.y + old_size.height as i32 - new_size.height as i32
+            + (32.0 * dpi * (combined - old_scale)).round() as i32
+    } else {
+        old_position.y
+    };
     window
-        .set_position(PhysicalPosition::new(x, old_position.y))
+        .set_position(PhysicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     if !ISLAND_EXPANDED.load(std::sync::atomic::Ordering::SeqCst) {
         set_island_expanded(window, false, false)?;
@@ -1461,12 +1599,15 @@ pub fn run() {
             hotkeys::apply_hotkeys,
             notifications::get_notification_access,
             notifications::set_notification_forwarding,
+            wechat::set_wechat_notifications,
             notifications::open_notification_settings,
             is_autostart_launch,
             get_autostart,
             set_autostart,
             apply_island_scale,
             start_island_drag,
+            check_taskbar_mode,
+            set_taskbar_mode,
             reset_island_position,
             set_window_theme,
             get_system_theme,
@@ -1714,7 +1855,15 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::island_visual_scale;
+    use super::{island_visual_scale, taskbar_window_y};
+
+    #[test]
+    fn taskbar_window_centres_bottom_capsule_at_multiple_dpi_scales() {
+        assert_eq!(taskbar_window_y(1032, 1080, 320, 1.0), 768);
+        assert_eq!(taskbar_window_y(1044, 1080, 384, 1.2), 712);
+        // An oversized capsule protrudes above the bar rather than below the screen.
+        assert_eq!(taskbar_window_y(1032, 1080, 512, 1.6), 589);
+    }
 
     #[test]
     fn island_scale_tiers_match_monitor_widths() {

@@ -111,6 +111,11 @@ const en: Record<string, string> = {
     "In hover mode the panel opens when the pointer rests on the capsule.",
   点击展开: "Click",
   悬停展开: "Hover",
+  任务栏模式: "Taskbar mode",
+  "将胶囊放在主屏幕底部任务栏左侧，面板向上展开；可拖动调整位置。":
+    "Place the capsule on the left of the primary bottom taskbar, with the panel opening upwards. Drag to adjust its position.",
+  "无法放置到任务栏，请检查任务栏位置和灵动岛大小。":
+    "Cannot place the island on the taskbar. Check its position and island size.",
   灵动岛位置: "Island position",
   "按住胶囊或面板顶栏即可拖动，松手后位置会被记住。":
     "Drag the capsule or the panel header; the position is remembered on release.",
@@ -668,6 +673,10 @@ const en: Record<string, string> = {
   "展开 / 收起灵动岛": "Expand / collapse the island",
   "注册失败，可能被其他程序占用：":
     "Registration failed, possibly held by another program: ",
+  微信消息提醒: "WeChat notifications",
+  微信消息上岛: "Show WeChat messages",
+  "读取微信会话列表中的未读状态和摘要，仅在本地处理。微信需运行并保留会话列表；不同版本或界面状态可能漏报。":
+    "Read unread counts and previews from WeChat locally. WeChat must be running with the session list available; some versions or window states may miss messages.",
   应用通知转发: "Notification forwarding",
   通知: "Notifications",
   通知页: "Notification page",

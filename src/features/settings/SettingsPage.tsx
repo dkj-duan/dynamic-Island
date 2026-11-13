@@ -277,7 +277,10 @@ export function SettingsPage({
             <Typography.Title level={3} className="antd-page-title">
               {t(meta.title)}
             </Typography.Title>
-            <div key={page} className="antd-page-body">
+            <div
+              key={page}
+              className={`antd-page-body ${page === "behavior" || page === "reminder" ? "settings-responsive-container" : ""}`}
+            >
               {page === "appearance" && (
                 <AppearancePage
                   appearance={appearance}

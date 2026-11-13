@@ -22,12 +22,44 @@ describe("parseAppearance", () => {
       hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
       hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
       forwardNotifications: false,
+      wechatNotifications: false,
       noticeExpand: false,
       noticeShowText: true,
       noticeDisplaySeconds: 3,
       reminderDisplaySeconds: 20,
       fullscreenAvoid: true,
+      taskbarMode: false,
     });
+  });
+  it("defaults old settings to disabled and validates the WeChat switch", () => {
+    const old = {
+      ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+      version: 17,
+    };
+    expect(parseAppearance(old).wechatNotifications).toBe(false);
+    expect(
+      parseAppearance({ ...old, version: 18, wechatNotifications: true })
+        .wechatNotifications,
+    ).toBe(true);
+    expect(() =>
+      parseAppearance({ ...old, version: 18, wechatNotifications: "yes" }),
+    ).toThrow();
+    expect(() =>
+      parseAppearance({ ...old, version: 18, wechatNotifications: undefined }),
+    ).toThrow();
+  });
+  it("migrates taskbar mode and rejects invalid values", () => {
+    const old = {
+      ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+      version: 18,
+    };
+    expect(parseAppearance(old).taskbarMode).toBe(false);
+    expect(
+      parseAppearance({ ...old, version: 19, taskbarMode: true }).taskbarMode,
+    ).toBe(true);
+    expect(() =>
+      parseAppearance({ ...old, version: 19, taskbarMode: undefined }),
+    ).toThrow();
   });
   it("migrates old shapes and rejects invalid new shapes", () => {
     const old = {

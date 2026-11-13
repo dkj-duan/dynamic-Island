@@ -49,7 +49,7 @@ wmi = "0.18"
 windows-collections = "0.3"
 windows-core = "0.62"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_Security_Cryptography", "Win32_System_Registry", "Win32_System_LibraryLoader"] }
-windows = { version = "0.62", features = ["Media_Control", "Storage_Streams", "Devices_Bluetooth", "Devices_Enumeration", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Power", "Win32_Devices_FunctionDiscovery", "Win32_Devices_Properties", "Win32_Devices_DeviceAndDriverInstallation", "Win32_UI_Shell_PropertiesSystem", "UI_Notifications", "UI_Notifications_Management", "ApplicationModel"] }
+windows = { version = "0.62", features = ["Media_Control", "Storage_Streams", "Devices_Bluetooth", "Devices_Enumeration", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_UI_Accessibility", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Power", "Win32_Devices_FunctionDiscovery", "Win32_Devices_Properties", "Win32_Devices_DeviceAndDriverInstallation", "Win32_UI_Shell_PropertiesSystem", "UI_Notifications", "UI_Notifications_Management", "ApplicationModel"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

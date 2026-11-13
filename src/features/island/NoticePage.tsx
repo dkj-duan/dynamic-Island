@@ -10,10 +10,12 @@ import { t } from "../../services/i18n";
 export function NoticePage({
   notifications,
   forwardingEnabled,
+  showText,
   language,
 }: {
   notifications: AppNoticeItem[];
   forwardingEnabled: boolean;
+  showText: boolean;
   language: string;
 }) {
   const latest = notifications[0];
@@ -46,7 +48,9 @@ export function NoticePage({
           })}
         </span>
       </div>
-      <p className="island-notice-text">{latest.text}</p>
+      <p className="island-notice-text">
+        {showText ? latest.text : t("新通知")}
+      </p>
     </div>
   );
 }

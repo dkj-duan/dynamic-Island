@@ -18,6 +18,16 @@ html.island-window #root {
   position: relative;
 }
 
+.desktop-island[data-placement="taskbar"] {
+  align-items: flex-end;
+}
+
+.desktop-island[data-placement="taskbar"] .island-panel {
+  margin-top: 0;
+  margin-bottom: 13px;
+  transform-origin: center bottom;
+}
+
 .island {
   background: var(--island-bg);
   border: 1px solid var(--island-border);

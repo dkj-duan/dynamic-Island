@@ -89,6 +89,7 @@ export interface AppearanceSettings {
   hotkeyIsland: HotkeySetting | null;
   /** Forward desktop toast notifications to the island capsule. */
   forwardNotifications: boolean;
+  wechatNotifications: boolean;
   /** Open the panel passively when a forwarded notification arrives. */
   noticeExpand: boolean;
   /** Show the forwarded notification text, not just the app name. */
@@ -99,6 +100,7 @@ export interface AppearanceSettings {
   reminderDisplaySeconds: number;
   /** Step aside while a fullscreen app owns the screen. */
   fullscreenAvoid: boolean;
+  taskbarMode: boolean;
 }
 export const defaultAppearance: AppearanceSettings = {
   expandedShape: "classic",
@@ -117,11 +119,13 @@ export const defaultAppearance: AppearanceSettings = {
   hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
   hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
   forwardNotifications: false,
+  wechatNotifications: false,
   noticeExpand: false,
   noticeShowText: true,
   noticeDisplaySeconds: 3,
   reminderDisplaySeconds: 20,
   fullscreenAvoid: true,
+  taskbarMode: false,
 };
 
 function parseHotkey(value: unknown): HotkeySetting | null {
@@ -208,7 +212,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 14 &&
       item.version !== 15 &&
       item.version !== 16 &&
-      item.version !== 17) ||
+      item.version !== 17 &&
+      item.version !== 18 &&
+      item.version !== 19) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -322,6 +328,12 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     fullscreenAvoid = item.fullscreenAvoid;
   }
+  const wechatNotifications =
+    item.version >= 18 ? item.wechatNotifications : false;
+  if (typeof wechatNotifications !== "boolean")
+    throw new Error("微信提醒设置无效");
+  const taskbarMode = item.version >= 19 ? item.taskbarMode : false;
+  if (typeof taskbarMode !== "boolean") throw new Error("任务栏模式设置无效");
   return {
     expandedShape:
       expandedShape === "oval" || expandedShape === "soft"
@@ -342,10 +354,12 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     hotkeyWater,
     hotkeyIsland,
     forwardNotifications,
+    wechatNotifications,
     noticeExpand,
     noticeShowText,
     noticeDisplaySeconds,
     reminderDisplaySeconds,
     fullscreenAvoid,
+    taskbarMode,
   };
 }

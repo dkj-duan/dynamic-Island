@@ -94,6 +94,7 @@ export function IslandWindow() {
   } | null>(null);
   const [mailIndex, setMailIndex] = useState(0);
   const [appearance, setAppearance] = useState(defaultAppearance);
+  const [taskbarActive, setTaskbarActive] = useState(false);
   const {
     recent: recentMail,
     highlight: mailHighlight,
@@ -298,11 +299,29 @@ export function IslandWindow() {
     reminderDisplaySeconds: appearance.reminderDisplaySeconds,
     fullscreenSuppressed: fullscreenHidden,
     scale: appearance.scale,
+    taskbarMode: taskbarActive,
     openReminderPage,
     onError: (message) => setError(message),
     alertToken,
     alertKind,
   });
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    void invoke("set_taskbar_mode", { enabled: appearance.taskbarMode })
+      .then(() => {
+        if (active) setTaskbarActive(appearance.taskbarMode);
+      })
+      .catch(() => {
+        if (active) {
+          setTaskbarActive(false);
+          setError(t("无法放置到任务栏，请检查任务栏位置和灵动岛大小。"));
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [appearance.taskbarMode]);
   // Global hotkeys re-apply whenever the switches change; combos another
   // program already holds come back as failures and are surfaced in settings.
   useEffect(() => {
@@ -321,6 +340,11 @@ export function IslandWindow() {
       enabled: appearance.forwardNotifications,
     }).catch(() => {});
   }, [appearance.forwardNotifications]);
+  useEffect(() => {
+    void invoke("set_wechat_notifications", {
+      enabled: appearance.wechatNotifications,
+    }).catch(() => {});
+  }, [appearance.wechatNotifications]);
   // Hotkey actions must read the latest state, so the dispatch lives in a
   // per-render ref while the listener registers only once.
   const hotkeyDispatch = useRef<(action: string) => void>(() => {});
@@ -669,6 +693,7 @@ export function IslandWindow() {
   return (
     <div
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
+      data-placement={taskbarActive ? "taskbar" : "desktop"}
       data-shape={appearance.expandedShape}
       data-page={expanded ? activeTab : undefined}
     >
@@ -1179,7 +1204,11 @@ export function IslandWindow() {
               ) : activeTab === "notice" ? (
                 <NoticePage
                   notifications={notifications}
-                  forwardingEnabled={appearance.forwardNotifications}
+                  forwardingEnabled={
+                    appearance.forwardNotifications ||
+                    appearance.wechatNotifications
+                  }
+                  showText={appearance.noticeShowText}
                   language={appearance.language}
                 />
               ) : countdownOpen ? (

@@ -37,7 +37,7 @@ export function ReminderSettings({
     refreshNotificationAccess();
   }, [refreshNotificationAccess]);
   return (
-    <div className="antd-stack">
+    <div className="antd-stack settings-adaptive-grid reminder-layout">
       <Section title={t("提醒动效")}>
         <div
           className="reminder-style-grid"
@@ -128,6 +128,26 @@ export function ReminderSettings({
       </Section>
 
       <Section
+        title={t("微信消息提醒")}
+        description={t(
+          "读取微信会话列表中的未读状态和摘要，仅在本地处理。微信需运行并保留会话列表；不同版本或界面状态可能漏报。",
+        )}
+      >
+        <SettingRow title={t("微信消息上岛")}>
+          <Switch
+            checked={appearance.wechatNotifications}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({
+                ...appearance,
+                wechatNotifications: checked,
+              })
+            }
+          />
+        </SettingRow>
+      </Section>
+
+      <Section
         title={t("应用通知转发")}
         description={t(
           "把系统通知转发到灵动岛胶囊，内容只在本地显示；需要在系统设置中授予通知访问权限。",
@@ -149,7 +169,13 @@ export function ReminderSettings({
         <SettingRow title={t("收到通知时")}>
           <Segmented
             value={appearance.noticeExpand ? "expand" : "capsule"}
-            disabled={!canEdit || !appearance.forwardNotifications}
+            disabled={
+              !canEdit ||
+              !(
+                appearance.forwardNotifications ||
+                appearance.wechatNotifications
+              )
+            }
             onChange={(value) =>
               onAppearanceChange({
                 ...appearance,
@@ -165,7 +191,13 @@ export function ReminderSettings({
         <SettingRow title={t("显示消息内容")}>
           <Switch
             checked={appearance.noticeShowText}
-            disabled={!canEdit || !appearance.forwardNotifications}
+            disabled={
+              !canEdit ||
+              !(
+                appearance.forwardNotifications ||
+                appearance.wechatNotifications
+              )
+            }
             onChange={(checked) =>
               onAppearanceChange({ ...appearance, noticeShowText: checked })
             }
@@ -174,7 +206,13 @@ export function ReminderSettings({
         <SettingRow title={t("通知显示时长")}>
           <Segmented
             value={appearance.noticeDisplaySeconds}
-            disabled={!canEdit || !appearance.forwardNotifications}
+            disabled={
+              !canEdit ||
+              !(
+                appearance.forwardNotifications ||
+                appearance.wechatNotifications
+              )
+            }
             onChange={(value) =>
               onAppearanceChange({
                 ...appearance,

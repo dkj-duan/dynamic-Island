@@ -216,6 +216,42 @@
   gap: 8px;
 }
 
+/* Reflow the two longer settings pages when the content area is wide enough.
+   Keep the single-column layout and native scrolling in narrower windows. */
+.settings-responsive-container {
+  container-type: inline-size;
+}
+
+@container (min-width: 740px) {
+  .settings-adaptive-grid {
+    align-content: start;
+    align-items: start;
+  }
+
+  .settings-adaptive-grid > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .reminder-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .behavior-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+@container (max-width: 590px) {
+  .settings-adaptive-grid .antd-setting-row {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+
+  .settings-adaptive-grid .antd-setting-control {
+    max-width: 100%;
+  }
+}
+
 .antd-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -178,6 +178,7 @@ export function BehaviorSettings({
   canEdit: boolean;
 }) {
   const [positionReset, setPositionReset] = useState(false);
+  const [taskbarError, setTaskbarError] = useState(false);
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [autostartBusy, setAutostartBusy] = useState(false);
   const [hotkeyFailures, setHotkeyFailures] = useState<
@@ -254,7 +255,7 @@ export function BehaviorSettings({
     }
   }
   return (
-    <div className="antd-stack">
+    <div className="antd-stack settings-adaptive-grid behavior-layout">
       <Section title={t("胶囊交互")}>
         <SettingRow title={t("展开方式")}>
           <Segmented
@@ -323,12 +324,44 @@ export function BehaviorSettings({
           />
         </SettingRow>
         <SettingRow
+          title={t("任务栏模式")}
+          description={t(
+            "将胶囊放在主屏幕底部任务栏左侧，面板向上展开；可拖动调整位置。",
+          )}
+        >
+          <Switch
+            checked={appearance.taskbarMode}
+            disabled={!canEdit || !isTauri()}
+            onChange={(checked) => {
+              setTaskbarError(false);
+              if (!checked) {
+                onAppearanceChange({ ...appearance, taskbarMode: false });
+                return;
+              }
+              void invoke("check_taskbar_mode")
+                .then(() => {
+                  onAppearanceChange({ ...appearance, taskbarMode: true });
+                })
+                .catch(() => {
+                  setTaskbarError(true);
+                });
+            }}
+          />
+          {taskbarError && (
+            <span role="alert">
+              {t("无法放置到任务栏，请检查任务栏位置和灵动岛大小。")}
+            </span>
+          )}
+        </SettingRow>
+        <SettingRow
           title={t("灵动岛位置")}
           description={t("按住胶囊或面板顶栏即可拖动，松手后位置会被记住。")}
         >
           <Button
             disabled={!isTauri() || positionReset}
             onClick={() => {
+              if (appearance.taskbarMode)
+                onAppearanceChange({ ...appearance, taskbarMode: false });
               void invoke("reset_island_position")
                 .then(() => {
                   setPositionReset(true);

@@ -254,7 +254,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
     let idle_widgets_valid = match version {
-        Some(8..=17) => value
+        Some(8..=19) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -277,7 +277,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=17))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=19))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -307,21 +307,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=17) => value
+        Some(7..=19) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=17) => matches!(
+        Some(8..=19) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=17) => {
+        Some(10..=19) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -341,13 +341,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=17))
+    let shape_valid = !matches!(version, Some(12..=19))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
     let hotkeys_valid = match version {
-        Some(13..=17) => {
+        Some(13..=19) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -359,7 +359,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=17) => {
+        Some(14..=19) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -386,7 +386,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    if !shape_valid
+    if (version >= Some(19) && value.get("taskbarMode").and_then(|v| v.as_bool()).is_none())
+        || (version >= Some(18)
+            && value
+                .get("wechatNotifications")
+                .and_then(|v| v.as_bool())
+                .is_none())
+        || !shape_valid
         || !hotkeys_valid
         || !notice_valid
         || !idle_widgets_valid
@@ -2052,6 +2058,13 @@ mod tests {
         assert!(validate_appearance(&v17).is_err());
         v17["fullscreenAvoid"] = serde_json::json!(true);
         assert!(validate_appearance(&v17).is_ok());
+        let mut v18 = v17.clone();
+        v18["version"] = serde_json::json!(18);
+        assert!(validate_appearance(&v18).is_err());
+        v18["wechatNotifications"] = serde_json::json!(false);
+        assert!(validate_appearance(&v18).is_ok());
+        v18["wechatNotifications"] = serde_json::json!("yes");
+        assert!(validate_appearance(&v18).is_err());
         v17["fullscreenAvoid"] = serde_json::json!("on");
         assert!(validate_appearance(&v17).is_err());
     }
