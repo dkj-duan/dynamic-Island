@@ -2,7 +2,7 @@
 
 ## 目标与当前状态
 
-在 Windows 10/11 上提供苹果风格的桌面灵动岛：顶部常驻的透明小窗负责状态展示与快捷操作，独立设置窗口负责配置。当前已实现双窗口、托盘、六页灵动岛、媒体与歌词、系统状态与音频设备切换、邮件验证码、AI 额度、番茄钟/喝水/倒计时、本地存储与迁移。插件运行时尚未实现。
+在 Windows 10/11 上提供苹果风格的桌面灵动岛：顶部常驻的透明小窗负责状态展示与快捷操作，独立设置窗口负责配置。当前已实现双窗口、托盘、九页灵动岛（计时、音乐、邮件、喝水、久坐、AI 额度、设备、微信、通知）、媒体与歌词、系统状态与音频设备切换、邮件验证码、微信消息提醒、AI 额度、番茄钟/喝水/倒计时、本地存储与迁移。插件运行时尚未实现。
 
 ## 技术选型
 
@@ -14,7 +14,7 @@
 ## 分层与依赖方向
 
 1. `src/domain`：与 UI、运行时无关的领域类型与纯逻辑（番茄钟、喝水、倒计时、额度、显示优先级、设置校验与迁移）。
-2. `src/features`：按功能组织界面。`island` 渲染灵动岛（计时、音乐、邮件、喝水、AI 额度、设备六页），`settings` 管理设置交互，`mail`/`ai`/`water`/`stats` 提供数据 hooks。
+2. `src/features`：按功能组织界面。`island` 渲染灵动岛（计时、音乐、邮件、喝水、久坐、AI 额度、设备、微信、通知九页），`settings` 管理设置交互，`mail`/`ai`/`water`/`stats` 提供数据 hooks。
 3. `src/services`：Tauri 命令封装、设置/数据仓库、显示与主题适配、i18n。
 4. `src-tauri/src`：平台层。前端不直接调用 Windows API，只通过命令与事件交互。
 
@@ -64,7 +64,7 @@
 
 - SQLite 位于可配置的数据目录，默认使用应用数据目录；位置索引写在应用配置目录的 `data-location.json`。
 - 数据库 `PRAGMA user_version` 当前为 5：`settings`（键值 JSON）、`mail_accounts`、`ai_accounts`、`daily_stats`（喝水、番茄、久坐）。
-- 设置结构带版本（外观当前为 v19），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
+- 设置结构带版本（外观当前为 v22），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
 - 切换数据目录使用 SQLite 备份、完整性检查与原子更新索引；不覆盖目标目录已有文件，旧目录保留。
 - 数据库连接与迁移失败时不静默重建，避免覆盖用户数据。
 
@@ -97,7 +97,7 @@ Tauri 命令按模块注册，主要包括：
 
 - 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`set_fullscreen_avoid`、`apply_island_scale`、`start_island_drag`、`check_taskbar_mode`、`set_taskbar_mode`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
 - 自启动：`get_autostart`、`set_autostart`、`is_autostart_launch`。
-- 快捷键与通知：`hotkeys::apply_hotkeys`、`notifications::get_notification_access`、`notifications::set_notification_forwarding`、`notifications::open_notification_settings`、`wechat::set_wechat_notifications`。
+- 快捷键与通知：`hotkeys::apply_hotkeys`、`notifications::get_notification_access`、`notifications::set_notification_forwarding`、`notifications::open_notification_settings`、`wechat::set_wechat_notifications`、`wechat::open_wechat`。
 - 媒体：`get_media_state`、`get_media_artwork`、`control_media`、`seek_media`；歌词 `lyrics::get_lyrics`。
 - 系统与音频：`system_status::get_system_status`、`system_status::get_device_status`、`get_audio_devices`、`set_audio_device`。
 - 邮件：`mail::list_mail_accounts`、`add_mail_account`、`remove_mail_account`、`poll_mail`、`get_mail_monitor_status`、`copy_mail_code`。
