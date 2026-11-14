@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { t } from "../../services/i18n";
@@ -6,6 +6,7 @@ import {
   deviceChanges,
   systemChanges,
   notificationSource,
+  shouldShowNotificationFlash,
   nextWechatAttention,
   acknowledgeWechatAttention,
   type AppNoticeItem,
@@ -26,8 +27,12 @@ const NOTIFICATION_HISTORY = 1;
 
 export function useSystemNotice({
   notificationSeconds,
+  wechatSeconds,
+  wechatShowText,
 }: {
   notificationSeconds: number;
+  wechatSeconds: number;
+  wechatShowText: boolean;
 }) {
   const [notice, setNotice] = useState<SystemNotice | null>(null);
   const [system, setSystem] = useState<SystemStatus | null>(null);
@@ -39,16 +44,30 @@ export function useSystemNotice({
   const [previewNotification, setPreviewNotification] =
     useState<AppNoticeItem | null>(null);
   const [wechatAttention, setWechatAttention] = useState<WechatAttention>(null);
+  const [wechatArrival, setWechatArrival] = useState(0);
   const notificationId = useRef(0);
   // The listeners register once, but the duration follows the settings, so
   // the flash timer reads it through a per-render ref.
   const secondsRef = useRef(notificationSeconds);
+  const wechatSecondsRef = useRef(wechatSeconds);
+  const wechatShowTextRef = useRef(wechatShowText);
+  useLayoutEffect(() => {
+    wechatShowTextRef.current = wechatShowText;
+  }, [wechatShowText]);
   useEffect(() => {
     secondsRef.current = notificationSeconds;
   }, [notificationSeconds]);
-  function flashDuration(kind: SystemNotice["kind"]) {
-    return kind === "notification"
-      ? Math.max(1, secondsRef.current) * 1000
+  useEffect(() => {
+    wechatSecondsRef.current = wechatSeconds;
+  }, [wechatSeconds]);
+  function flashDuration(notice: SystemNotice) {
+    return notice.kind === "notification"
+      ? Math.max(
+          1,
+          notice.source === "wechat"
+            ? wechatSecondsRef.current
+            : secondsRef.current,
+        ) * 1000
       : 3000;
   }
   useEffect(() => {
@@ -65,7 +84,7 @@ export function useSystemNotice({
       current = pending.shift() ?? null;
       setNotice(current);
       if (current)
-        dismissal = window.setTimeout(advance, flashDuration(current.kind));
+        dismissal = window.setTimeout(advance, flashDuration(current));
     }
     function show(next: SystemNotice) {
       if (
@@ -79,7 +98,7 @@ export function useSystemNotice({
         window.clearTimeout(dismissal);
         current = next;
         setNotice(next);
-        dismissal = window.setTimeout(advance, flashDuration(next.kind));
+        dismissal = window.setTimeout(advance, flashDuration(next));
       } else {
         if (
           next.kind === "volume" ||
@@ -105,15 +124,18 @@ export function useSystemNotice({
     ) {
       notificationId.current += 1;
       const id = notificationId.current;
-      show({
-        kind: "notification",
-        label: app,
-        value: text,
-        eventId: id,
-        source,
-      });
+      if (shouldShowNotificationFlash(source, wechatShowTextRef.current)) {
+        show({
+          kind: "notification",
+          label: app,
+          value: text,
+          eventId: id,
+          source,
+        });
+      }
       const item = { id, app, text, at: Date.now(), source };
       if (source === "wechat") {
+        setWechatArrival(id);
         setWechatAttention((current) =>
           nextWechatAttention(current, { id, preview }),
         );
@@ -287,6 +309,7 @@ export function useSystemNotice({
     notifications: visibleNotifications,
     wechatNotifications: visibleWechatNotifications,
     wechatAttention,
+    wechatArrival,
     acknowledgeWechat,
     clearNotifications,
     clearWechatNotifications,

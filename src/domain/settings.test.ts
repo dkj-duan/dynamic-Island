@@ -24,6 +24,9 @@ describe("parseAppearance", () => {
       hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
       forwardNotifications: false,
       wechatNotifications: false,
+      wechatNoticeExpand: false,
+      wechatShowText: true,
+      wechatDisplaySeconds: 3,
       noticeExpand: false,
       noticeShowText: true,
       noticeDisplaySeconds: 3,
@@ -48,6 +51,41 @@ describe("parseAppearance", () => {
     expect(() =>
       parseAppearance({ ...old, version: 18, wechatNotifications: undefined }),
     ).toThrow();
+  });
+  it("migrates independent WeChat display settings and rejects invalid data", () => {
+    const old = {
+      ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+      version: 21,
+      noticeExpand: true,
+      noticeShowText: false,
+      noticeDisplaySeconds: 10,
+    };
+    expect(parseAppearance(old)).toMatchObject({
+      noticeExpand: true,
+      wechatNoticeExpand: false,
+      wechatShowText: false,
+      wechatDisplaySeconds: 10,
+    });
+    const next = {
+      ...old,
+      version: 22,
+      wechatNoticeExpand: true,
+      wechatShowText: true,
+      wechatDisplaySeconds: 5,
+    };
+    expect(parseAppearance(next)).toMatchObject({
+      noticeExpand: true,
+      wechatNoticeExpand: true,
+      wechatShowText: true,
+      wechatDisplaySeconds: 5,
+    });
+    for (const invalid of [
+      { wechatNoticeExpand: undefined },
+      { wechatShowText: "yes" },
+      { wechatDisplaySeconds: 4 },
+    ]) {
+      expect(() => parseAppearance({ ...next, ...invalid })).toThrow();
+    }
   });
   it("migrates taskbar mode and rejects invalid values", () => {
     const old = {

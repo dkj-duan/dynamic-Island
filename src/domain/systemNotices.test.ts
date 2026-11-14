@@ -4,11 +4,44 @@ import {
   acknowledgeWechatAttention,
   nextWechatAttention,
   notificationSource,
+  notificationDisplayPolicy,
+  shouldShowNotificationFlash,
   systemChanges,
   wechatMessageView,
 } from "./systemNotices";
 
 describe("WeChat notification routing and privacy", () => {
+  it("suppresses only WeChat flashes when message content is hidden", () => {
+    expect(shouldShowNotificationFlash("wechat", false)).toBe(false);
+    expect(shouldShowNotificationFlash("wechat", true)).toBe(true);
+    expect(shouldShowNotificationFlash("system", false)).toBe(true);
+    expect(shouldShowNotificationFlash(undefined, false)).toBe(true);
+  });
+  it("chooses independent policies for WeChat and ordinary notifications", () => {
+    const settings = {
+      noticeExpand: true,
+      noticeShowText: true,
+      noticeDisplaySeconds: 10,
+      wechatNoticeExpand: false,
+      wechatShowText: false,
+      wechatDisplaySeconds: 3,
+    };
+    expect(notificationDisplayPolicy("system", settings)).toEqual({
+      expand: true,
+      showText: true,
+      seconds: 10,
+    });
+    expect(notificationDisplayPolicy("wechat", settings)).toEqual({
+      expand: false,
+      showText: false,
+      seconds: 3,
+    });
+    expect(notificationDisplayPolicy(undefined, settings)).toEqual({
+      expand: true,
+      showText: true,
+      seconds: 10,
+    });
+  });
   it("only acknowledges the reminder that was actually viewed", () => {
     const old = { id: 1, preview: false };
     const newer = nextWechatAttention(old, { id: 2, preview: false });

@@ -33,6 +33,39 @@ export type SystemNotice = {
 
 export type NotificationSource = "wechat" | "system";
 
+/** Hidden WeChat content is signalled only by its attention badge. */
+export function shouldShowNotificationFlash(
+  source: NotificationSource | undefined,
+  showText: boolean,
+): boolean {
+  return source !== "wechat" || showText;
+}
+
+/** Keep message sources independent, including forwarded WeChat notifications. */
+export function notificationDisplayPolicy(
+  source: NotificationSource | undefined,
+  settings: {
+    noticeExpand: boolean;
+    noticeShowText: boolean;
+    noticeDisplaySeconds: number;
+    wechatNoticeExpand: boolean;
+    wechatShowText: boolean;
+    wechatDisplaySeconds: number;
+  },
+) {
+  return source === "wechat"
+    ? {
+        expand: settings.wechatNoticeExpand,
+        showText: settings.wechatShowText,
+        seconds: settings.wechatDisplaySeconds,
+      }
+    : {
+        expand: settings.noticeExpand,
+        showText: settings.noticeShowText,
+        seconds: settings.noticeDisplaySeconds,
+      };
+}
+
 /** An island reminder, not WeChat's authoritative unread state. */
 export type WechatAttention = { id: number; preview: boolean } | null;
 

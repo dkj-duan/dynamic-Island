@@ -23,6 +23,10 @@ import { useMascotReaction } from "./useMascotReaction";
 import { CapsuleContent, type MediaBadge } from "./CapsuleContent";
 import { TimerPage } from "./TimerPage";
 import { idleCountdownView } from "../../domain/countdown";
+import {
+  notificationDisplayPolicy,
+  shouldShowNotificationFlash,
+} from "../../domain/systemNotices";
 import { timerProgress } from "../../domain/timer";
 import "../../styles/index.css";
 import {
@@ -110,11 +114,14 @@ export function IslandWindow() {
     notifications,
     wechatNotifications,
     wechatAttention,
+    wechatArrival,
     acknowledgeWechat,
     clearNotifications,
     clearWechatNotifications,
   } = useSystemNotice({
     notificationSeconds: appearance.noticeDisplaySeconds,
+    wechatSeconds: appearance.wechatDisplaySeconds,
+    wechatShowText: appearance.wechatShowText,
   });
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
@@ -208,12 +215,17 @@ export function IslandWindow() {
     const timeout = window.setTimeout(() => setError(""), 6_000);
     return () => window.clearTimeout(timeout);
   }, [error]);
-  // The forwarded notification text is optional; hiding it leaves the app
-  // name only, so private content never reaches the capsule.
+  // Hidden WeChat messages use only the attention icon; other hidden
+  // notifications still show the app name with a generic label.
+  const noticePolicy = notificationDisplayPolicy(notice?.source, appearance);
   const displayNotice =
-    notice && notice.kind === "notification" && !appearance.noticeShowText
-      ? { ...notice, value: t("新通知") }
-      : notice;
+    notice &&
+    notice.kind === "notification" &&
+    !shouldShowNotificationFlash(notice.source, noticePolicy.showText)
+      ? null
+      : notice && notice.kind === "notification" && !noticePolicy.showText
+        ? { ...notice, value: t("新通知") }
+        : notice;
   const display = selectIslandDisplay({
     timer: timer.status,
     mail: !!(mailHighlight && recentMail.length),
@@ -285,8 +297,8 @@ export function IslandWindow() {
     expandTrigger: appearance.expandTrigger,
     autoCollapseSeconds: appearance.autoCollapseSeconds,
     reminderAutoExpand: appearance.reminderAutoExpand,
-    noticeAutoExpand: appearance.noticeExpand,
-    noticeDisplaySeconds: appearance.noticeDisplaySeconds,
+    noticeAutoExpand: noticePolicy.expand,
+    noticeDisplaySeconds: noticePolicy.seconds,
     reminderDisplaySeconds: appearance.reminderDisplaySeconds,
     fullscreenSuppressed: fullscreenHidden,
     scale: appearance.scale,
@@ -849,8 +861,14 @@ export function IslandWindow() {
                 });
               }}
             >
-              <WechatIcon size={18} />
-              <span className="island-wechat-dot" aria-hidden="true" />
+              <span
+                className="wechat-attention-mark"
+                key={wechatArrival}
+                aria-hidden="true"
+              >
+                <WechatIcon size={18} />
+                <span className="island-wechat-dot" />
+              </span>
             </button>
           )}
           {!expanded && display === "water" && (
@@ -1138,7 +1156,7 @@ export function IslandWindow() {
                     appearance.wechatNotifications ||
                     appearance.forwardNotifications
                   }
-                  showText={appearance.noticeShowText}
+                  showText={appearance.wechatShowText}
                   language={appearance.language}
                   onOpenWechat={openWechat}
                 />

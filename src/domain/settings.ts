@@ -92,6 +92,9 @@ export interface AppearanceSettings {
   /** Forward desktop toast notifications to the island capsule. */
   forwardNotifications: boolean;
   wechatNotifications: boolean;
+  wechatNoticeExpand: boolean;
+  wechatShowText: boolean;
+  wechatDisplaySeconds: number;
   /** Open the panel passively when a forwarded notification arrives. */
   noticeExpand: boolean;
   /** Show the forwarded notification text, not just the app name. */
@@ -123,6 +126,9 @@ export const defaultAppearance: AppearanceSettings = {
   hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
   forwardNotifications: false,
   wechatNotifications: false,
+  wechatNoticeExpand: false,
+  wechatShowText: true,
+  wechatDisplaySeconds: 3,
   noticeExpand: false,
   noticeShowText: true,
   noticeDisplaySeconds: 3,
@@ -219,7 +225,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 18 &&
       item.version !== 19 &&
       item.version !== 20 &&
-      item.version !== 21) ||
+      item.version !== 21 &&
+      item.version !== 22) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -344,6 +351,19 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     item.version >= 18 ? item.wechatNotifications : false;
   if (typeof wechatNotifications !== "boolean")
     throw new Error("微信提醒设置无效");
+  const wechatNoticeExpand =
+    item.version >= 22 ? item.wechatNoticeExpand : false;
+  const wechatShowText =
+    item.version >= 22 ? item.wechatShowText : noticeShowText;
+  const wechatDisplaySeconds =
+    item.version >= 22 ? item.wechatDisplaySeconds : noticeDisplaySeconds;
+  if (
+    typeof wechatNoticeExpand !== "boolean" ||
+    typeof wechatShowText !== "boolean" ||
+    typeof wechatDisplaySeconds !== "number" ||
+    ![3, 5, 10, 15].includes(wechatDisplaySeconds)
+  )
+    throw new Error("微信提醒设置无效");
   const taskbarMode = item.version >= 19 ? item.taskbarMode : false;
   if (typeof taskbarMode !== "boolean") throw new Error("任务栏模式设置无效");
   const idleChangeDisplayMinutes =
@@ -380,6 +400,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     hotkeyIsland,
     forwardNotifications,
     wechatNotifications,
+    wechatNoticeExpand,
+    wechatShowText,
+    wechatDisplaySeconds,
     noticeExpand,
     noticeShowText,
     noticeDisplaySeconds,

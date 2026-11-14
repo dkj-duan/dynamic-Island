@@ -153,6 +153,10 @@ html.island-window #root {
   --panel-h: 244px;
 }
 
+.is-expanded[data-page="notice"] .island-panel {
+  --panel-h: 202px;
+}
+
 .is-expanded[data-page="ai"] .island-panel {
   --panel-h: 128px;
 }
@@ -282,6 +286,85 @@ html.island-window #root {
 
 .island-wechat-attention:active {
   background: rgb(104 211 143 / 0.28);
+}
+
+.wechat-attention-mark {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* This runs once when the badge is inserted; later messages animate only
+     the keyed mark, without moving the button or interrupting a click. */
+  .island-wechat-attention {
+    animation: wechat-badge-enter 1s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+
+  .island-wechat-attention::after {
+    position: absolute;
+    inset: 3px;
+    border: 1px solid #65e09a;
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+    animation: wechat-badge-halo 1s ease-out both;
+  }
+
+  .wechat-attention-mark {
+    animation: wechat-message-arrive 900ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  }
+}
+
+@keyframes wechat-badge-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(8px) scale(0.6);
+  }
+  55% {
+    opacity: 1;
+    transform: translateX(-1px) scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes wechat-badge-halo {
+  0%,
+  25% {
+    opacity: 0.8;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes wechat-message-arrive {
+  0% {
+    transform: scale(0.85) rotate(0);
+  }
+  20% {
+    transform: scale(1.16) rotate(-12deg);
+  }
+  40% {
+    transform: scale(1.08) rotate(9deg);
+  }
+  60% {
+    transform: scale(1.04) rotate(-5deg);
+  }
+  80% {
+    transform: scale(1.02) rotate(3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
 }
 
 .wechat-brand-icon {
@@ -1320,6 +1403,29 @@ html.island-window #root {
   overflow-wrap: anywhere;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.is-system-notice .notice-card {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  max-height: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.045);
+}
+
+.is-system-notice .island-notice-text {
+  color: #d9dce3;
+  white-space: pre-wrap;
+  scrollbar-width: none;
+}
+
+.is-system-notice .island-notice-text::-webkit-scrollbar {
+  display: none;
 }
 
 .island-notice-view.is-wechat .island-notice-icon {

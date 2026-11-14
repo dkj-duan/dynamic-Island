@@ -163,6 +163,69 @@ export function ReminderSettings({
             }
           />
         </SettingRow>
+        <SettingRow title={t("收到微信消息时")}>
+          <Segmented
+            value={appearance.wechatNoticeExpand ? "expand" : "capsule"}
+            disabled={
+              !canEdit ||
+              !appearance.wechatShowText ||
+              !(
+                appearance.wechatNotifications ||
+                appearance.forwardNotifications
+              )
+            }
+            onChange={(value) =>
+              onAppearanceChange({
+                ...appearance,
+                wechatNoticeExpand: value === "expand",
+              })
+            }
+            options={[
+              { value: "capsule", label: t("显示在胶囊上") },
+              { value: "expand", label: t("展开灵动岛") },
+            ]}
+          />
+        </SettingRow>
+        <SettingRow title={t("显示消息内容")}>
+          <Switch
+            checked={appearance.wechatShowText}
+            disabled={
+              !canEdit ||
+              !(
+                appearance.wechatNotifications ||
+                appearance.forwardNotifications
+              )
+            }
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, wechatShowText: checked })
+            }
+          />
+        </SettingRow>
+        <SettingRow title={t("消息显示时长")}>
+          <Segmented
+            value={appearance.wechatDisplaySeconds}
+            disabled={
+              !canEdit ||
+              !appearance.wechatShowText ||
+              !(
+                appearance.wechatNotifications ||
+                appearance.forwardNotifications
+              )
+            }
+            onChange={(value) =>
+              onAppearanceChange({
+                ...appearance,
+                wechatDisplaySeconds: value as number,
+              })
+            }
+            options={[
+              { value: 3, label: t("3 秒") },
+              { value: 5, label: t("5 秒") },
+              { value: 10, label: t("10 秒") },
+              { value: 15, label: t("15 秒") },
+            ]}
+          />
+        </SettingRow>
         <SettingRow
           title={t("微信消息演示")}
           description={t("使用示例内容预览微信提醒。")}
@@ -198,13 +261,7 @@ export function ReminderSettings({
         <SettingRow title={t("收到通知时")}>
           <Segmented
             value={appearance.noticeExpand ? "expand" : "capsule"}
-            disabled={
-              !canEdit ||
-              !(
-                appearance.forwardNotifications ||
-                appearance.wechatNotifications
-              )
-            }
+            disabled={!canEdit || !appearance.forwardNotifications}
             onChange={(value) =>
               onAppearanceChange({
                 ...appearance,
@@ -220,13 +277,7 @@ export function ReminderSettings({
         <SettingRow title={t("显示消息内容")}>
           <Switch
             checked={appearance.noticeShowText}
-            disabled={
-              !canEdit ||
-              !(
-                appearance.forwardNotifications ||
-                appearance.wechatNotifications
-              )
-            }
+            disabled={!canEdit || !appearance.forwardNotifications}
             onChange={(checked) =>
               onAppearanceChange({ ...appearance, noticeShowText: checked })
             }
@@ -235,13 +286,7 @@ export function ReminderSettings({
         <SettingRow title={t("通知显示时长")}>
           <Segmented
             value={appearance.noticeDisplaySeconds}
-            disabled={
-              !canEdit ||
-              !(
-                appearance.forwardNotifications ||
-                appearance.wechatNotifications
-              )
-            }
+            disabled={!canEdit || !appearance.forwardNotifications}
             onChange={(value) =>
               onAppearanceChange({
                 ...appearance,

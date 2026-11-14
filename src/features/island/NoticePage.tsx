@@ -34,23 +34,25 @@ export function NoticePage({
     );
   }
   return (
-    <div className="island-notice-view" key={latest.id}>
-      <div className="island-notice-head">
-        <span className="island-notice-icon" aria-hidden="true">
-          <BellRing size={14} />
-        </span>
-        <strong className="island-notice-app">{latest.app}</strong>
-        <span className="island-notice-time">
-          {new Date(latest.at).toLocaleTimeString(language, {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })}
-        </span>
-      </div>
-      <p className="island-notice-text" tabIndex={0}>
-        {showText ? latest.text : t("新通知")}
-      </p>
+    <div className="island-notice-view is-system-notice" key={latest.id}>
+      <article className="notice-card">
+        <div className="island-notice-head">
+          <span className="island-notice-icon" aria-hidden="true">
+            <BellRing size={14} />
+          </span>
+          <strong className="island-notice-app">{latest.app}</strong>
+          <span className="island-notice-time">
+            {new Date(latest.at).toLocaleTimeString(language, {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+          </span>
+        </div>
+        <p className="island-notice-text" tabIndex={0}>
+          {showText ? latest.text : t("新通知")}
+        </p>
+      </article>
     </div>
   );
 }

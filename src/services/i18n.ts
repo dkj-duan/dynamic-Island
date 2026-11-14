@@ -136,6 +136,8 @@ const en: Record<string, string> = {
   恢复默认位置: "Reset position",
   已恢复: "Reset done",
   鼠标离开后自动收起: "Auto-collapse",
+  收到微信消息时: "When a WeChat message arrives",
+  消息显示时长: "Message display duration",
   "自定义收起时长（秒）": "Custom collapse delay (seconds)",
   "点击或悬停展开后都生效；鼠标移出面板后按设定时间折叠，选择「立即」则马上收起，计时不会中断。":
     "Applies to click and hover expansion; the panel folds back after the pointer leaves. Choose Instant to close immediately. Timers keep running.",

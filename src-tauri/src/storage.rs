@@ -253,14 +253,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_f64())
         .filter(|v| {
-            if version == Some(21) {
+            if matches!(version, Some(21 | 22)) {
                 (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
             } else {
                 [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
             }
         });
     let idle_widgets_valid = match version {
-        Some(8..=21) => value
+        Some(8..=22) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -287,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=21))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=22))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -317,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=21) => value
+        Some(7..=22) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=21) => matches!(
+        Some(8..=22) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=21) => {
+        Some(10..=22) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -351,13 +351,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=21))
+    let shape_valid = !matches!(version, Some(12..=22))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
     let hotkeys_valid = match version {
-        Some(13..=21) => {
+        Some(13..=22) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -369,7 +369,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=21) => {
+        Some(14..=22) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -404,7 +404,20 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    if (version >= Some(19) && value.get("taskbarMode").and_then(|v| v.as_bool()).is_none())
+    if (version >= Some(22)
+        && (value
+            .get("wechatNoticeExpand")
+            .and_then(|v| v.as_bool())
+            .is_none()
+            || value
+                .get("wechatShowText")
+                .and_then(|v| v.as_bool())
+                .is_none()
+            || !matches!(
+                value.get("wechatDisplaySeconds").and_then(|v| v.as_u64()),
+                Some(3 | 5 | 10 | 15)
+            )))
+        || (version >= Some(19) && value.get("taskbarMode").and_then(|v| v.as_bool()).is_none())
         || (version >= Some(18)
             && value
                 .get("wechatNotifications")
@@ -2166,5 +2179,34 @@ mod tests {
         }
         v20["autoCollapseSeconds"] = serde_json::json!(0.5);
         assert!(validate_appearance(&v20).is_err());
+
+        let mut v22 = v21.clone();
+        v22["version"] = serde_json::json!(22);
+        v22["autoCollapseSeconds"] = serde_json::json!(0.5);
+        assert!(validate_appearance(&v22).is_err());
+        v22["wechatNoticeExpand"] = serde_json::json!(false);
+        v22["wechatShowText"] = serde_json::json!(true);
+        v22["wechatDisplaySeconds"] = serde_json::json!(5);
+        save_appearance_value(&conn, &v22).unwrap();
+        for (field, invalid) in [
+            ("wechatNoticeExpand", serde_json::json!("false")),
+            ("wechatShowText", serde_json::json!(null)),
+            ("wechatDisplaySeconds", serde_json::json!(4)),
+        ] {
+            let mut bad = v22.clone();
+            bad[field] = invalid;
+            assert!(save_appearance_value(&conn, &bad).is_err());
+            let saved: String = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='appearance'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&saved).unwrap(),
+                v22
+            );
+        }
     }
 }
