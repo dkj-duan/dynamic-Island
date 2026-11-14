@@ -496,14 +496,14 @@
   padding-inline-start: 12px;
 }
 
-/* Idle widgets as chips: shown ones carry reorder + remove controls. */
+/* Idle widgets as chips: click to toggle them on the island. */
 .antd-widget-group + .antd-widget-group {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 /* Heading weight carries the grouping instead of another mute text line. */
 .antd-widget-group-label {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--ant-color-text, #1f1f1f);
   font-size: 11.5px;
   font-weight: 600;
@@ -555,7 +555,6 @@
 }
 
 .antd-widget-chip.is-on {
-  padding-right: 4px;
   border-color: rgb(22 119 255 / 0.35);
   background: rgb(22 119 255 / 0.06);
   color: #1677ff;
@@ -597,45 +596,6 @@
   opacity: 0.7;
 }
 
-.antd-chip-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  margin-left: 2px;
-}
-
-.antd-chip-btn {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: inherit;
-  font-size: 10px;
-  opacity: 0.55;
-  cursor: pointer;
-  transition:
-    background var(--motion-fast) var(--ease-out),
-    opacity var(--motion-fast) var(--ease-out);
-}
-
-.antd-chip-btn:hover:not(:disabled) {
-  background: rgb(22 119 255 / 0.14);
-  opacity: 1;
-}
-
-.antd-chip-btn:disabled {
-  opacity: 0.2;
-  cursor: default;
-}
-
-.antd-chip-btn.is-remove:hover:not(:disabled) {
-  background: rgb(255 77 79 / 0.14);
-}
-
 .antd-widget-empty {
   color: rgb(128 128 128 / 0.9);
   font-size: 11.5px;
@@ -656,10 +616,6 @@
 .antd-settings[data-theme="dark"]
   .antd-widget-chip.is-off:hover:not(:disabled) {
   background: rgb(22 119 255 / 0.12);
-}
-
-.antd-settings[data-theme="dark"] .antd-chip-btn:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.12);
 }
 
 .antd-hero-settings {

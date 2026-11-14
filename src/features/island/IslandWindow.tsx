@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  Music2,
   Power,
   Settings2,
-  Timer,
-  Mail,
   Captions,
   CaptionsOff,
   Copy,
@@ -12,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Hourglass,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -21,19 +17,20 @@ import { listen, emitTo } from "@tauri-apps/api/event";
 import { defaultAppearance, parseAppearance } from "../../domain/settings";
 import { loadAppearance } from "../../services/settingsRepository";
 import { isLargeDisplay, watchDisplayTier } from "../../services/display";
-import { IdleWidgets } from "./IdleWidgets";
 import type { IdleData } from "./idleWidgetData";
-import {
-  formatRemaining,
-  parseDuration,
-  remainingMilliseconds,
-} from "../../domain/timer";
-import {
-  formatDurationSeconds,
-  targetRemainingMilliseconds,
-} from "../../domain/countdown";
+import { useIdleChanges, type IdleChangeKeys } from "./useIdleChanges";
+import { useMascotReaction } from "./useMascotReaction";
+import { CapsuleContent, type MediaBadge } from "./CapsuleContent";
+import { TimerPage } from "./TimerPage";
+import { idleCountdownView } from "../../domain/countdown";
+import { timerProgress } from "../../domain/timer";
 import "../../styles/index.css";
-import { selectIslandDisplay } from "../../domain/islandDisplay";
+import {
+  alertKindFor,
+  alertTokenFor,
+  selectIslandDisplay,
+  shouldBlockHoverExpansion,
+} from "../../domain/islandDisplay";
 import { useSystemNotice } from "./useSystemNotice";
 import { useAudioDevices } from "./useAudioDevices";
 import { useIslandMedia } from "./useIslandMedia";
@@ -47,17 +44,16 @@ import { SedentaryPage } from "./SedentaryPage";
 import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
 import { NoticePage } from "./NoticePage";
+import { WechatPage } from "./WechatPage";
+import { WechatIcon } from "./WechatIcon";
 import { MusicPage } from "./MusicPage";
 import { DevicePage } from "./DevicePage";
 import { DEVICE_HINT_HEIGHT, deviceLayout } from "./deviceLayout";
-import { formatMediaTime } from "./islandFormat";
 import { ISLAND_PAGES, type IslandTab } from "./islandPages";
-import { IslandPageIcon, MediaWave, NoticeIcon } from "./IslandParts";
+import { IslandPageIcon, NoticeIcon } from "./IslandParts";
 import { useMail } from "../mail/useMail";
 import { useAiQuota } from "../ai/useAiQuota";
-import { QuotaRings } from "../ai/QuotaRings";
 import { quotaRings } from "../../domain/aiQuota";
-import { isLongBreakDue } from "../../domain/pomodoro";
 import {
   waterCups,
   waterPercent,
@@ -68,12 +64,8 @@ import { sedentaryTone, sedentaryToneColors } from "../../domain/sedentary";
 import { useDailyStats } from "../stats/useDailyStats";
 import { focusStreak } from "../../domain/dailyStats";
 import { setLanguage, t } from "../../services/i18n";
-import pomodoroClock from "../../assets/pomodoro-clock.png";
 import waterDrop from "../../assets/water-drop.webp";
 import sedentaryChair from "../../assets/island/away-chair.png";
-
-/** The media capsule shows one of these next to the track, picked at random. */
-type MediaBadge = "pomodoro" | "water" | "quota";
 
 export function IslandWindow() {
   const ai = useAiQuota();
@@ -111,10 +103,19 @@ export function IslandWindow() {
     : "";
   const currentCopyStatus =
     selectedMail?.code === copyStatus?.code ? copyStatus?.message : "";
-  const { notice, system, devices, notifications, clearNotifications } =
-    useSystemNotice({
-      notificationSeconds: appearance.noticeDisplaySeconds,
-    });
+  const {
+    notice,
+    system,
+    devices,
+    notifications,
+    wechatNotifications,
+    wechatAttention,
+    acknowledgeWechat,
+    clearNotifications,
+    clearWechatNotifications,
+  } = useSystemNotice({
+    notificationSeconds: appearance.noticeDisplaySeconds,
+  });
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
   useEffect(() => watchDisplayTier(setLargeDisplay), []);
@@ -174,6 +175,7 @@ export function IslandWindow() {
     waterError,
     setWaterError,
     drinkWater,
+    snoozeWater,
     waterTimerState,
   } = useIslandWater(
     todayWater,
@@ -191,6 +193,7 @@ export function IslandWindow() {
     sedentaryError,
     setSedentaryError,
     standNow,
+    snoozeSedentary,
     sedentaryWidgetState,
   } = useIslandSedentary(now, appearance.reminderDisplaySeconds);
   const mediaState = useIslandMedia();
@@ -227,27 +230,14 @@ export function IslandWindow() {
   // keeps a colour-coded breathing ring until it is acknowledged. Forwarded
   // notifications are their own kind so they can auto-expand on their own
   // switch, while volume and brightness notices never do.
-  const alertKind =
-    display === "finished"
-      ? "timer"
-      : display === "mail"
-        ? "mail"
-        : display === "water"
-          ? "water"
-          : display === "sedentary"
-            ? "sedentary"
-            : display === "notice"
-              ? displayNotice?.kind === "notification"
-                ? "notification"
-                : "notice"
-              : null;
-  const alertToken = alertKind
-    ? `${alertKind}:${alertKind === "mail" ? mailKey : ""}${
-        alertKind === "notification"
-          ? `:${displayNotice?.label}:${displayNotice?.value}`
-          : ""
-      }`
-    : "";
+  const alertKind = alertKindFor(display, displayNotice?.kind);
+  const alertToken = alertTokenFor(
+    alertKind,
+    mailKey,
+    displayNotice?.label ?? "",
+    displayNotice?.value ?? "",
+    displayNotice?.eventId,
+  );
   // Fullscreen avoidance: the native watcher hides the window while a
   // fullscreen app owns the screen; reminders must not auto-expand then.
   const [fullscreenHidden, setFullscreenHidden] = useState(false);
@@ -282,6 +272,7 @@ export function IslandWindow() {
     notePageSwitch,
     handleToggleClick,
     cancelAutoCollapse,
+    cancelHoverExpand,
     scheduleAutoCollapse,
     releaseReminderHold,
     handlePanelEnter,
@@ -304,6 +295,7 @@ export function IslandWindow() {
     onError: (message) => setError(message),
     alertToken,
     alertKind,
+    blockHoverExpand: shouldBlockHoverExpansion(display, displayNotice?.kind),
   });
   useEffect(() => {
     if (!isTauri()) return;
@@ -386,6 +378,9 @@ export function IslandWindow() {
   function selectPage(tab: IslandTab) {
     setActiveTab(tab);
     notePageSwitch();
+    if (tab === "wechat") {
+      acknowledgeWechat(wechatNotifications[0]?.id ?? null);
+    }
     if (tab === "mail") {
       setMailIndex(0);
       setCopyStatus(null);
@@ -402,7 +397,7 @@ export function IslandWindow() {
     if (!expanded) return;
     const target = event.target as HTMLElement;
     // Sliders and text fields keep their own wheel behaviour.
-    if (target.closest("input, textarea, select")) return;
+    if (target.closest("input, textarea, select, .island-notice-text")) return;
     if (Math.abs(event.deltaY) < 6) return;
     const now = Date.now();
     if (now - lastPageWheel.current < 260) return;
@@ -469,6 +464,15 @@ export function IslandWindow() {
       setError(t("操作失败，请重试"));
     }
   }
+  async function openWechat() {
+    const viewedId = wechatNotifications[0]?.id ?? null;
+    try {
+      await invoke("open_wechat");
+      acknowledgeWechat(viewedId);
+    } catch {
+      setError(t("无法打开微信，请确认微信已运行并允许切换窗口。"));
+    }
+  }
   // Reminder capsules carry their own destination, so opening the panel from
   // one (by click or by hover) must land on that page instead of the last tab.
   function openReminderPage(acknowledge = true) {
@@ -485,24 +489,14 @@ export function IslandWindow() {
     } else if (display === "sedentary" || display === "sedentaryLogged") {
       setActiveTab("sedentary");
     } else if (display === "notice" && displayNotice?.kind === "notification") {
-      // A forwarded notification opens onto its own page.
-      setActiveTab("notice");
+      setActiveTab(displayNotice.source === "wechat" ? "wechat" : "notice");
+      if (acknowledge && displayNotice.source === "wechat") {
+        acknowledgeWechat(wechatNotifications[0]?.id ?? null);
+      }
     } else if (display === "finished") {
       setActiveTab("timer");
     }
   }
-  const [popping, setPopping] = useState(false);
-  useEffect(() => {
-    if (!alertToken) return;
-    // Flip the class on the next frame so the spring transition replays even
-    // when two reminders arrive back to back.
-    const frame = window.requestAnimationFrame(() => setPopping(true));
-    const timer = window.setTimeout(() => setPopping(false), 220);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(timer);
-    };
-  }, [alertToken]);
   useEffect(() => {
     if (!alertKind) return;
     const onKey = (event: KeyboardEvent) => {
@@ -550,30 +544,13 @@ export function IslandWindow() {
     devices?.bluetooth?.find((device) => device.battery !== null) ?? null;
   const islandCountdown =
     countdowns.items.find((item) => item.id === countdowns.islandId) ?? null;
-  const idleCountdown = (() => {
-    if (!islandCountdown) return null;
-    if (islandCountdown.kind === "target") {
-      const remaining = targetRemainingMilliseconds(islandCountdown, now);
-      return {
-        label: islandCountdown.label,
-        remainingMs: remaining,
-        reached: remaining <= 0,
-      };
-    }
-    if (
-      timerMode === "countdown" &&
-      countdownId === islandCountdown.id &&
-      timer.status !== "idle"
-    ) {
-      const remaining = remainingMilliseconds(timer, now);
-      return {
-        label: islandCountdown.label,
-        remainingMs: remaining,
-        reached: timer.status === "finished" || remaining <= 0,
-      };
-    }
-    return null;
-  })();
+  const idleCountdown = idleCountdownView(
+    islandCountdown,
+    timerMode,
+    countdownId,
+    timer,
+    now,
+  );
   const idleData: IdleData = {
     quota:
       pinnedAi && pinnedAiResult?.quota
@@ -604,6 +581,38 @@ export function IslandWindow() {
       total: pomodoro.longBreakEvery,
     },
   };
+  const mascotReaction = useMascotReaction(
+    {
+      waterMl: todayStat?.waterMl ?? null,
+      waterActions: waterAdded,
+      pomodoros: todayStat?.pomodoros ?? null,
+      focusFinished: timer.status === "finished" && timerMode === "focus",
+      countdownReached: idleCountdown?.reached ?? null,
+      sedentaryOver: sedentaryWidget?.over ?? null,
+    },
+    display === "idle" && !expanded,
+  );
+  // Change-tier idle widgets speak briefly after their value moves. Volume
+  // keys follow every adjustment; battery speaks on plug/unplug and when the
+  // charge crosses into the low state, ignoring slow discharge creep.
+  const idleChangeKeys: IdleChangeKeys = {
+    volume:
+      system?.volume != null
+        ? `${system.volume}-${system.muted ? 1 : 0}`
+        : null,
+    battery:
+      system?.battery != null
+        ? `${system.charging ? 1 : 0}-${system.battery <= 20 ? 1 : 0}`
+        : null,
+    bluetooth: devices?.bluetooth
+      ? JSON.stringify(
+          devices.bluetooth.map((device) => [device.id, device.battery]),
+        )
+      : null,
+    focus: `${todayFocusMinutes}`,
+    streak: `${focusDays}`,
+  };
+  const idleChangeShownAt = useIdleChanges(idleChangeKeys);
   // The media capsule has one spare slot: cycle it at random between the
   // pomodoro cycle, today's water and the pinned quota ring.
   const mediaBadgePool: MediaBadge[] =
@@ -637,15 +646,32 @@ export function IslandWindow() {
   // Idle capsules shrink to their measured content; a numeric width lets the
   // panel animate smoothly into the expanded layout. Resolution scaling is
   // applied natively (webview zoom), so these widths stay in base CSS pixels.
+  const showWechatAttention =
+    !expanded &&
+    !!wechatAttention &&
+    (display === "idle" || display === "media" || display === "timer");
+  const wechatIndicatorWidth = showWechatAttention ? 30 : 0;
+  const roomyReminder =
+    display === "water" ||
+    display === "waterLogged" ||
+    display === "sedentary" ||
+    display === "sedentaryLogged" ||
+    display === "mail" ||
+    display === "finished" ||
+    (display === "notice" && displayNotice?.kind === "notification");
   const panelWidth = expanded
     ? 340
-    : display === "idle"
-      ? idleWidth === null
-        ? "fit-content"
-        : idleWidth + 2
-      : largeDisplay
-        ? 240
-        : 232;
+    : roomyReminder
+      ? display === "notice"
+        ? 356
+        : 316
+      : display === "idle"
+        ? idleWidth === null
+          ? "fit-content"
+          : Math.min(356, idleWidth + 2 + wechatIndicatorWidth)
+        : largeDisplay
+          ? 240 + wechatIndicatorWidth
+          : 232 + wechatIndicatorWidth;
   // The banner lane adds 34px; the layout cap keeps the tallest panel inside
   // the 320px island viewport instead of clipping the pager.
   const deviceHasHint =
@@ -654,15 +680,13 @@ export function IslandWindow() {
   const devicePanelHeight =
     deviceLayout(deviceState.devices).panelHeight +
     (deviceHasHint ? DEVICE_HINT_HEIGHT : 0);
-  // A transient banner floats over the panel bottom; make room for it.
-  // The banner is the only feedback for volume/power style notices. A
-  // forwarded notification already lands on the notification page, so the
-  // extra text banner would just cover the list.
+  // Keep the current page in place and offer a banner for new notifications.
   const panelHasBanner =
     expanded &&
     display === "notice" &&
     !!displayNotice &&
-    displayNotice.kind !== "notification";
+    (displayNotice.kind !== "notification" ||
+      activeTab !== (displayNotice.source === "wechat" ? "wechat" : "notice"));
   function toggleIslandLyrics() {
     const next = !appearance.islandLyrics;
     setAppearance((current) => ({ ...current, islandLyrics: next }));
@@ -702,8 +726,10 @@ export function IslandWindow() {
       >
         <div
           ref={panel}
-          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${display === "sedentary" ? "is-sedentary-reminder" : ""} ${popping && alertKind ? "is-popping" : ""}`}
+          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${showWechatAttention ? "has-wechat-attention" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${display === "sedentary" ? "is-sedentary-reminder" : ""}`}
           data-alert={alertKind ?? undefined}
+          data-roomy-reminder={!expanded && roomyReminder ? "true" : undefined}
+          data-notice-source={displayNotice?.source}
           data-reminder={alertKind ? appearance.reminderStyle : undefined}
           style={
             {
@@ -718,7 +744,10 @@ export function IslandWindow() {
           }
           onMouseEnter={handlePanelEnter}
           onMouseLeave={handlePanelLeave}
-          onPointerDownCapture={releaseReminderHold}
+          onPointerDownCapture={() => {
+            cancelHoverExpand();
+            releaseReminderHold();
+          }}
           onFocusCapture={() => {
             releaseReminderHold();
             cancelAutoCollapse();
@@ -743,239 +772,87 @@ export function IslandWindow() {
             onPointerCancel={endDrag}
             onClick={handleToggleClick}
           >
-            {expanded ? null : display === "notice" && displayNotice ? (
-              <span className="island-current system-notice" role="status">
-                <NoticeIcon kind={displayNotice.kind} />
-                <span className="system-notice-label">
-                  {displayNotice.label}
-                </span>
-                <strong>{displayNotice.value}</strong>
-              </span>
-            ) : display === "water" ? (
-              <span
-                className={`island-current island-water-current ${waterToneValue === "low" ? "is-low" : ""}`}
-                role="status"
-              >
-                <img
-                  className="water-indicator water-drop-icon"
-                  src={waterDrop}
-                  alt=""
-                  draggable={false}
-                />
-                <span className="compact-copy">
-                  <span className="compact-primary">{t("该喝水了")}</span>
-                  <span className="compact-secondary">
-                    {todayWater} / {water.goalMl} ml ·{" "}
-                    {waterCups(todayWater, water.cupMl)} {t("杯")}
-                  </span>
-                </span>
-              </span>
-            ) : display === "waterLogged" ? (
-              <span
-                key={`water-logged-${waterAdded}`}
-                className="island-current island-water-current is-logged"
-                role="status"
-              >
-                <img
-                  className="water-indicator water-drop-icon"
-                  src={waterDrop}
-                  alt=""
-                  draggable={false}
-                />
-                <span className="compact-copy">
-                  <span className="compact-primary">{t("已记录一杯水")}</span>
-                  <span className="compact-secondary">
-                    +{waterAddedMl} ml · {todayWater} / {water.goalMl} ml
-                  </span>
-                </span>
-              </span>
-            ) : display === "sedentary" ? (
-              <span
-                className="island-current island-sedentary-current"
-                role="status"
-              >
-                <img
-                  className="water-indicator sedentary-indicator"
-                  src={sedentaryChair}
-                  alt=""
-                  draggable={false}
-                />
-                <span className="compact-copy">
-                  <span className="compact-primary">{t("该起身活动了")}</span>
-                  <span className="compact-secondary">
-                    {t("已坐")} {sedentarySitting} {t("分钟")}
-                  </span>
-                </span>
-              </span>
-            ) : display === "sedentaryLogged" ? (
-              <span
-                key={`sedentary-logged-${sedentaryAdded}`}
-                className="island-current island-sedentary-current is-logged"
-                role="status"
-              >
-                <img
-                  className="water-indicator sedentary-indicator"
-                  src={sedentaryChair}
-                  alt=""
-                  draggable={false}
-                />
-                <span className="compact-copy">
-                  <span className="compact-primary">{t("已记录起身")}</span>
-                  <span className="compact-secondary">
-                    {t("今日")} {todaySedentaryBreaks} / {sedentary.goalBreaks}{" "}
-                    {t("次")}
-                  </span>
-                </span>
-              </span>
-            ) : display === "mail" && capsuleMail ? (
-              <span
-                key={mailKey}
-                className={`island-current island-mail-current ${capsuleMail.code ? "has-code" : ""}`}
-                role="status"
-              >
-                {/* Icon on the left; account above the code, both centered. */}
-                <Mail
-                  className={`island-mail-icon ${capsuleMail.code ? "" : "is-new"}`}
-                  size={15}
-                  aria-hidden="true"
-                />
-                <span className="compact-copy island-mail-copy">
-                  <span className="island-mail-line">
-                    <span className="island-mail-account">
-                      {capsuleMail.account}
-                    </span>
-                  </span>
-                  <span
-                    className={`compact-primary ${capsuleMail.code ? "island-code" : "island-mail-title"}`}
-                  >
-                    {capsuleMail.code ? (
-                      <>
-                        <span className="island-code-digits" aria-hidden="true">
-                          {[...capsuleMail.code].map((digit, index) => (
-                            <span
-                              key={index}
-                              style={{ "--i": index } as CSSProperties}
-                            >
-                              {digit}
-                            </span>
-                          ))}
-                        </span>
-                        <span className="sr-only">{capsuleMail.code}</span>
-                      </>
-                    ) : (
-                      capsuleMail.subject || t("新邮件")
-                    )}
-                  </span>
-                </span>
-              </span>
-            ) : display === "timer" || display === "finished" ? (
-              <span className="island-current compact-timer timer-only">
-                {isPomodoroMode ? (
-                  <img
-                    className="timer-indicator tomato-photo"
-                    src={pomodoroClock}
-                    alt=""
-                    draggable={false}
-                  />
-                ) : (
-                  <Timer
-                    className="timer-indicator"
-                    size={15}
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="compact-copy">
-                  <span className="compact-primary">
-                    {timerModeLabel()} ·{" "}
-                    {t(
-                      timer.status === "paused"
-                        ? "已暂停"
-                        : timer.status === "finished"
-                          ? "已结束 · 按 Esc 关闭"
-                          : "进行中",
-                    )}
-                  </span>
-                </span>
-                <span className={`island-timer-value mode-${timerMode}`}>
-                  {timer.status === "finished" ? t("时间到") : remaining}
-                </span>
-              </span>
-            ) : display === "media" && media?.title ? (
-              <span className="island-current island-media-current">
-                <span
-                  className={`compact-art ${media.playing && artwork?.key === mediaKey && artwork.src ? "is-spinning" : ""}`}
-                >
-                  {artwork?.key === mediaKey && artwork.src ? (
-                    <img src={artwork.src} alt="" />
-                  ) : (
-                    <Music2 size={14} aria-hidden="true" />
-                  )}
-                </span>
-                <span className="compact-copy">
-                  <span className="compact-primary">{media.title}</span>
-                  <span className="compact-secondary">
-                    {appearance.islandLyrics && currentLyric
-                      ? currentLyric
-                      : media.artist || t("未知艺术家")}
-                  </span>
-                </span>
-                <span className="media-playing-mark">
-                  <MediaWave playing={media.playing} compact />
-                  {mediaPosition !== null && (
-                    <span className="media-time">
-                      {formatMediaTime(mediaPosition)}
-                    </span>
-                  )}
-                  <span className="media-mark-slot" key={mediaBadgeShown}>
-                    {mediaBadgeShown === "quota" && idleData.quota ? (
-                      <QuotaRings
-                        items={idleData.quota.items}
-                        compact
-                        provider={idleData.quota.provider}
-                      />
-                    ) : mediaBadgeShown === "water" ? (
-                      <span
-                        className="media-badge"
-                        role="img"
-                        aria-label={`${t("喝水进度")} ${waterPercentToday}%`}
-                        title={`${t("喝水进度")} ${waterPercentToday}%`}
-                        style={
-                          {
-                            "--badge-percent": `${waterPercentToday}%`,
-                            "--badge-color": waterToneColor,
-                          } as CSSProperties
-                        }
-                      >
-                        <img src={waterDrop} alt="" />
-                      </span>
-                    ) : (
-                      <span
-                        className="media-badge"
-                        role="img"
-                        aria-label={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
-                        title={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
-                        style={
-                          {
-                            "--badge-percent": `${pomodoroBadgePercent}%`,
-                            "--badge-color": pomodoroBadgeColor,
-                          } as CSSProperties
-                        }
-                      >
-                        <img src={pomodoroClock} alt="" />
-                      </span>
-                    )}
-                  </span>
-                </span>
-              </span>
-            ) : (
-              <IdleWidgets
-                key={appearance.idleWidgets.join(",")}
+            {expanded ? null : (
+              <CapsuleContent
                 appearance={appearance}
-                data={idleData}
+                display={display}
+                displayNotice={displayNotice}
                 onWidthChange={setIdleWidth}
+                idleData={idleData}
+                changeShownAt={idleChangeShownAt}
+                mascotReaction={mascotReaction}
+                reservedWidth={wechatIndicatorWidth}
+                changeWindowMs={appearance.idleChangeDisplayMinutes * 60_000}
+                now={now}
+                isPomodoroMode={isPomodoroMode}
+                timerStatus={timer.status}
+                timerMode={timerMode}
+                timerModeLabel={timerModeLabel()}
+                timerProgress={timerProgress(timer, lastDuration, now)}
+                remaining={remaining}
+                water={water}
+                waterToneValue={waterToneValue}
+                waterToneColor={waterToneColor}
+                waterPercentToday={waterPercentToday}
+                waterCupsToday={waterCupsToday}
+                todayWater={todayWater}
+                waterAdded={waterAdded}
+                waterAddedMl={waterAddedMl}
+                sedentary={sedentary}
+                sedentarySitting={sedentarySitting}
+                sedentaryAdded={sedentaryAdded}
+                todaySedentaryBreaks={todaySedentaryBreaks}
+                capsuleMail={capsuleMail ?? null}
+                mailKey={mailKey}
+                media={media}
+                mediaKey={mediaKey}
+                artwork={artwork}
+                currentLyric={currentLyric}
+                mediaPosition={mediaPosition}
+                mediaBadgeShown={mediaBadgeShown}
+                pomodoroBadgePercent={pomodoroBadgePercent}
+                pomodoroBadgeColor={pomodoroBadgeColor}
               />
             )}
           </button>
+          {showWechatAttention && (
+            <button
+              type="button"
+              className="island-wechat-attention"
+              aria-label={t(
+                wechatAttention?.preview
+                  ? "微信演示提醒，点击查看"
+                  : "有微信提醒，点击查看",
+              )}
+              title={t(
+                wechatAttention?.preview
+                  ? "微信演示提醒，点击查看"
+                  : "有微信提醒，点击查看",
+              )}
+              onMouseEnter={cancelHoverExpand}
+              onMouseLeave={(event) => {
+                if (
+                  event.relatedTarget instanceof Node &&
+                  event.currentTarget.parentElement?.contains(
+                    event.relatedTarget,
+                  )
+                ) {
+                  handlePanelEnter();
+                }
+              }}
+              onClick={() => {
+                const viewedId = wechatNotifications[0]?.id ?? null;
+                setActiveTab("wechat");
+                notePageSwitch();
+                void toggleExpanded().then((opened) => {
+                  if (opened) acknowledgeWechat(viewedId);
+                });
+              }}
+            >
+              <WechatIcon size={18} />
+              <span className="island-wechat-dot" aria-hidden="true" />
+            </button>
+          )}
           {!expanded && display === "water" && (
             <button
               className={`island-copy island-water-add ${waterToneValue === "low" ? "is-low" : ""}`}
@@ -989,6 +866,16 @@ export function IslandWindow() {
                 alt=""
                 draggable={false}
               />
+            </button>
+          )}
+          {!expanded && (display === "water" || display === "sedentary") && (
+            <button
+              className="island-copy island-snooze"
+              aria-label={t("10 分钟后再提醒")}
+              title={t("10 分钟后再提醒")}
+              onClick={display === "water" ? snoozeWater : snoozeSedentary}
+            >
+              {t("稍后")}
             </button>
           )}
           {!expanded && display === "sedentary" && (
@@ -1026,16 +913,34 @@ export function IslandWindow() {
               aria-hidden="true"
             />
           )}
-          {expanded &&
-            display === "notice" &&
+          {panelHasBanner &&
             displayNotice &&
-            displayNotice.kind !== "notification" && (
+            (displayNotice.kind === "notification" ? (
+              <button
+                key={displayNotice.eventId}
+                type="button"
+                className={`system-notice-banner is-actionable ${displayNotice.source === "wechat" ? "is-wechat" : ""}`}
+                onClick={() =>
+                  selectPage(
+                    displayNotice.source === "wechat" ? "wechat" : "notice",
+                  )
+                }
+                aria-label={`${displayNotice.label} · ${displayNotice.value}`}
+              >
+                <NoticeIcon
+                  kind={displayNotice.kind}
+                  source={displayNotice.source}
+                />
+                <span>{displayNotice.label}</span>
+                <strong>{displayNotice.value}</strong>
+              </button>
+            ) : (
               <div className="system-notice-banner" role="status">
                 <NoticeIcon kind={displayNotice.kind} />
                 <span>{displayNotice.label}</span>
                 <strong>{displayNotice.value}</strong>
               </div>
-            )}
+            ))}
           <div
             className="island-details"
             aria-hidden={!expanded}
@@ -1118,6 +1023,15 @@ export function IslandWindow() {
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
                 )}
+                {activeTab === "wechat" && wechatNotifications.length > 0 && (
+                  <button
+                    aria-label={t("清空微信消息")}
+                    title={t("清空微信消息")}
+                    onClick={clearWechatNotifications}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                )}
                 {/* Without auto-collapse or hover mode this is the only way out
                   of the expanded panel, so it stays for that case. */}
                 {appearance.expandTrigger !== "hover" &&
@@ -1164,6 +1078,14 @@ export function IslandWindow() {
                   waterError={waterError}
                   setWaterError={setWaterError}
                   drinkWater={drinkWater}
+                  onSnooze={
+                    waterReminder
+                      ? () => {
+                          snoozeWater();
+                          void toggleExpanded();
+                        }
+                      : undefined
+                  }
                 />
               ) : activeTab === "sedentary" ? (
                 <SedentaryPage
@@ -1174,6 +1096,14 @@ export function IslandWindow() {
                   sedentaryAdded={sedentaryAdded}
                   todayBreaks={todaySedentaryBreaks}
                   standNow={standNow}
+                  onSnooze={
+                    sedentaryReminder
+                      ? () => {
+                          snoozeSedentary();
+                          void toggleExpanded();
+                        }
+                      : undefined
+                  }
                   standError={sedentaryError}
                   setStandError={setSedentaryError}
                 />
@@ -1201,304 +1131,55 @@ export function IslandWindow() {
                 <MusicPage mediaState={mediaState} />
               ) : activeTab === "device" ? (
                 <DevicePage deviceState={deviceState} />
-              ) : activeTab === "notice" ? (
-                <NoticePage
-                  notifications={notifications}
-                  forwardingEnabled={
-                    appearance.forwardNotifications ||
-                    appearance.wechatNotifications
+              ) : activeTab === "wechat" ? (
+                <WechatPage
+                  notifications={wechatNotifications}
+                  enabled={
+                    appearance.wechatNotifications ||
+                    appearance.forwardNotifications
                   }
                   showText={appearance.noticeShowText}
                   language={appearance.language}
+                  onOpenWechat={openWechat}
                 />
-              ) : countdownOpen ? (
-                <div className="countdown-picker">
-                  {durationCountdowns.slice(0, 3).map((item) => (
-                    <button
-                      key={item.id}
-                      className="countdown-row"
-                      onClick={() => startCountdown(item)}
-                    >
-                      <span>{item.label}</span>
-                      <span className="countdown-row-value">
-                        {formatDurationSeconds(item.durationSeconds ?? 0)}
-                      </span>
-                    </button>
-                  ))}
-                  {durationCountdowns.length === 0 && (
-                    <span className="countdown-empty">
-                      {t("设置里还没有时长倒计时")}
-                    </span>
-                  )}
-                  <div className="countdown-picker-actions">
-                    <button
-                      onClick={() => {
-                        setCountdownOpen(false);
-                        setCustomTimerOpen(true);
-                      }}
-                    >
-                      {t("临时倒计时")}
-                    </button>
-                    <button onClick={() => setCountdownOpen(false)}>
-                      {t("返回")}
-                    </button>
-                  </div>
-                </div>
+              ) : activeTab === "notice" ? (
+                <NoticePage
+                  notifications={notifications}
+                  forwardingEnabled={appearance.forwardNotifications}
+                  showText={appearance.noticeShowText}
+                  language={appearance.language}
+                />
               ) : (
-                <div className="timer-view">
-                  <div className="timer-status">
-                    <span>{timerModeLabel()}</span>
-                    <i aria-hidden="true" />
-                    <span>
-                      {t(
-                        timer.status === "finished"
-                          ? "已结束 · 按 Esc 关闭"
-                          : timer.status === "paused"
-                            ? "已暂停"
-                            : timer.status === "running"
-                              ? "进行中"
-                              : "选择时长",
-                      )}
-                    </span>
-                  </div>
-                  <div className="timer-main">
-                    {isPomodoroMode && (
-                      <img
-                        className="pomodoro-face"
-                        src={pomodoroClock}
-                        alt=""
-                        draggable={false}
-                      />
-                    )}
-                    <div
-                      className={`timer-clock is-${timer.status} mode-${timerMode}`}
-                    >
-                      {timer.status === "finished"
-                        ? t("时间到")
-                        : timer.status === "idle"
-                          ? formatRemaining(
-                              customTimerOpen
-                                ? (parseDuration(minutes, seconds) ?? 0)
-                                : presetMilliseconds() ||
-                                    (parseDuration(minutes, seconds) ?? 0),
-                            )
-                          : remaining}
-                    </div>
-                  </div>
-                  {isPomodoroMode && (
-                    <div className="timer-pomodoro">
-                      <span
-                        className="pomodoro-tomatoes"
-                        role="img"
-                        aria-label={`${t("本轮")} ${Math.min(
-                          pomodoroProgress.cycle,
-                          pomodoro.longBreakEvery,
-                        )}/${pomodoro.longBreakEvery}`}
-                      >
-                        {Array.from(
-                          { length: pomodoro.longBreakEvery },
-                          (_, index) =>
-                            index <
-                            Math.min(
-                              pomodoroProgress.cycle,
-                              pomodoro.longBreakEvery,
-                            ) ? (
-                              <img
-                                key={index}
-                                className="pomodoro-tomato"
-                                src={pomodoroClock}
-                                alt=""
-                                draggable={false}
-                              />
-                            ) : (
-                              <img
-                                key={index}
-                                className="pomodoro-tomato is-off"
-                                src={pomodoroClock}
-                                alt=""
-                                draggable={false}
-                              />
-                            ),
-                        )}
-                      </span>
-                      <i aria-hidden="true" />
-                      <span>
-                        {t("今日")} {pomodoroProgress.completedToday}{" "}
-                        {t("个番茄")}
-                      </span>
-                    </div>
-                  )}
-                  {timer.status === "idle" ? (
-                    <>
-                      {customTimerOpen ? (
-                        <form
-                          className="custom-timer"
-                          noValidate
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            const duration = parseDuration(minutes, seconds);
-                            if (duration === null) {
-                              setDurationError(
-                                t("请输入有效时间（秒数为 0–59）"),
-                              );
-                              return;
-                            }
-                            startManualTimer(duration);
-                            setCustomTimerOpen(false);
-                          }}
-                        >
-                          <label>
-                            <input
-                              aria-label={t("分钟")}
-                              inputMode="numeric"
-                              placeholder="00"
-                              value={minutes}
-                              maxLength={3}
-                              onChange={(event) => {
-                                setMinutes(event.target.value);
-                                setDurationError("");
-                              }}
-                            />
-                            <span>{t("分")}</span>
-                          </label>
-                          <span className="time-separator">:</span>
-                          <label>
-                            <input
-                              aria-label={t("秒")}
-                              inputMode="numeric"
-                              placeholder="00"
-                              value={seconds}
-                              maxLength={2}
-                              onChange={(event) => {
-                                setSeconds(event.target.value);
-                                setDurationError("");
-                              }}
-                            />
-                            <span>{t("秒")}</span>
-                          </label>
-                          <button type="submit">{t("开始")}</button>
-                          <button
-                            type="button"
-                            className="is-ghost"
-                            onClick={() => setCustomTimerOpen(false)}
-                          >
-                            {t("返回")}
-                          </button>
-                        </form>
-                      ) : (
-                        <div className="timer-presets">
-                          <button
-                            className="timer-preset"
-                            onClick={() => {
-                              beginFocus(pomodoro.focusMinutes * 60_000);
-                              setCustomTimerOpen(false);
-                            }}
-                          >
-                            <span className="timer-preset-label">
-                              {t("专注")}
-                            </span>
-                            <span className="timer-preset-value">
-                              {pomodoro.focusMinutes} {t("分")}
-                            </span>
-                          </button>
-                          <button
-                            className="timer-preset"
-                            onClick={() => {
-                              beginBreak("break");
-                              setCustomTimerOpen(false);
-                            }}
-                          >
-                            <span className="timer-preset-label">
-                              {t("短休")}
-                            </span>
-                            <span className="timer-preset-value">
-                              {pomodoro.shortBreakMinutes} {t("分")}
-                            </span>
-                          </button>
-                          <button
-                            className="timer-preset"
-                            onClick={() => {
-                              beginBreak("longBreak");
-                              setCustomTimerOpen(false);
-                            }}
-                          >
-                            <span className="timer-preset-label">
-                              {t("长休")}
-                            </span>
-                            <span className="timer-preset-value">
-                              {pomodoro.longBreakMinutes} {t("分")}
-                            </span>
-                          </button>
-                          <button
-                            className="timer-preset is-ghost"
-                            onClick={() => {
-                              setCustomTimerOpen(false);
-                              setCountdownOpen(true);
-                            }}
-                          >
-                            <span className="timer-preset-label">
-                              {t("倒计时")}
-                            </span>
-                            <Hourglass
-                              className="timer-preset-icon"
-                              size={13}
-                              aria-hidden="true"
-                            />
-                          </button>
-                        </div>
-                      )}
-                      {durationError && (
-                        <span className="duration-error" role="alert">
-                          {durationError}
-                        </span>
-                      )}
-                    </>
-                  ) : timer.status === "finished" ? (
-                    <div className="timer-controls">
-                      <button onClick={resetTimer}>{t("知道了")}</button>
-                      <button
-                        onClick={() =>
-                          timerMode === "focus"
-                            ? beginFocus(lastDuration)
-                            : startTimer(lastDuration, Date.now())
-                        }
-                      >
-                        {t("再计一次")}
-                      </button>
-                      {timerMode === "focus" ? (
-                        <button
-                          onClick={() =>
-                            beginBreak(
-                              isLongBreakDue(pomodoroProgress.cycle, pomodoro)
-                                ? "longBreak"
-                                : "break",
-                            )
-                          }
-                        >
-                          {isLongBreakDue(pomodoroProgress.cycle, pomodoro)
-                            ? t("开始长休")
-                            : t("开始短休")}
-                        </button>
-                      ) : timerMode === "break" || timerMode === "longBreak" ? (
-                        <button
-                          onClick={() =>
-                            beginFocus(pomodoro.focusMinutes * 60_000)
-                          }
-                        >
-                          {t("开始专注")}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="timer-controls">
-                      <button onClick={pauseOrResumeTimer}>
-                        {timer.status === "running" ? t("暂停") : t("继续")}
-                      </button>
-                      <button onClick={resetTimer}>{t("取消")}</button>
-                      <button onClick={extendOneMinute}>{t("+1 分钟")}</button>
-                    </div>
-                  )}
-                </div>
+                <TimerPage
+                  timer={timer}
+                  timerMode={timerMode}
+                  timerModeLabel={timerModeLabel()}
+                  isPomodoroMode={isPomodoroMode}
+                  remaining={remaining}
+                  minutes={minutes}
+                  seconds={seconds}
+                  setMinutes={setMinutes}
+                  setSeconds={setSeconds}
+                  durationError={durationError}
+                  setDurationError={setDurationError}
+                  lastDuration={lastDuration}
+                  customTimerOpen={customTimerOpen}
+                  setCustomTimerOpen={setCustomTimerOpen}
+                  countdownOpen={countdownOpen}
+                  setCountdownOpen={setCountdownOpen}
+                  presetMilliseconds={presetMilliseconds()}
+                  durationCountdowns={durationCountdowns}
+                  startCountdown={startCountdown}
+                  startManualTimer={startManualTimer}
+                  startTimer={startTimer}
+                  resetTimer={resetTimer}
+                  beginFocus={beginFocus}
+                  beginBreak={beginBreak}
+                  pauseOrResumeTimer={pauseOrResumeTimer}
+                  extendOneMinute={extendOneMinute}
+                  pomodoro={pomodoro}
+                  pomodoroProgress={pomodoroProgress}
+                />
               )}
             </div>
             <div className="island-pager">
@@ -1512,12 +1193,23 @@ export function IslandWindow() {
                     key={page.id}
                     role="tab"
                     aria-selected={activeTab === page.id}
-                    aria-label={t(page.label)}
-                    title={t(page.label)}
+                    aria-label={
+                      page.id === "wechat" && wechatAttention
+                        ? t("有微信提醒，点击查看")
+                        : t(page.label)
+                    }
+                    title={
+                      page.id === "wechat" && wechatAttention
+                        ? t("有微信提醒，点击查看")
+                        : t(page.label)
+                    }
                     className={`pager-tab is-${page.id} ${activeTab === page.id ? "active" : ""}`}
                     onClick={() => selectPage(page.id)}
                   >
                     <IslandPageIcon page={page.id} />
+                    {page.id === "wechat" && wechatAttention && (
+                      <span className="pager-wechat-dot" aria-hidden="true" />
+                    )}
                   </button>
                 ))}
               </div>

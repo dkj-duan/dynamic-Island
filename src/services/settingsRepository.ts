@@ -9,7 +9,7 @@ export const hasDesktopStorage = isTauri();
 
 /** Current appearance schema version; payloads to other windows must carry
  *  it, or their newer fields fall back to defaults on parse. */
-export const APPEARANCE_VERSION = 19;
+export const APPEARANCE_VERSION = 21;
 
 export async function loadAppearance(): Promise<AppearanceSettings> {
   if (!hasDesktopStorage) return defaultAppearance;

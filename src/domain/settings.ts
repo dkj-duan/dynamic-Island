@@ -73,6 +73,8 @@ export interface AppearanceSettings {
   language: Language;
   /** Ordered pieces shown in the capsule while the island is idle. */
   idleWidgets: IdleWidgetId[];
+  /** How long a change-tier idle widget stays on after its value moved. */
+  idleChangeDisplayMinutes: number;
   /** What the pomodoro idle widget reports. */
   pomodoroView: PomodoroIdleView;
   /** Show the current lyric instead of the artist in the music capsule. */
@@ -111,6 +113,7 @@ export const defaultAppearance: AppearanceSettings = {
   expandTrigger: "click",
   language: defaultLanguage,
   idleWidgets: ["clock", "quota"],
+  idleChangeDisplayMinutes: 3,
   pomodoroView: "count",
   islandLyrics: false,
   reminderStyle: "breathe",
@@ -214,7 +217,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 16 &&
       item.version !== 17 &&
       item.version !== 18 &&
-      item.version !== 19) ||
+      item.version !== 19 &&
+      item.version !== 20 &&
+      item.version !== 21) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -229,7 +234,14 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       : item.autoCollapseSeconds;
   if (
     typeof autoCollapseSeconds !== "number" ||
-    ![0, 1, 3, 5, 10, 15].includes(autoCollapseSeconds)
+    !Number.isFinite(autoCollapseSeconds) ||
+    (item.version < 21
+      ? ![0, 1, 3, 5, 10, 15].includes(autoCollapseSeconds)
+      : autoCollapseSeconds < 0 ||
+        autoCollapseSeconds > 60 ||
+        Math.abs(
+          autoCollapseSeconds * 10 - Math.round(autoCollapseSeconds * 10),
+        ) > 1e-8)
   ) {
     throw new Error("自动收起时长无效");
   }
@@ -334,6 +346,18 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     throw new Error("微信提醒设置无效");
   const taskbarMode = item.version >= 19 ? item.taskbarMode : false;
   if (typeof taskbarMode !== "boolean") throw new Error("任务栏模式设置无效");
+  const idleChangeDisplayMinutes =
+    item.version >= 20
+      ? item.idleChangeDisplayMinutes
+      : defaultAppearance.idleChangeDisplayMinutes;
+  if (
+    typeof idleChangeDisplayMinutes !== "number" ||
+    !Number.isInteger(idleChangeDisplayMinutes) ||
+    idleChangeDisplayMinutes < 1 ||
+    idleChangeDisplayMinutes > 60
+  ) {
+    throw new Error("变化组件显示时长无效");
+  }
   return {
     expandedShape:
       expandedShape === "oval" || expandedShape === "soft"
@@ -346,6 +370,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     expandTrigger,
     language,
     idleWidgets,
+    idleChangeDisplayMinutes,
     pomodoroView,
     islandLyrics,
     reminderStyle,

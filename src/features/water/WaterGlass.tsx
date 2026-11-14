@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { WaterTone } from "../../domain/water";
-import glass from "../../assets/water-glass.webp";
+import glass from "../../assets/water-glass.svg";
 import drop from "../../assets/water-drop.webp";
 
 type Props = {

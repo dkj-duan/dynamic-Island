@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { selectIslandDisplay } from "./islandDisplay";
+import {
+  alertKindFor,
+  alertTokenFor,
+  selectIslandDisplay,
+  shouldBlockHoverExpansion,
+} from "./islandDisplay";
 
 describe("island display priority", () => {
   const idle = {
@@ -118,5 +123,62 @@ describe("island display priority", () => {
     );
     expect(selectIslandDisplay({ ...idle, media: true })).toBe("media");
     expect(selectIslandDisplay(idle)).toBe("idle");
+  });
+});
+
+describe("hover expansion with actionable capsules", () => {
+  it("keeps reminder controls and notification details clickable", () => {
+    for (const display of ["water", "sedentary", "mail", "finished"] as const) {
+      expect(shouldBlockHoverExpansion(display, null)).toBe(true);
+    }
+    expect(shouldBlockHoverExpansion("notice", "notification")).toBe(true);
+  });
+
+  it("allows the capsule body to open on hover with a WeChat badge", () => {
+    for (const display of ["idle", "media", "timer"] as const) {
+      expect(shouldBlockHoverExpansion(display, null)).toBe(false);
+    }
+    expect(shouldBlockHoverExpansion("notice", "volume")).toBe(false);
+    expect(shouldBlockHoverExpansion("waterLogged", null)).toBe(false);
+  });
+});
+
+describe("island alert chrome", () => {
+  it("maps each reminder display to its alert kind", () => {
+    expect(alertKindFor("finished")).toBe("timer");
+    expect(alertKindFor("mail")).toBe("mail");
+    expect(alertKindFor("water")).toBe("water");
+    expect(alertKindFor("waterLogged")).toBe("water");
+    expect(alertKindFor("sedentary")).toBe("sedentary");
+    expect(alertKindFor("sedentaryLogged")).toBe("sedentary");
+  });
+  it("splits notices from forwarded notifications", () => {
+    expect(alertKindFor("notice", "notification")).toBe("notification");
+    expect(alertKindFor("notice", "volume")).toBe("notice");
+    expect(alertKindFor("notice", null)).toBe("notice");
+  });
+  it("leaves non-reminder displays without chrome", () => {
+    expect(alertKindFor("idle")).toBeNull();
+    expect(alertKindFor("media")).toBeNull();
+    expect(alertKindFor("timer")).toBeNull();
+  });
+  it("builds tokens that differ per payload but repeat for identical nudges", () => {
+    expect(alertTokenFor("water", "")).toBe("water:");
+    expect(alertTokenFor(null, "ignored")).toBe("");
+    expect(alertTokenFor("mail", "a|b|123")).toBe("mail:a|b|123");
+    const notification = alertTokenFor("notification", "", "应用", "文本");
+    expect(notification).toBe("notification::应用:文本");
+    expect(alertTokenFor("notification", "", "应用", "其他")).not.toBe(
+      notification,
+    );
+    expect(alertTokenFor("notification", "", "应用", "文本")).toBe(
+      notification,
+    );
+  });
+  it("distinguishes repeated notifications without relying on their text", () => {
+    const first = alertTokenFor("notification", "", "应用", "新通知", 1);
+    const second = alertTokenFor("notification", "", "应用", "新通知", 2);
+    expect(first).not.toBe(second);
+    expect(first).not.toContain("新通知");
   });
 });

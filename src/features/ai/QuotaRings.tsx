@@ -104,15 +104,17 @@ export function QuotaRings({
             </g>
           );
         })}
+        {compact && provider && (
+          <foreignObject x="20" y="20" width="60" height="60">
+            <span className="quota-ring-logo">
+              <ProviderIcon provider={provider} size="tiny" />
+            </span>
+          </foreignObject>
+        )}
       </svg>
       {!compact && rings.length === 1 && (
         <span className="quota-ring-center">
           <strong>{centerValue}%</strong>
-        </span>
-      )}
-      {compact && provider && (
-        <span className="quota-ring-logo">
-          <ProviderIcon provider={provider} size="tiny" />
         </span>
       )}
     </span>

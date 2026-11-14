@@ -3,6 +3,10 @@ import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { localDay } from "../../domain/pomodoro";
 import {
+  nextReminderAt,
+  REMINDER_SNOOZE_MS,
+} from "../../domain/reminderSnooze";
+import {
   defaultSedentarySettings,
   parseSedentarySettings,
   sittingMinutes,
@@ -48,6 +52,7 @@ export function useIslandSedentary(now: number, reminderSeconds: number) {
   // Session start: the first nudge waits a full interval from here.
   const [sessionStart] = useState(() => Date.now());
   const lastReminderRef = useRef(sessionStart);
+  const snoozedUntilRef = useRef<number | null>(null);
   useEffect(() => {
     sedentaryRef.current = sedentary;
   }, [sedentary]);
@@ -117,11 +122,17 @@ export function useIslandSedentary(now: number, reminderSeconds: number) {
       const current = Date.now();
       if (
         current - lastBreakRef.current < settings.reminderMinutes * 60_000 ||
-        current - lastReminderRef.current < settings.reminderMinutes * 60_000
+        current <
+          nextReminderAt(
+            lastReminderRef.current,
+            settings.reminderMinutes,
+            snoozedUntilRef.current,
+          )
       ) {
         return;
       }
       lastReminderRef.current = current;
+      snoozedUntilRef.current = null;
       setSedentaryReminder(true);
     };
     const id = window.setInterval(check, 30_000);
@@ -144,6 +155,7 @@ export function useIslandSedentary(now: number, reminderSeconds: number) {
       progressDayRef.current = localDay(at);
       setLastBreakAt(at);
       lastReminderRef.current = at;
+      snoozedUntilRef.current = null;
       setSedentaryReminder(false);
       setSedentaryAdded((count) => count + 1);
       setSedentaryLoggedAt(at);
@@ -151,6 +163,10 @@ export function useIslandSedentary(now: number, reminderSeconds: number) {
     } catch (error) {
       setSedentaryError(String(error));
     }
+  }
+  function snoozeSedentary() {
+    snoozedUntilRef.current = Date.now() + REMINDER_SNOOZE_MS;
+    setSedentaryReminder(false);
   }
   // The idle widget mirrors the reminder rules: minutes since the last break,
   // with an `over` flag once the interval has elapsed.
@@ -169,6 +185,7 @@ export function useIslandSedentary(now: number, reminderSeconds: number) {
     sedentaryError,
     setSedentaryError,
     standNow,
+    snoozeSedentary,
     sedentaryWidgetState,
   };
 }

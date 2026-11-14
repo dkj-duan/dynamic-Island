@@ -8,9 +8,26 @@ import {
   remainingMilliseconds,
   restorePersistedTimer,
   resumeTimer,
+  timerProgress,
 } from "./timer";
 
 describe("countdown", () => {
+  it("derives progress from the actual timer, including pause and extension", () => {
+    expect(timerProgress({ status: "running", endsAt: 5000 }, 4000, 2000)).toBe(
+      0.25,
+    );
+    expect(
+      timerProgress({ status: "paused", remainingMs: 3000 }, 4000, 9000),
+    ).toBe(0.25);
+    expect(
+      timerProgress({ status: "running", endsAt: 65000 }, 64000, 2000),
+    ).toBe(1 / 64);
+    expect(timerProgress({ status: "finished" }, 4000, 9000)).toBe(1);
+    expect(timerProgress({ status: "idle" }, 4000, 9000)).toBeNull();
+    expect(
+      timerProgress({ status: "running", endsAt: 5000 }, 0, 2000),
+    ).toBeNull();
+  });
   it("validates custom durations in minutes and seconds", () => {
     expect(parseDuration("2", "05")).toBe(125000);
     expect(parseDuration("", "1")).toBe(1000);

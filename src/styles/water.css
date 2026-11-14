@@ -14,28 +14,12 @@
   height: 68px;
 }
 
-.water-glass::after {
-  content: "";
-  position: absolute;
-  right: 16%;
-  bottom: -3%;
-  left: 16%;
-  z-index: 0;
-  height: 7%;
-  border-radius: 50%;
-  background: radial-gradient(
-    ellipse at center,
-    rgb(12 34 60 / 0.32),
-    transparent 70%
-  );
-}
-
 .water-glass-body {
   position: absolute;
-  top: 10%;
-  right: 3.6%;
-  bottom: 5.5%;
-  left: 3.6%;
+  top: 12%;
+  right: 8%;
+  bottom: 7%;
+  left: 8%;
   z-index: 1;
   overflow: hidden;
   border-radius: 3px 3px 16% 16% / 3px 3px 8% 8%;
@@ -46,16 +30,16 @@
   right: 0;
   bottom: 0;
   left: 0;
-  background: linear-gradient(180deg, #8ccbff 0%, #4fa3f0 45%, #2f7fd6 100%);
+  background: #80c9ed;
   transition: height 650ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .water-glass.tone-low .water-glass-fill {
-  background: linear-gradient(180deg, #ffd39a 0%, #f0a75e 45%, #d9863c 100%);
+  background: #f4bc83;
 }
 
 .water-glass.tone-done .water-glass-fill {
-  background: linear-gradient(180deg, #a5ecc7 0%, #6fd39a 45%, #3f9f74 100%);
+  background: #87d8ac;
 }
 
 .water-glass-surface {

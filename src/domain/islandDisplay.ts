@@ -1,3 +1,5 @@
+import type { SystemNotice } from "./systemNotices";
+
 /** Select the most important current item for the island's compact display. */
 export type IslandDisplay =
   | "finished"
@@ -10,6 +12,77 @@ export type IslandDisplay =
   | "timer"
   | "media"
   | "idle";
+
+/** The alert chrome the capsule can raise for the current display. */
+export type IslandAlertKind =
+  "timer" | "mail" | "water" | "sedentary" | "notification" | "notice";
+
+/** Keep compact controls reachable even when the island normally opens on hover. */
+export function shouldBlockHoverExpansion(
+  display: IslandDisplay,
+  noticeKind: SystemNotice["kind"] | null | undefined,
+): boolean {
+  if (
+    display === "water" ||
+    display === "sedentary" ||
+    display === "mail" ||
+    display === "finished"
+  ) {
+    return true;
+  }
+  if (display === "notice") return noticeKind === "notification";
+  return false;
+}
+
+/**
+ * Reminder-aware chrome for the compact capsule: which kind of alert ring,
+ * pop animation and auto-expand rule applies, if any. Forwarded
+ * notifications are their own kind so they can auto-expand on their own
+ * switch, while volume and brightness notices never do.
+ */
+export function alertKindFor(
+  display: IslandDisplay,
+  noticeKind?: SystemNotice["kind"] | null,
+): IslandAlertKind | null {
+  switch (display) {
+    case "finished":
+      return "timer";
+    case "mail":
+      return "mail";
+    case "water":
+    case "waterLogged":
+      return "water";
+    case "sedentary":
+    case "sedentaryLogged":
+      return "sedentary";
+    case "notice":
+      return noticeKind === "notification" ? "notification" : "notice";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Identity token of the current alert. Two alerts share a token only when
+ * they are the same kind carrying the same payload, so a repeated water
+ * nudge can pop and auto-expand again once the previous one cleared.
+ */
+export function alertTokenFor(
+  kind: IslandAlertKind | null,
+  mailKey: string,
+  noticeLabel = "",
+  noticeValue = "",
+  noticeEventId?: number,
+): string {
+  if (!kind) return "";
+  return `${kind}:${kind === "mail" ? mailKey : ""}${
+    kind === "notification"
+      ? noticeEventId === undefined
+        ? `:${noticeLabel}:${noticeValue}`
+        : `:event:${noticeEventId}`
+      : ""
+  }`;
+}
 
 export function selectIslandDisplay(state: {
   timer: "idle" | "running" | "paused" | "finished";

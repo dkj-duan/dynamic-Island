@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { lyricAt, parseLyrics } from "../../domain/lyrics";
 import { t } from "../../services/i18n";
 
-type MediaState = {
+export type MediaState = {
   title: string;
   artist: string;
   playing: boolean;
@@ -99,6 +99,11 @@ export function useIslandMedia() {
     };
   }, [mediaKey]);
   const [mediaError, setMediaError] = useState("");
+  // Consecutive polls without any media session. A session that vanishes for
+  // a moment between tracks comes back within the grace window, so a long
+  // media-less stretch only means nothing is playing at all and the polling
+  // can slow down until the next session appears.
+  const mediaMisses = useRef(0);
   useEffect(() => {
     let active = true;
     let timeout: number | undefined;
@@ -109,10 +114,14 @@ export function useIslandMedia() {
         mediaSample.current = Date.now();
         setMediaNow(mediaSample.current);
         applyMediaState(state);
+        mediaMisses.current = state?.title ? 0 : mediaMisses.current + 1;
       } catch (error) {
         console.error("Unable to read Windows media session", error);
       } finally {
-        if (active) timeout = window.setTimeout(() => void refresh(), 2000);
+        if (active) {
+          const delay = mediaMisses.current < 15 ? 2000 : 4000;
+          timeout = window.setTimeout(() => void refresh(), delay);
+        }
       }
     };
     void refresh();

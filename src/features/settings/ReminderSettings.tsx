@@ -2,6 +2,7 @@ import { Button, Divider, Segmented, Switch } from "antd";
 import { CheckCircleFilled, SoundOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { emitTo } from "@tauri-apps/api/event";
 import type { AppearanceSettings, ReminderStyle } from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
@@ -27,6 +28,23 @@ export function ReminderSettings({
   const [notificationAccess, setNotificationAccess] = useState<
     "allowed" | "denied" | "unspecified" | null
   >(null);
+  const [previewStatus, setPreviewStatus] = useState("");
+  async function previewNotification(source: "wechat" | "system" = "system") {
+    try {
+      await emitTo("island", "system-notice-preview", {
+        kind: "notification",
+        label: source === "wechat" ? t("微信") : t("通知演示"),
+        value:
+          source === "wechat"
+            ? t("示例联系人：这是一条微信消息演示。")
+            : t("这是一条用于预览的示例通知。"),
+        source,
+      });
+      setPreviewStatus(t("示例通知已发送到灵动岛。"));
+    } catch {
+      setPreviewStatus(t("演示发送失败，请确认灵动岛正在运行。"));
+    }
+  }
   const refreshNotificationAccess = useCallback(() => {
     if (!isTauri()) return;
     void invoke<"allowed" | "denied" | "unspecified">("get_notification_access")
@@ -145,6 +163,17 @@ export function ReminderSettings({
             }
           />
         </SettingRow>
+        <SettingRow
+          title={t("微信消息演示")}
+          description={t("使用示例内容预览微信提醒。")}
+        >
+          <Button
+            disabled={!isTauri()}
+            onClick={() => void previewNotification("wechat")}
+          >
+            {t("演示")}
+          </Button>
+        </SettingRow>
       </Section>
 
       <Section
@@ -226,6 +255,17 @@ export function ReminderSettings({
               { value: 15, label: t("15 秒") },
             ]}
           />
+        </SettingRow>
+        <SettingRow
+          title={t("通知演示")}
+          description={previewStatus || t("使用示例内容预览通知效果。")}
+        >
+          <Button
+            disabled={!isTauri()}
+            onClick={() => void previewNotification()}
+          >
+            {t("演示")}
+          </Button>
         </SettingRow>
         <SettingRow
           title={t("通知访问权限")}

@@ -89,8 +89,7 @@ html.island-window #root {
   transition:
     width var(--motion-slow) var(--ease-out),
     height var(--motion-slow) var(--ease-out),
-    border-radius var(--motion-slow) var(--ease-out),
-    scale 200ms cubic-bezier(0.34, 1.4, 0.64, 1);
+    border-radius var(--motion-slow) var(--ease-out);
 }
 
 .is-expanded .island-panel {
@@ -102,7 +101,21 @@ html.island-window #root {
 }
 
 .is-expanded[data-shape="asymmetric"] .island-panel {
-  border-radius: 18px 48px 18px 48px;
+  border-radius: 16px 72px 16px 72px / 16px 58px 16px 58px;
+  background: linear-gradient(160deg, #18191d 0%, #090a0c 36%, #050506 100%);
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.025),
+    0 8px 22px rgb(0 0 0 / 0.25);
+}
+
+.is-expanded[data-shape="asymmetric"] .island-head {
+  padding-right: 25px;
+}
+
+.is-expanded[data-shape="asymmetric"] .island-pager {
+  margin-left: 14px;
 }
 
 /* Subtle lighting gives the classic black shell a rounded, raised edge. */
@@ -136,6 +149,10 @@ html.island-window #root {
   --panel-h: 172px;
 }
 
+.is-expanded[data-page="wechat"] .island-panel {
+  --panel-h: 244px;
+}
+
 .is-expanded[data-page="ai"] .island-panel {
   --panel-h: 128px;
 }
@@ -167,6 +184,127 @@ html.island-window #root {
   background: transparent;
   color: var(--island-text);
   cursor: pointer;
+}
+
+/* Keep the standard capsule height, including in taskbar mode. */
+.island-panel[data-roomy-reminder="true"] .island-toggle,
+.island-panel[data-roomy-reminder="true"] .island-mail-current {
+  height: 100%;
+}
+
+.island-panel[data-roomy-reminder="true"] .island-water-current,
+.island-panel[data-roomy-reminder="true"] .island-sedentary-current {
+  height: 100%;
+  padding-right: 94px;
+}
+
+.island-panel[data-roomy-reminder="true"] .island-copy {
+  top: 5px;
+  right: 10px;
+  min-height: 26px;
+  min-width: 26px;
+}
+
+.island-panel[data-roomy-reminder="true"] .compact-copy {
+  gap: 0;
+  line-height: 14px;
+}
+
+.island-panel[data-roomy-reminder="true"] .island-snooze {
+  right: 42px;
+  width: 42px;
+  font-size: 11px;
+}
+
+.island-panel[data-roomy-reminder="true"]
+  .system-notice[data-kind="notification"] {
+  display: grid;
+  height: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 10px;
+  row-gap: 1px;
+}
+
+.system-notice[data-kind="notification"] > :first-child {
+  grid-row: 1 / 3;
+  align-self: center;
+}
+
+.system-notice[data-kind="notification"] .system-notice-label,
+.system-notice[data-kind="notification"] strong {
+  line-height: 14px;
+  text-align: left;
+}
+
+.system-notice[data-kind="notification"] strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.island-panel.has-wechat-attention .island-toggle {
+  width: calc(100% - 30px);
+}
+
+.island-wechat-attention {
+  position: absolute;
+  z-index: 5;
+  top: 6px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #83d9a2;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.island-wechat-attention:hover {
+  background: rgb(104 211 143 / 0.16);
+  box-shadow: inset 0 0 0 1px rgb(131 217 162 / 0.3);
+}
+
+.island-wechat-attention:focus-visible {
+  background: rgb(104 211 143 / 0.2);
+  box-shadow: inset 0 0 0 1px #83d9a2;
+  outline: none;
+}
+
+.island-wechat-attention:active {
+  background: rgb(104 211 143 / 0.28);
+}
+
+.wechat-brand-icon {
+  display: inline-block;
+  flex: none;
+  background-color: #07c160;
+  mask: url("../assets/wechat.svg") center / contain no-repeat;
+}
+
+.island-wechat-dot,
+.pager-wechat-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #0b0b0e;
+  border-radius: 50%;
+  background: #ff6464;
+  pointer-events: none;
+}
+
+.island-wechat-dot {
+  top: 3px;
+  right: 2px;
 }
 
 .island-toggle .island {
@@ -205,6 +343,40 @@ html.island-window #root {
 
 .system-notice {
   gap: 10px;
+  min-width: 0;
+  animation: notice-compact-in 260ms var(--ease-out) both;
+}
+
+@keyframes notice-compact-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.system-notice[data-kind="notification"] svg {
+  transform-origin: 50% 15%;
+  animation: notification-bell-in 650ms var(--ease-out) both;
+}
+
+@keyframes notification-bell-in {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22% {
+    transform: rotate(-16deg);
+  }
+  44% {
+    transform: rotate(12deg);
+  }
+  66% {
+    transform: rotate(-5deg);
+  }
 }
 
 .system-notice svg,
@@ -233,6 +405,14 @@ html.island-window #root {
   white-space: nowrap;
   text-overflow: ellipsis;
   text-align: left;
+}
+
+.system-notice[data-kind="notification"] .system-notice-label {
+  flex: 0 1 38%;
+}
+
+.system-notice[data-kind="notification"] strong {
+  flex: 1 1 0;
 }
 
 .system-notice strong {
@@ -474,6 +654,7 @@ html.island-window #root {
 
 .system-notice-banner {
   position: absolute;
+  z-index: 4;
   bottom: 8px;
   left: 50%;
   max-width: calc(100% - 24px);
@@ -492,6 +673,20 @@ html.island-window #root {
   pointer-events: none;
   transform: translateX(-50%);
   animation: notice-toast-in 220ms var(--ease-out) both;
+}
+
+.system-notice-banner.is-actionable {
+  cursor: pointer;
+  pointer-events: auto;
+  font: inherit;
+  font-size: 13px;
+}
+
+.system-notice-banner.is-actionable:hover,
+.system-notice-banner.is-actionable:focus-visible {
+  border-color: rgb(240 178 107 / 0.7);
+  background: #29231f;
+  outline: none;
 }
 
 @keyframes notice-toast-in {
@@ -558,9 +753,147 @@ html.island-window #root {
   padding: 0 10px;
 }
 
-/* Only the countdown is shown while a timer runs. */
+.compact-timer {
+  --timer-accent: #ff8d7e;
+  position: relative;
+  gap: 6px;
+  padding: 0 14px 2px;
+}
+
+.compact-timer.mode-break {
+  --timer-accent: #79d6a3;
+}
+
+.compact-timer.mode-longBreak,
+.compact-timer.mode-timer,
+.compact-timer.mode-countdown {
+  --timer-accent: #7fb8f2;
+}
+
+.compact-timer-icon {
+  display: flex;
+  flex: none;
+  width: 24px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.compact-timer-icon .timer-indicator {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  color: var(--timer-accent);
+}
+
+.compact-timer-icon .tomato-photo {
+  width: 32px;
+  height: 32px;
+  max-width: none;
+}
+
 .compact-timer.timer-only .compact-primary {
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.compact-timer-state {
+  flex: none;
+  color: #9999a4;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.compact-timer-ecg {
+  flex: none;
+  width: 64px;
+  height: 16px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--timer-accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.compact-timer-ecg-base {
+  opacity: 0.22;
+}
+
+.compact-timer-ecg-pulse {
+  stroke-dasharray: 28 72;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .compact-timer.is-running .tomato-photo {
+    transform-origin: 50% 65%;
+    animation: compact-tomato-dance 3.6s ease-in-out infinite;
+  }
+
+  .compact-timer-ecg-pulse {
+    animation: compact-ecg-pulse 2s linear infinite;
+  }
+}
+
+@keyframes compact-ecg-pulse {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@keyframes compact-tomato-dance {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  76% {
+    transform: translateY(-1px) rotate(-9deg);
+  }
+  83% {
+    transform: translateY(0) rotate(8deg);
+  }
+  90% {
+    transform: translateY(-1px) rotate(-4deg);
+  }
+}
+
+.compact-timer.is-paused .compact-timer-state {
+  color: #e7c08b;
+}
+
+.compact-timer .island-timer-value {
+  flex: none;
+  color: var(--timer-accent);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.compact-timer-track {
+  position: absolute;
+  bottom: 3px;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.compact-timer-track::after {
+  display: block;
+  width: var(--timer-progress);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--timer-accent);
+  content: "";
+  transition: width 250ms linear;
 }
 
 .compact-clock {
@@ -794,6 +1127,10 @@ html.island-window #root {
   color: #f0b26b;
 }
 
+.island-page-title.is-wechat {
+  color: #83d9a2;
+}
+
 .island-head-clock {
   position: absolute;
   left: 50%;
@@ -842,6 +1179,7 @@ html.island-window #root {
 }
 
 .pager-tab {
+  position: relative;
   display: grid;
   place-items: center;
   width: 26px;
@@ -855,6 +1193,11 @@ html.island-window #root {
   transition:
     background var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out);
+}
+
+.pager-wechat-dot {
+  top: -1px;
+  right: 3px;
 }
 
 .pager-tab:hover {
@@ -903,15 +1246,33 @@ html.island-window #root {
   color: #f0b26b;
 }
 
+.pager-tab.is-wechat.active {
+  background: rgb(104 211 143 / 0.16);
+  color: #83d9a2;
+}
+
 /* —— Notification page: the latest forwarded toast as a detail view —— */
 .island-notice-view {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 12px;
+  flex: 1;
   width: 100%;
   min-height: 0;
   padding-bottom: 4px;
+  animation: notice-detail-in 260ms var(--ease-out) both;
+}
+
+@keyframes notice-detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .island-notice-head {
@@ -950,11 +1311,75 @@ html.island-window #root {
 }
 
 .island-notice-text {
+  flex: 0 1 auto;
+  min-height: 0;
   margin: 0;
   font-size: 13px;
   line-height: 1.55;
   color: #b4c0cc;
   overflow-wrap: anywhere;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.island-notice-view.is-wechat .island-notice-icon {
+  color: #8be3aa;
+  background: rgb(76 188 114 / 0.2);
+}
+
+.island-notice-view.is-wechat {
+  justify-content: flex-start;
+  gap: 7px;
+}
+
+.wechat-message {
+  align-self: flex-start;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border-radius: 4px 12px 12px;
+  background: rgb(53 147 88 / 0.2);
+  color: #d4f0db;
+  white-space: pre-wrap;
+  scrollbar-width: none;
+}
+
+.wechat-message::-webkit-scrollbar {
+  display: none;
+}
+
+.wechat-empty {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 3px;
+}
+
+.wechat-open-button {
+  flex: none;
+  align-self: flex-end;
+  padding: 3px 9px;
+  border: 1px solid rgb(112 216 147 / 0.36);
+  border-radius: 8px;
+  background: rgb(76 188 114 / 0.14);
+  color: #b6efc8;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.wechat-open-button:hover,
+.wechat-open-button:focus-visible {
+  background: rgb(76 188 114 / 0.28);
+  outline: 1px solid #83d9a2;
+}
+
+.system-notice[data-source="wechat"] svg,
+.system-notice[data-source="wechat"] strong,
+.system-notice-banner.is-wechat svg,
+.system-notice-banner.is-wechat strong {
+  color: #83d9a2;
 }
 
 /* —— Pager: ghost steppers in a fixed slot + wheel switching —— */
@@ -1390,6 +1815,9 @@ html.island-window #root {
   width: 46px;
   height: 46px;
   object-fit: contain;
+  /* The asset includes transparent margins; enlarge the artwork without
+     increasing the timer row or pushing the controls down. */
+  transform: scale(1.35);
   filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.35));
 }
 
@@ -1413,8 +1841,8 @@ html.island-window #root {
 
 .idle-widget-tomato {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 19px;
+  height: 19px;
   object-fit: contain;
 }
 
@@ -2147,7 +2575,7 @@ html.island-window #root {
   background: var(--island-surface);
 }
 
-.quota-rings svg {
+.quota-rings > svg {
   position: relative;
   z-index: 1;
   display: block;
@@ -2342,9 +2770,22 @@ html.island-window #root {
 }
 
 .quota-ring-logo {
-  position: absolute;
   display: grid;
+  width: 100%;
+  height: 100%;
   place-items: center;
+  pointer-events: none;
+}
+
+.quota-ring-logo .provider-icon-tiny {
+  width: 100%;
+  height: 100%;
+}
+
+.quota-ring-logo .provider-icon-tiny img,
+.quota-ring-logo .provider-icon-tiny svg {
+  width: 87.5%;
+  height: 87.5%;
 }
 
 /* Currency balances have no bar, so keep label and value together. */
@@ -2801,6 +3242,11 @@ html.island-window #root {
   --alert-color: #f0b26b;
 }
 
+.island-panel[data-alert="notification"][data-notice-source="wechat"] {
+  --alert-color: #70d893;
+  border-color: rgb(112 216 147 / 0.48);
+}
+
 .island-panel[data-alert="water"] {
   --alert-color: #7fb8f2;
 }
@@ -2958,12 +3404,6 @@ html.island-window #root {
     opacity: 1;
     scale: 1.03;
   }
-}
-
-/* A single springy scale on arrival; animating the `scale` property keeps
-   the existing background/border animations intact. */
-.desktop-island:not(.is-expanded) .island-panel.is-popping {
-  scale: 1.06;
 }
 
 .island-panel[data-alert="mail"] .island-mail-icon {
@@ -3157,8 +3597,14 @@ html.island-window #root {
   max-width: 338px;
   overflow: hidden;
   justify-content: flex-start;
-  gap: 4px;
+  gap: 6px;
   padding: 0 10px;
+}
+
+/* The settings preview shows every ambient widget for drag ordering, so it
+   is not bound by the island's on-screen width. */
+.island.idle-widgets.is-preview {
+  max-width: none;
 }
 
 .island.idle-widgets .quota-rings-compact {
@@ -3166,22 +3612,112 @@ html.island-window #root {
   height: 27px;
 }
 
+/* Preview only: the boundary between the island's six visible slots and
+   the queued widgets behind them, which stay dimmed until they earn a slot. */
+.island.idle-widgets .idle-queued-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 6px 2px;
+  pointer-events: none;
+  background: rgb(255 255 255 / 0.28);
+}
+
+.idle-widget.is-queued {
+  opacity: 0.7;
+}
+
 .idle-widget {
   display: flex;
   align-items: center;
   flex: none;
-  gap: 4px;
+  gap: 1px;
   color: #b4b4be;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A compact icon and value share the island surface instead of separate tiles. */
+.idle-widget:not(.idle-widget-mascot, .idle-widget-quota) {
+  min-height: 24px;
+  padding: 0;
+}
+
+.idle-art-frame {
+  display: flex;
+  flex: none;
+  width: 18px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.idle-art-frame .idle-widget-img,
+.idle-art-frame .idle-widget-tomato {
+  width: 24px;
+  height: 24px;
+  max-width: none;
+}
+
+.idle-widget-clock .idle-art-frame {
+  width: 22px;
+  height: 24px;
+}
+
+.idle-widget-clock .idle-art-frame .idle-widget-img {
+  width: 22px;
+  height: 22px;
+}
+
+.island.idle-widgets .idle-widget-clock {
+  gap: 2px;
+}
+
+.idle-widget-clock .compact-clock {
+  color: #f7f7fa;
+  font-weight: 650;
+}
+
+.idle-widget-music {
+  gap: 2px;
+}
+
+.idle-water-progress {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(
+    rgb(121 199 250 / 0.8) var(--idle-water-progress),
+    rgb(121 199 250 / 0.14) 0
+  );
+}
+
+.idle-water-progress::before {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: #080b0e;
+  content: "";
+}
+
+.idle-water-progress .idle-widget-drop {
+  position: relative;
+  width: 15px;
+  height: 15px;
 }
 
 /* The companion stays inside the capsule's existing drawing and hit region. */
 .idle-mascot {
   position: relative;
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: none;
   animation: idle-mascot-play 14s ease-in-out infinite;
   transform-origin: 50% 85%;
@@ -3191,37 +3727,117 @@ html.island-window #root {
   display: block;
   width: 100%;
   height: 100%;
-  padding: 2px;
+  padding: 1px;
   box-sizing: border-box;
   object-fit: contain;
   filter: drop-shadow(0 0 1px #b1a593) drop-shadow(0 0 0.4px #b1a593);
 }
 
-.idle-mascot-blink {
+.idle-mascot:has(.idle-mascot-pose) img:first-child {
+  animation: idle-mascot-base-frame 2.4s linear infinite;
+}
+
+.idle-mascot .idle-mascot-pose {
   position: absolute;
-  inset: 2px;
-  opacity: 0;
-  animation: idle-mascot-blink 7s steps(1, end) infinite;
+  inset: 0;
+  animation: idle-mascot-action-frame 2.4s linear infinite;
 }
 
-.idle-mascot-blink::before,
-.idle-mascot-blink::after {
-  position: absolute;
-  top: 45%;
-  width: 10%;
-  height: 12%;
-  border-bottom: 1px solid #201c20;
-  border-radius: 0 0 50% 50%;
-  background: #faebcf;
-  content: "";
+@keyframes idle-mascot-base-frame {
+  0%,
+  7%,
+  88%,
+  100% {
+    opacity: 1;
+  }
+  12%,
+  80% {
+    opacity: 0;
+  }
 }
 
-.idle-mascot-blink::before {
-  left: 31%;
+@keyframes idle-mascot-action-frame {
+  0%,
+  7%,
+  88%,
+  100% {
+    opacity: 0;
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
 }
 
-.idle-mascot-blink::after {
-  left: 59%;
+.idle-mascot.is-listening {
+  animation: idle-mascot-listen 2.4s ease-in-out infinite;
+}
+
+.idle-mascot.is-water {
+  animation: idle-mascot-water 1.8s ease-in-out infinite;
+}
+
+.idle-mascot.is-celebrate {
+  animation: idle-mascot-celebrate 1.5s ease-in-out infinite;
+}
+
+.idle-mascot.is-attention {
+  animation: idle-mascot-attention 2s ease-in-out infinite;
+}
+
+@keyframes idle-mascot-listen {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg) translateY(-1px);
+  }
+}
+
+@keyframes idle-mascot-water {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(-10deg) translateY(-1px);
+  }
+  65% {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes idle-mascot-celebrate {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-3px) rotate(-7deg);
+  }
+  50% {
+    transform: translateY(0) scale(1.05, 0.95);
+  }
+  75% {
+    transform: translateY(-2px) rotate(7deg);
+  }
+}
+
+@keyframes idle-mascot-attention {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  15%,
+  35% {
+    transform: rotate(-9deg);
+  }
+  25%,
+  45% {
+    transform: rotate(9deg);
+  }
 }
 
 @keyframes idle-mascot-play {
@@ -3259,19 +3875,6 @@ html.island-window #root {
   }
 }
 
-@keyframes idle-mascot-blink {
-  0%,
-  90%,
-  94%,
-  100% {
-    opacity: 0;
-  }
-  91%,
-  93% {
-    opacity: 1;
-  }
-}
-
 .idle-widget svg {
   flex: none;
   color: #a5a5ae;
@@ -3290,9 +3893,91 @@ html.island-window #root {
 .idle-widget-drop,
 .idle-widget-img {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 19px;
+  height: 19px;
   object-fit: contain;
+}
+
+/* Brief, staggered gestures leave the numbers and capsule layout still. */
+@media (prefers-reduced-motion: no-preference) {
+  .idle-widget-clock .idle-widget-img {
+    animation: idle-icon-nod 19s ease-in-out -4s infinite;
+  }
+
+  .idle-widget-water .idle-widget-drop {
+    animation: idle-icon-bob 16s ease-in-out -8s infinite;
+  }
+
+  .idle-widget-countdown .idle-widget-img,
+  .idle-widget-waterTimer .idle-widget-img {
+    animation: idle-icon-nod 21s ease-in-out -13s infinite;
+  }
+
+  .idle-widget-pomodoro .idle-widget-tomato,
+  .idle-widget-sedentary .idle-widget-img {
+    animation: idle-icon-bob 20s ease-in-out -2s infinite;
+  }
+
+  /* Change widgets are mounted when a real value changes. */
+  .idle-widget-battery .idle-widget-img,
+  .idle-widget-bluetooth .idle-widget-img,
+  .idle-widget-focus .idle-widget-img,
+  .idle-widget-streak .idle-widget-img,
+  .idle-widget-volume .idle-widget-img {
+    animation: idle-icon-arrive 600ms ease-out both;
+  }
+
+  .idle-widget.is-queued .idle-widget-img,
+  .idle-widget.is-queued .idle-widget-drop,
+  .idle-widget.is-queued .idle-widget-tomato {
+    animation: none;
+  }
+}
+
+@keyframes idle-icon-nod {
+  0%,
+  84%,
+  100% {
+    transform: rotate(0);
+  }
+  87% {
+    transform: rotate(-10deg);
+  }
+  91% {
+    transform: rotate(7deg);
+  }
+  95% {
+    transform: rotate(0);
+  }
+}
+
+@keyframes idle-icon-bob {
+  0%,
+  84%,
+  100% {
+    transform: translateY(0);
+  }
+  89% {
+    transform: translateY(-2px);
+  }
+  94% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes idle-icon-arrive {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scale(0.85);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .idle-widget.is-draggable {
@@ -3326,7 +4011,7 @@ html.island-window #root {
 .idle-widget-water span,
 .idle-widget-pomodoro span {
   color: #dedee6;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -3365,7 +4050,12 @@ html.island-window #root {
   .island-water-add.is-low,
   .idle-widget-wave i,
   .idle-mascot,
-  .idle-mascot-blink,
+  .idle-mascot.is-listening,
+  .idle-mascot.is-water,
+  .idle-mascot.is-celebrate,
+  .idle-mascot.is-attention,
+  .idle-mascot:has(.idle-mascot-pose) img:first-child,
+  .idle-mascot .idle-mascot-pose,
   .media-disc.is-spinning img,
   .compact-art.is-spinning img,
   .media-mark-slot,
@@ -3380,8 +4070,8 @@ html.island-window #root {
     animation: none;
   }
 
-  .desktop-island:not(.is-expanded) .island-panel.is-popping {
-    scale: 1;
+  .idle-mascot:has(.idle-mascot-pose) img:first-child {
+    opacity: 0;
   }
 }
 
@@ -3457,7 +4147,7 @@ html.island-window #root {
 }
 
 .island.idle-widgets.is-compact-1 .idle-widget {
-  gap: 3px;
+  gap: 1px;
   font-size: 10.5px;
 }
 
@@ -3471,8 +4161,13 @@ html.island-window #root {
 }
 
 .island.idle-widgets.is-compact-2 .idle-widget {
-  gap: 2px;
+  gap: 1px;
   font-size: 10px;
+}
+
+.island.idle-widgets.is-compact-2
+  .idle-widget:not(.idle-widget-mascot, .idle-widget-quota) {
+  padding: 0;
 }
 
 .island.idle-widgets.is-compact-2 .idle-widget .compact-clock {

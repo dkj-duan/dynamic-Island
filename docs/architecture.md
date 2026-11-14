@@ -34,12 +34,12 @@
 
 ### 媒体与歌词
 
-通过 Global System Media Transport Controls 读取当前会话、曲目与封面，并发送播放/暂停、上一首、下一首请求。部分播放器（如网易云）暴露会话却拒绝控制请求，此时回退到系统媒体按键再试一次，仍失败则向界面返回具体原因。歌词按歌名、歌手与时长查询网易云音乐与 LRCLIB；封面来自网易云 CDN 并校验协议、体积与格式。切歌时旧请求不得覆盖新歌曲。网易云客户端不提供系统时间轴时，只读本机播放事件日志或已验证版本的时间轴作为回退。
+通过 Global System Media Transport Controls 读取当前会话、曲目与封面，并发送播放/暂停、上一首、下一首请求。部分播放器（如网易云）暴露会话却拒绝控制请求，此时回退到系统媒体按键再试一次，仍失败则向界面返回具体原因。歌词按歌名、歌手与时长查询网易云音乐与 LRCLIB，结果按歌曲信息做短期缓存（结果 10 分钟、失败 2 分钟），同一首歌的时间轴字段渐进上报不会触发重复外呼；封面来自网易云 CDN 并校验协议、体积与格式。切歌时旧请求不得覆盖新歌曲。无媒体会话且此前从未出现过会话时，媒体轮询自动降频，出现播放立即恢复。网易云客户端不提供系统时间轴时，只读本机播放事件日志或已验证版本的时间轴作为回退。
 
 ### 系统状态与音频设备
 
 - Core Audio：默认输出设备音量/静音、默认输出与默认输入设备；WMI：显示器亮度；Win32：交流电与电池；WinRT：已连接蓝牙设备及电量。
-- 灵动岛每秒轮询系统状态、每三秒轮询设备状态，按快照比较变化；启动时先建立基线，不提示已有状态。
+- 状态采集由 Rust 后台采样线程完成（音量/电源每 2 秒，亮度/蓝牙每 6 秒），按快照比较、仅在变化时向两个窗口广播 `system-status-changed` / `device-status-changed` 事件；前端启动时读取一次作为基线，另有 60 秒一次的低频对账读取兜底。启动时先建立基线，不提示已有状态。
 - 状态采集在后台线程执行，不阻塞窗口线程；失败时保留上一份快照，避免误报断开。
 - 设备页通过 `get_audio_devices` 获取输出与输入端点，`set_audio_device` 切换默认设备。枚举使用公开的 Core Audio 接口；切换使用未公开的 `IPolicyConfig`（Win10/11 通用），同时设置 Console/Multimedia/Communications 三个角色，失败会向界面返回错误。
 - 设备列表不滚动：按数量收缩行高，超过阈值后折成多列，面板高度计入提示条与顶部横幅。
@@ -52,11 +52,19 @@
 
 支持 Codex（本机 CLI App Server）、Kimi Code（仅本机 HTTP 服务）、DeepSeek、MiniMax（中国区/国际区）与 OpenRouter。密钥经 DPAPI 用当前 Windows 用户加密后存入 `ai_accounts`；本地服务令牌同样加密。每两分钟刷新，常驻账户的额度显示在灵动岛；只展示服务实际返回的额度，失败或字段缺失时显示错误。
 
+### 快捷键、通知转发与任务栏模式
+
+- 全局快捷键在 Rust 侧注册（`apply_hotkeys`），三个动作（专注、喝水、展开/收起）各自可开关并支持双击；被占用的组合键以失败列表返回设置页，触发后经 `global-hotkey` 事件派发到灵动岛。
+- 应用通知转发与微信消息上岛只读本地内容（toast 首行文本、微信 4.x 会话列表未读数与摘要），经 `app-notification` 事件进入灵动岛的提示队列，不落盘、不上传；通知平台未就绪时有限重试。
+- 消息带来源标识，微信与普通通知分别展示在独立页面并各自在内存保留最新一条；内容隐藏设置同时遮住微信联系人和摘要，演示消息不覆盖真实消息。
+- 微信提醒在会话内维护待查看标识，胶囊为不影响提醒优先级的空闲、音乐和计时状态预留独立点击区域；用户查看对应提醒或成功切换微信后才清除，不能将其视为微信未读数。打开微信只切换已运行且可验证进程的窗口。
+- 任务栏模式（`check_taskbar_mode` / `set_taskbar_mode`）把胶囊覆盖在主显示器底部任务栏左侧，面板向上展开；桌面/任务栏两种摆放决定面板的展开方向与命中区域计算。
+
 ### 存储与迁移
 
 - SQLite 位于可配置的数据目录，默认使用应用数据目录；位置索引写在应用配置目录的 `data-location.json`。
-- 数据库 `PRAGMA user_version` 当前为 4：`settings`（键值 JSON）、`mail_accounts`、`ai_accounts`、`daily_stats`。
-- 设置结构带版本（外观当前为 v12），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
+- 数据库 `PRAGMA user_version` 当前为 5：`settings`（键值 JSON）、`mail_accounts`、`ai_accounts`、`daily_stats`（喝水、番茄、久坐）。
+- 设置结构带版本（外观当前为 v19），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
 - 切换数据目录使用 SQLite 备份、完整性检查与原子更新索引；不覆盖目标目录已有文件，旧目录保留。
 - 数据库连接与迁移失败时不静默重建，避免覆盖用户数据。
 
@@ -75,6 +83,10 @@
 | `mail-accounts-changed` / `ai-accounts-changed`             | 设置 → 灵动岛 | 账户列表同步           |
 | `ai-quota-updated`                                          | Rust → 两窗口 | 额度刷新结果           |
 | `daily-stats-changed`                                       | Rust → 两窗口 | 喝水/番茄统计更新      |
+| `system-status-changed` / `device-status-changed`           | Rust → 两窗口 | 状态采样结果（仅变化） |
+| `global-hotkey`                                             | Rust → 灵动岛 | 全局快捷键触发         |
+| `app-notification`                                          | Rust → 灵动岛 | 转发的系统通知         |
+| `fullscreen-changed`                                        | Rust → 灵动岛 | 全屏应用前台/退出      |
 | `autostart-changed`                                         | Rust → 设置   | 自启动状态变化         |
 | `system-notice-preview`                                     | 设置 → 灵动岛 | 演示系统提示           |
 | `island-lyrics-changed`                                     | 灵动岛 → 设置 | 岛上歌词开关           |
@@ -83,8 +95,9 @@
 
 Tauri 命令按模块注册，主要包括：
 
-- 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`apply_island_scale`、`start_island_drag`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
+- 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`set_fullscreen_avoid`、`apply_island_scale`、`start_island_drag`、`check_taskbar_mode`、`set_taskbar_mode`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
 - 自启动：`get_autostart`、`set_autostart`、`is_autostart_launch`。
+- 快捷键与通知：`hotkeys::apply_hotkeys`、`notifications::get_notification_access`、`notifications::set_notification_forwarding`、`notifications::open_notification_settings`、`wechat::set_wechat_notifications`。
 - 媒体：`get_media_state`、`get_media_artwork`、`control_media`、`seek_media`；歌词 `lyrics::get_lyrics`。
 - 系统与音频：`system_status::get_system_status`、`system_status::get_device_status`、`get_audio_devices`、`set_audio_device`。
 - 邮件：`mail::list_mail_accounts`、`add_mail_account`、`remove_mail_account`、`poll_mail`、`get_mail_monitor_status`、`copy_mail_code`。

@@ -6,6 +6,7 @@ export const ISLAND_PAGES = [
   { id: "sedentary", label: "久坐" },
   { id: "ai", label: "AI 额度" },
   { id: "device", label: "设备" },
+  { id: "wechat", label: "微信" },
   { id: "notice", label: "通知" },
 ] as const;
 

@@ -7,6 +7,82 @@ static ENABLED: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
+/// Bring an already running, verified WeChat main window to the foreground.
+#[tauri::command]
+pub async fn open_wechat() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(activate_wechat)
+        .await
+        .map_err(|_| "无法打开微信，请手动打开微信窗口。".to_string())?
+}
+
+#[cfg(target_os = "windows")]
+fn activate_wechat() -> Result<(), String> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SW_RESTORE, SW_SHOW,
+        SetForegroundWindow, ShowWindowAsync,
+    };
+    use windows::core::{PWSTR, w};
+
+    unsafe {
+        let hwnd = FindWindowW(None, w!("微信"))
+            .or_else(|_| FindWindowW(None, w!("WeChat")))
+            .map_err(|_| "未找到微信窗口，请先打开微信。".to_string())?;
+        let mut pid = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+            .map_err(|_| "无法确认微信窗口，请手动打开微信。".to_string())?;
+        let mut path = [0u16; 1024];
+        let mut length = path.len() as u32;
+        let result = QueryFullProcessImageNameW(
+            process,
+            PROCESS_NAME_WIN32,
+            PWSTR(path.as_mut_ptr()),
+            &mut length,
+        );
+        let _ = CloseHandle(process);
+        result.map_err(|_| "无法确认微信窗口，请手动打开微信。".to_string())?;
+        let path = String::from_utf16_lossy(&path[..length as usize]);
+        let executable = path.rsplit(['\\', '/']).next().unwrap_or("");
+        if !executable.eq_ignore_ascii_case("Weixin.exe")
+            && !executable.eq_ignore_ascii_case("WeChat.exe")
+        {
+            return Err("找到的窗口不是微信，请手动打开微信。".into());
+        }
+        if IsIconic(hwnd).as_bool() {
+            if !ShowWindowAsync(hwnd, SW_RESTORE).as_bool() {
+                return Err("无法恢复微信窗口，请手动打开微信。".into());
+            }
+        } else if !IsWindowVisible(hwnd).as_bool() && !ShowWindowAsync(hwnd, SW_SHOW).as_bool() {
+            return Err("无法显示微信窗口，请手动打开微信。".into());
+        }
+        // ShowWindowAsync returns before the other process paints its window.
+        // Keep the wait bounded and on this worker, never on the window thread.
+        for _ in 0..10 {
+            if IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
+            return Err("无法显示微信窗口，请手动打开微信。".into());
+        }
+        if !SetForegroundWindow(hwnd).as_bool() {
+            return Err("系统未允许切换到微信，请手动打开微信。".into());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn activate_wechat() -> Result<(), String> {
+    Err("打开微信目前仅支持 Windows。".into())
+}
+
 #[tauri::command]
 pub fn set_wechat_notifications(app: tauri::AppHandle, enabled: bool) {
     if ENABLED.swap(enabled, Ordering::SeqCst) != enabled {
@@ -83,6 +159,7 @@ fn worker(app: tauri::AppHandle) {
                                 crate::notifications::AppNotification {
                                     app: "微信".into(),
                                     text,
+                                    source: "wechat",
                                 },
                             );
                         }

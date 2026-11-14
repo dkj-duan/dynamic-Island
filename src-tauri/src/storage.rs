@@ -247,19 +247,29 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("scale")
         .and_then(|v| v.as_f64())
         .filter(|v| (0.8..=1.2).contains(v));
-    let delay = value
-        .get("autoCollapseSeconds")
-        .and_then(|v| v.as_u64())
-        .filter(|v| [0, 1, 3, 5, 10, 15].contains(v));
     let language = value.get("language").and_then(|v| v.as_str());
     let version = value.get("version").and_then(|v| v.as_u64());
+    let delay = value
+        .get("autoCollapseSeconds")
+        .and_then(|v| v.as_f64())
+        .filter(|v| {
+            if version == Some(21) {
+                (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
+            } else {
+                [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
+            }
+        });
     let idle_widgets_valid = match version {
-        Some(8..=19) => value
+        Some(8..=21) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
                 let mut seen: Vec<&str> = Vec::new();
-                items.len() <= 6
+                // Old versions capped the selection at six; version 20 lifts
+                // the cap — uniqueness plus the known-id check already bound
+                // the length to the number of valid widget ids.
+                let over_legacy_cap = version < Some(20) && items.len() > 6;
+                !over_legacy_cap
                     && items.iter().all(|item| match item.as_str() {
                         Some(id)
                             if (matches!(
@@ -277,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=19))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=21))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -307,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=19) => value
+        Some(7..=21) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=19) => matches!(
+        Some(8..=21) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=19) => {
+        Some(10..=21) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -341,13 +351,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=19))
+    let shape_valid = !matches!(version, Some(12..=21))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
     let hotkeys_valid = match version {
-        Some(13..=19) => {
+        Some(13..=21) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -359,7 +369,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=19) => {
+        Some(14..=21) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -383,6 +393,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                         .get("fullscreenAvoid")
                         .and_then(|v| v.as_bool())
                         .is_some())
+                // Version 20 adds the change-tier idle widget display time.
+                && (version < Some(20)
+                    || matches!(
+                        value
+                            .get("idleChangeDisplayMinutes")
+                            .and_then(|v| v.as_u64()),
+                        Some(1..=60)
+                    ))
         }
         _ => true,
     };
@@ -2067,5 +2085,86 @@ mod tests {
         assert!(validate_appearance(&v18).is_err());
         v17["fullscreenAvoid"] = serde_json::json!("on");
         assert!(validate_appearance(&v17).is_err());
+        // Version 20 adds the change-tier idle widget display time and
+        // lifts the idle widget count cap. v18 carries the invalid
+        // "yes" wechat switch from the rejection check above; restore it.
+        let mut v20 = v18.clone();
+        v20["version"] = serde_json::json!(20);
+        v20["wechatNotifications"] = serde_json::json!(false);
+        v20["taskbarMode"] = serde_json::json!(false);
+        v20["idleWidgets"] = serde_json::json!([
+            "clock",
+            "mascot",
+            "quota",
+            "water",
+            "pomodoro",
+            "countdown",
+            "sedentary",
+            "music",
+            "waterTimer",
+            "battery",
+            "volume",
+            "bluetooth",
+            "focus",
+            "streak"
+        ]);
+        assert!(validate_appearance(&v20).is_err());
+        v20["idleChangeDisplayMinutes"] = serde_json::json!(3);
+        assert!(validate_appearance(&v20).is_ok());
+        v20["idleChangeDisplayMinutes"] = serde_json::json!(0);
+        assert!(validate_appearance(&v20).is_err());
+        v20["idleChangeDisplayMinutes"] = serde_json::json!(3.5);
+        assert!(validate_appearance(&v20).is_err());
+        v20["idleChangeDisplayMinutes"] = serde_json::json!(61);
+        assert!(validate_appearance(&v20).is_err());
+        v20["idleChangeDisplayMinutes"] = serde_json::json!("3");
+        assert!(validate_appearance(&v20).is_err());
+
+        v20["idleChangeDisplayMinutes"] = serde_json::json!(3);
+        let mut v21 = v20.clone();
+        v21["version"] = serde_json::json!(21);
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            .unwrap();
+        save_appearance_value(&conn, &v20).unwrap();
+        for seconds in [0.0, 0.1, 0.5, 2.3, 60.0] {
+            v21["autoCollapseSeconds"] = serde_json::json!(seconds);
+            save_appearance_value(&conn, &v21).unwrap();
+            let saved: String = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='appearance'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&saved).unwrap()["autoCollapseSeconds"]
+                    .as_f64(),
+                Some(seconds)
+            );
+        }
+        for invalid in [
+            serde_json::json!(-0.1),
+            serde_json::json!(0.01),
+            serde_json::json!(60.1),
+            serde_json::json!("0.5"),
+        ] {
+            v21["autoCollapseSeconds"] = invalid;
+            assert!(save_appearance_value(&conn, &v21).is_err());
+            let saved: String = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='appearance'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&saved).unwrap()["autoCollapseSeconds"]
+                    .as_f64(),
+                Some(60.0)
+            );
+        }
+        v20["autoCollapseSeconds"] = serde_json::json!(0.5);
+        assert!(validate_appearance(&v20).is_err());
     }
 }

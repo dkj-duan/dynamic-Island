@@ -1600,6 +1600,7 @@ pub fn run() {
             notifications::get_notification_access,
             notifications::set_notification_forwarding,
             wechat::set_wechat_notifications,
+            wechat::open_wechat,
             notifications::open_notification_settings,
             is_autostart_launch,
             get_autostart,
@@ -1670,6 +1671,10 @@ pub fn run() {
             if app.get_webview_window("island").is_some() {
                 spawn_fullscreen_watch(app.handle().clone());
             }
+            // Sample system and device status in the background and push
+            // changes as events; the windows stop polling every second.
+            #[cfg(target_os = "windows")]
+            system_status::spawn_status_sampler(app.handle().clone());
             // Scale the settings window with the monitor so every page fits
             // without a scrollbar on common desktop resolutions.
             if let Some(window) = app.get_webview_window("main")

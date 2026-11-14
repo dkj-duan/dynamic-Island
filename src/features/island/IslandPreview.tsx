@@ -42,6 +42,7 @@ export function IslandPreview({
         appearance={appearance}
         data={data}
         onReorder={onReorder}
+        preview
       />
     </div>
   );

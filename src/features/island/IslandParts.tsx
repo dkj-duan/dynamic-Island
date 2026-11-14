@@ -14,13 +14,19 @@ import {
   Volume2,
 } from "lucide-react";
 import type { IslandTab } from "./islandPages";
+import { WechatIcon } from "./WechatIcon";
 
 export function NoticeIcon({
   kind,
+  source,
 }: {
   kind:
     "volume" | "power" | "brightness" | "bluetooth" | "audio" | "notification";
+  source?: "wechat" | "system";
 }) {
+  if (kind === "notification" && source === "wechat") {
+    return <WechatIcon size={15} />;
+  }
   const Icon =
     kind === "volume"
       ? Volume2
@@ -61,6 +67,7 @@ export function IslandEmpty({
 
 /** Glyph for the bottom page switcher: one icon per island page. */
 export function IslandPageIcon({ page }: { page: IslandTab }) {
+  if (page === "wechat") return <WechatIcon size={15} />;
   const Icon =
     page === "timer"
       ? Timer

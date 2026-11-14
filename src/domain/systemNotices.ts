@@ -26,7 +26,29 @@ export type SystemNotice = {
     "volume" | "power" | "brightness" | "bluetooth" | "audio" | "notification";
   label: string;
   value: string;
+  /** Local sequence for separate forwarded notifications, even with identical text. */
+  eventId?: number;
+  source?: NotificationSource;
 };
+
+export type NotificationSource = "wechat" | "system";
+
+/** An island reminder, not WeChat's authoritative unread state. */
+export type WechatAttention = { id: number; preview: boolean } | null;
+
+export function nextWechatAttention(
+  current: WechatAttention,
+  incoming: NonNullable<WechatAttention>,
+): WechatAttention {
+  return incoming.preview && current && !current.preview ? current : incoming;
+}
+
+export function acknowledgeWechatAttention(
+  current: WechatAttention,
+  seenId: number | null,
+): WechatAttention {
+  return current?.id === seenId ? null : current;
+}
 
 /** One forwarded toast, kept for the island's notification page. */
 export type AppNoticeItem = {
@@ -34,7 +56,28 @@ export type AppNoticeItem = {
   app: string;
   text: string;
   at: number;
+  source: NotificationSource;
 };
+
+/** A WeChat Windows toast and the local session watcher share one destination. */
+export function notificationSource(
+  app: string,
+  source?: string,
+): NotificationSource {
+  const name = app.trim().toLowerCase();
+  return source === "wechat" || name === "微信" || name === "wechat"
+    ? "wechat"
+    : "system";
+}
+
+/** Avoid exposing either the contact or message when previews are hidden. */
+export function wechatMessageView(text: string, showText: boolean) {
+  if (!showText) return { sender: "", text: null };
+  const separator = text.indexOf("：");
+  return separator > 0
+    ? { sender: text.slice(0, separator), text: text.slice(separator + 1) }
+    : { sender: "", text };
+}
 
 export function systemChanges(
   previous: SystemStatus | undefined,

@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 pub struct AppNotification {
     pub app: String,
     pub text: String,
+    pub source: &'static str,
 }
 
 static FORWARDING: Mutex<Option<(u64, mpsc::Sender<()>)>> = Mutex::new(None);
@@ -338,7 +339,11 @@ fn describe(notification: &UserNotification) -> Option<AppNotification> {
     if text.trim().is_empty() {
         return None;
     }
-    Some(AppNotification { app, text })
+    Some(AppNotification {
+        app,
+        text,
+        source: "system",
+    })
 }
 
 #[cfg(target_os = "windows")]

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatCountdown,
   formatDurationSeconds,
+  idleCountdownView,
   parseCountdowns,
   targetRemainingMilliseconds,
 } from "./countdown";
@@ -86,5 +87,104 @@ describe("countdown settings", () => {
     expect(formatCountdown(3_725_000)).toBe("1:02");
     expect(formatCountdown(2 * 3600_000)).toBe("2:00");
     expect(formatDurationSeconds(300)).toBe("5:00");
+  });
+
+  describe("idle countdown view", () => {
+    const target = {
+      id: "off-work",
+      label: "下班",
+      kind: "target" as const,
+      targetTime: "18:00",
+      durationSeconds: null,
+    };
+    const duration = {
+      id: "tea",
+      label: "泡茶",
+      kind: "duration" as const,
+      targetTime: null,
+      durationSeconds: 300,
+    };
+
+    it("ticks a target countdown and flags when the time has passed", () => {
+      const now = new Date(2026, 10, 5, 17, 30).getTime();
+      const view = idleCountdownView(
+        target,
+        "focus",
+        null,
+        { status: "idle" },
+        now,
+      );
+      expect(view).toEqual({
+        label: "下班",
+        remainingMs: 30 * 60_000,
+        reached: false,
+      });
+      const after = new Date(2026, 10, 5, 18, 5).getTime();
+      expect(
+        idleCountdownView(target, "focus", null, { status: "idle" }, after),
+      ).toEqual({
+        label: "下班",
+        remainingMs: 0,
+        reached: true,
+      });
+    });
+
+    it("shows a duration countdown only while its timer is running", () => {
+      const now = Date.now();
+      expect(
+        idleCountdownView(duration, "focus", null, { status: "idle" }, now),
+      ).toBeNull();
+      expect(
+        idleCountdownView(
+          duration,
+          "countdown",
+          "other",
+          { status: "running", endsAt: now + 60_000 },
+          now,
+        ),
+      ).toBeNull();
+      expect(
+        idleCountdownView(
+          duration,
+          "countdown",
+          null,
+          { status: "running", endsAt: now + 60_000 },
+          now,
+        ),
+      ).toBeNull();
+      const running = idleCountdownView(
+        duration,
+        "countdown",
+        "tea",
+        { status: "running", endsAt: now + 60_000 },
+        now,
+      );
+      expect(running).toEqual({
+        label: "泡茶",
+        remainingMs: 60_000,
+        reached: false,
+      });
+      expect(
+        idleCountdownView(
+          duration,
+          "countdown",
+          "tea",
+          { status: "finished" },
+          now,
+        ),
+      ).toEqual({ label: "泡茶", remainingMs: 0, reached: true });
+    });
+
+    it("returns null without a pinned countdown", () => {
+      expect(
+        idleCountdownView(
+          null,
+          "countdown",
+          "tea",
+          { status: "running", endsAt: 0 },
+          0,
+        ),
+      ).toBeNull();
+    });
   });
 });

@@ -8,6 +8,10 @@ import {
   type WaterSettings,
 } from "../../domain/water";
 import { addWater, loadWaterSettings } from "../../services/waterRepository";
+import {
+  nextReminderAt,
+  REMINDER_SNOOZE_MS,
+} from "../../domain/reminderSnooze";
 
 /**
  * Hydration tracking and reminders: the goal progress the island shows, the
@@ -41,6 +45,7 @@ export function useIslandWater(
   // Session start: the first nudge waits a full interval from here.
   const [sessionStart] = useState(() => Date.now());
   const lastReminderRef = useRef(sessionStart);
+  const snoozedUntilRef = useRef<number | null>(null);
   const waterTodayRef = useRef(todayWater);
   useEffect(() => {
     waterRef.current = water;
@@ -90,12 +95,17 @@ export function useIslandWater(
       if (hour < settings.activeStart || hour >= settings.activeEnd) return;
       const current = Date.now();
       if (
-        current - lastReminderRef.current <
-        settings.reminderMinutes * 60_000
+        current <
+        nextReminderAt(
+          lastReminderRef.current,
+          settings.reminderMinutes,
+          snoozedUntilRef.current,
+        )
       ) {
         return;
       }
       lastReminderRef.current = current;
+      snoozedUntilRef.current = null;
       setWaterReminder(true);
     };
     const id = window.setInterval(check, 30_000);
@@ -132,7 +142,11 @@ export function useIslandWater(
     };
     const hour = current.getHours();
     if (hour >= water.activeStart && hour < water.activeEnd) {
-      const next = lastReminderRef.current + water.reminderMinutes * 60_000;
+      const next = nextReminderAt(
+        lastReminderRef.current,
+        water.reminderMinutes,
+        snoozedUntilRef.current,
+      );
       if (next < todayEnd.getTime()) {
         if (next <= now) return { soon: true };
         return { minutes: Math.ceil((next - now) / 60_000) };
@@ -149,6 +163,7 @@ export function useIslandWater(
     try {
       await addWater(amountMl);
       lastReminderRef.current = Date.now();
+      snoozedUntilRef.current = null;
       setWaterReminder(false);
       setWaterAddedMl(amountMl);
       setWaterAdded((count) => count + 1);
@@ -156,6 +171,10 @@ export function useIslandWater(
     } catch (error) {
       setWaterError(String(error));
     }
+  }
+  function snoozeWater() {
+    snoozedUntilRef.current = Date.now() + REMINDER_SNOOZE_MS;
+    setWaterReminder(false);
   }
   return {
     water,
@@ -171,6 +190,7 @@ export function useIslandWater(
     waterError,
     setWaterError,
     drinkWater,
+    snoozeWater,
     waterTimerState,
   };
 }

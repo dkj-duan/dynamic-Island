@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { ExpandTrigger } from "../../domain/settings";
 import { t } from "../../services/i18n";
@@ -70,6 +70,8 @@ export function useExpandCollapse(options: {
   alertToken: string;
   /** Kind of the current alert; system notices never auto-expand. */
   alertKind: AlertKind | null;
+  /** Compact action controls take priority over hover expansion. */
+  blockHoverExpand: boolean;
 }) {
   const {
     expandTrigger,
@@ -85,10 +87,19 @@ export function useExpandCollapse(options: {
     onError,
     alertToken,
     alertKind,
+    blockHoverExpand,
   } = options;
   const panel = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<number | null>(null);
   const hoverTimeout = useRef<number | null>(null);
+  const hoverBlocked = useRef(blockHoverExpand);
+  useLayoutEffect(() => {
+    hoverBlocked.current = blockHoverExpand;
+    if (blockHoverExpand && hoverTimeout.current !== null) {
+      window.clearTimeout(hoverTimeout.current);
+      hoverTimeout.current = null;
+    }
+  }, [blockHoverExpand]);
   // A page switch can shrink the panel under a stationary pointer, which the
   // browser reports as a mouseleave; that synthetic leave must not collapse it.
   const ignoreLeaveUntil = useRef(0);
@@ -189,13 +200,14 @@ export function useExpandCollapse(options: {
     engagedRef.current = true;
     releaseReminderHold();
     cancelAutoCollapse();
-    if (expandTrigger !== "hover") return;
+    if (expandTrigger !== "hover" || hoverBlocked.current) return;
     if (expanded || transitioning || dragState.current?.active) return;
     if (hoverTimeout.current !== null) return;
     // A short dwell keeps the panel from popping up when the pointer just
     // crosses the top of the screen.
     hoverTimeout.current = window.setTimeout(() => {
       hoverTimeout.current = null;
+      if (hoverBlocked.current) return;
       openReminderPage();
       void toggleExpanded();
     }, 180);
@@ -255,7 +267,7 @@ export function useExpandCollapse(options: {
    * the pointer has actually reached the panel.
    */
   async function toggleExpanded(passive = false, engaged = !passive) {
-    if (transitioning) return;
+    if (transitioning) return false;
     setTransitioning(true);
     try {
       if (expanded) {
@@ -276,9 +288,11 @@ export function useExpandCollapse(options: {
         setExpanded(true);
         await animation;
       }
+      return true;
     } catch {
       setExpanded(expanded);
       onError(t("窗口调整失败，请重试"));
+      return false;
     } finally {
       setTransitioning(false);
     }
@@ -321,9 +335,32 @@ export function useExpandCollapse(options: {
     if (!wantExpand) return;
     if (autoExpandedRef.current === alertToken) return;
     if (!alertKind) return;
-    autoExpandedRef.current = alertToken;
     const current = reminderActions.current;
-    if (current.expanded || current.transitioning) return;
+    // Reconsider an arrival after the current transition has finished.
+    if (current.transitioning) return;
+    autoExpandedRef.current = alertToken;
+    // If the pointer is already over an actionable capsule, keep its hit
+    // targets still; don't open a passive panel underneath the user's click.
+    if (
+      !current.expanded &&
+      blockHoverExpand &&
+      panel.current?.matches(":hover")
+    ) {
+      return;
+    }
+    if (current.expanded) {
+      // Only extend a passive reminder's existing hold. Never start a
+      // collapse timer for a panel the user opened and is already using.
+      if (reminderHoldRemaining() > 0) {
+        reminderHold.current =
+          Date.now() +
+          (alertKind === "notification"
+            ? noticeDisplaySeconds * 1000 + 600
+            : reminderDisplaySeconds * 1000 + 600);
+        scheduleCollapseRef.current();
+      }
+      return;
+    }
     // The passive panel is the alert's display itself: a forwarded
     // notification collapses with the notification flash time, a reminder
     // with the reminder display time. The 600ms buffer lets the collapse
@@ -344,6 +381,8 @@ export function useExpandCollapse(options: {
     reminderAutoExpand,
     reminderDisplaySeconds,
     fullscreenSuppressed,
+    transitioning,
+    blockHoverExpand,
   ]);
   // The hold is measured from the moment the panel actually opens; wait for
   // the expansion transition to finish before arming the collapse timer.
@@ -419,6 +458,7 @@ export function useExpandCollapse(options: {
     notePageSwitch,
     handleToggleClick,
     cancelAutoCollapse,
+    cancelHoverExpand,
     scheduleAutoCollapse,
     releaseReminderHold,
     handlePanelEnter,

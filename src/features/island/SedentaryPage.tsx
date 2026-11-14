@@ -11,6 +11,7 @@ type Props = {
   sedentaryAdded: number;
   todayBreaks: number;
   standNow: () => Promise<void>;
+  onSnooze?: () => void;
   standError: string;
   setStandError: (error: string) => void;
 };
@@ -23,6 +24,7 @@ export function SedentaryPage({
   sedentaryAdded,
   todayBreaks,
   standNow,
+  onSnooze,
   standError,
   setStandError,
 }: Props) {
@@ -73,6 +75,11 @@ export function SedentaryPage({
         >
           {t("起身一下")}
         </button>
+        {onSnooze && (
+          <button title={t("10 分钟后再提醒")} onClick={onSnooze}>
+            {t("稍后")}
+          </button>
+        )}
       </div>
       {standError && (
         <span className="duration-error" role="alert">

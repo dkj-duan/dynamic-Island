@@ -1,0 +1,6 @@
+WeChat brand mark: Simple Icons, icons/wechat.svg
+Source: https://github.com/simple-icons/simple-icons/blob/develop/icons/wechat.svg
+Original brand source: https://wechat.design/tool/brand
+Simple Icons collection license: CC0 1.0 Universal; see ai/SIMPLE-ICONS-LICENSE.md.
+WeChat and its logo are trademarks of Tencent. The mark identifies WeChat.
+Simple Icons' CC0 dedication does not grant trademark rights.

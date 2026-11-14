@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -7,12 +8,21 @@ import {
 } from "react";
 import { Check } from "lucide-react";
 import { quotaRings } from "../../domain/aiQuota";
-import type { AppearanceSettings, IdleWidgetId } from "../../domain/settings";
+import {
+  MAX_IDLE_WIDGETS,
+  type AppearanceSettings,
+  type IdleWidgetId,
+} from "../../domain/settings";
 import { QuotaRings } from "../ai/QuotaRings";
 import { ProviderIcon } from "../ai/ProviderIcon";
 import { formatCountdown } from "../../domain/countdown";
 import { t } from "../../services/i18n";
-import { availableIdleWidgets, type IdleData } from "./idleWidgetData";
+import {
+  availableIdleWidgets,
+  previewIdleWidgets,
+  type IdleChangeShownAt,
+  type IdleData,
+} from "./idleWidgetData";
 import batteryIcon from "../../assets/island/battery.png";
 import bluetoothIcon from "../../assets/island/bluetooth.png";
 import clockIcon from "../../assets/island/clock.png";
@@ -25,7 +35,12 @@ import waterTimerIcon from "../../assets/island/water-timer.png";
 import sedentaryChair from "../../assets/island/away-chair.png";
 import waterDrop from "../../assets/water-drop.webp";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
-import mascotIcon from "../../assets/app-icon.png";
+import mascotIdle from "../../assets/mascot/idle.png";
+import mascotListening from "../../assets/mascot/listening.png";
+import mascotWater from "../../assets/mascot/water.png";
+import mascotCelebrate from "../../assets/mascot/celebrate.png";
+import mascotAttention from "../../assets/mascot/attention.png";
+import type { MascotReaction } from "../../domain/mascotReaction";
 
 function CompactClock() {
   const [now, setNow] = useState(() => new Date());
@@ -44,7 +59,27 @@ function CompactClock() {
   );
 }
 
+function IdleArt({
+  src,
+  className = "idle-widget-img",
+}: {
+  src: string;
+  className?: string;
+}) {
+  return (
+    <span className="idle-art-frame" aria-hidden="true">
+      <img className={className} src={src} alt="" draggable={false} />
+    </span>
+  );
+}
+
 const MAX_IDLE_WIDTH = 338;
+const mascotPoses = {
+  listening: mascotListening,
+  water: mascotWater,
+  celebrate: mascotCelebrate,
+  attention: mascotAttention,
+};
 
 const demoMusic = [
   { title: "Midnight Drive", artist: "Nova Lane" },
@@ -82,11 +117,25 @@ export function IdleWidgets({
   data,
   onReorder,
   onWidthChange,
+  changeShownAt,
+  changeWindowMs,
+  now,
+  preview,
+  mascotReaction,
+  reservedWidth = 0,
 }: {
   appearance: AppearanceSettings;
   data: IdleData;
   onReorder?: (widgets: IdleWidgetId[]) => void;
   onWidthChange?: (width: number) => void;
+  /** Change-tier tracking from the island window; the preview omits it. */
+  changeShownAt?: IdleChangeShownAt;
+  changeWindowMs?: number;
+  now?: number;
+  /** Settings preview: every enabled ambient widget, no change widgets. */
+  preview?: boolean;
+  mascotReaction?: MascotReaction | null;
+  reservedWidth?: number;
 }) {
   const [dragId, setDragId] = useState<IdleWidgetId | null>(null);
   const [overId, setOverId] = useState<IdleWidgetId | null>(null);
@@ -96,10 +145,26 @@ export function IdleWidgets({
   const rootRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => () => stopDrag.current?.(), []);
 
-  const widgets = availableIdleWidgets(appearance, data);
+  const widgets = preview
+    ? previewIdleWidgets(appearance)
+    : availableIdleWidgets(
+        appearance,
+        data,
+        changeShownAt !== undefined &&
+          changeWindowMs !== undefined &&
+          now !== undefined
+          ? { now, changeWindowMs, changeShownAt }
+          : undefined,
+      );
   const music = useIdleMusic(data.music);
+  const mascotPose = mascotReaction ?? (data.music ? "listening" : null);
   const widgetKey = widgets.join(",");
   const reportedWidth = useRef(0);
+  // The preview is not bound by the island's on-screen width; its wider cap
+  // keeps every ambient widget readable for drag ordering.
+  const widthCap = preview
+    ? 720
+    : Math.min(MAX_IDLE_WIDTH, 354 - reservedWidth);
   useLayoutEffect(() => {
     const element = rootRef.current;
     if (!element) return;
@@ -111,19 +176,19 @@ export function IdleWidgets({
     const content =
       children.reduce((sum, child) => sum + child.offsetWidth, 0) +
       gap * Math.max(0, children.length - 1);
-    const desired = Math.min(MAX_IDLE_WIDTH, Math.ceil(content + padding));
+    const desired = Math.min(widthCap, Math.ceil(content + padding));
     if (desired > 0 && desired !== reportedWidth.current) {
       reportedWidth.current = desired;
       onWidthChange?.(desired);
     }
     // The panel otherwise keeps the width from the first render and clips the
     // tail once a value gets longer, so compact before that can happen.
-    if (content + padding > MAX_IDLE_WIDTH + 0.5 && fitLevelRef.current < 2) {
+    if (content + padding > widthCap + 0.5 && fitLevelRef.current < 2) {
       fitLevelRef.current += 1;
       setFitLevel(fitLevelRef.current);
     }
-  }, [widgetKey, fitLevel, data, onWidthChange]);
-  const style = { width: "fit-content" } as const;
+  }, [widgetKey, fitLevel, data, onWidthChange, widthCap]);
+  const style = { width: "fit-content", maxWidth: widthCap } as const;
 
   function applyMove(from: IdleWidgetId, to: IdleWidgetId) {
     if (!onReorder || from === to) return;
@@ -178,7 +243,11 @@ export function IdleWidgets({
 
   if (!widgets.length) {
     return (
-      <div className="island idle-widgets is-empty" style={style} ref={rootRef}>
+      <div
+        className={`island idle-widgets ${preview ? "is-preview" : ""} is-empty`}
+        style={style}
+        ref={rootRef}
+      >
         <span className="idle-brand">Dynamic Island</span>
       </div>
     );
@@ -237,11 +306,11 @@ export function IdleWidgets({
   }
   return (
     <div
-      className={`island idle-widgets ${fitLevel === 1 ? "is-compact-1" : fitLevel === 2 ? "is-compact-2" : ""}`}
+      className={`island idle-widgets ${preview ? "is-preview" : ""} ${fitLevel === 1 ? "is-compact-1" : fitLevel === 2 ? "is-compact-2" : ""}`}
       style={style}
       ref={rootRef}
     >
-      {widgets.map((id) => {
+      {widgets.map((id, index) => {
         const lowBattery =
           id === "battery" && (data.battery?.percent ?? 100) <= 20;
         const waterDone =
@@ -250,160 +319,184 @@ export function IdleWidgets({
         const sedentaryNear =
           id === "sedentary" && !!data.sedentary && !data.sedentary.over;
         const sedentaryOver = id === "sedentary" && !!data.sedentary?.over;
+        // Preview only: widgets past the island's six visible slots wait in
+        // the queue — dim them and mark the boundary with a divider.
+        const queued = preview && index >= MAX_IDLE_WIDGETS;
         return (
-          <span
-            className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone ? "is-done" : ""} ${sedentaryNear ? "is-near" : ""} ${sedentaryOver ? "is-over" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""}`}
-            key={id}
-            data-idle-widget={id}
-            title={widgetTitle(id)}
-            draggable={false}
-            onPointerDown={(event) => startDrag(event, id)}
-          >
-            {id === "clock" && (
-              <>
-                <img className="idle-widget-img" src={clockIcon} alt="" />
-                <CompactClock />
-              </>
+          <Fragment key={id}>
+            {preview && index === MAX_IDLE_WIDGETS && (
+              <span className="idle-queued-divider" aria-hidden="true" />
             )}
-            {id === "quota" && data.quota && (
-              <>
-                {quotaRings(data.quota.items).length ? (
-                  <QuotaRings
-                    items={data.quota.items}
-                    compact
-                    provider={data.quota.provider}
-                  />
-                ) : (
-                  <ProviderIcon provider={data.quota.provider} size="normal" />
-                )}
-              </>
-            )}
-            {id === "water" && data.water && (
-              <>
-                <img className="idle-widget-drop" src={waterDrop} alt="" />
-                <span>{data.water.percent}%</span>
-              </>
-            )}
-            {id === "pomodoro" && (
-              <>
-                <img
-                  className="idle-widget-tomato"
-                  src={pomodoroClock}
-                  alt=""
-                />
-                <span>
-                  {appearance.pomodoroView === "focus" &&
-                  data.focusMinutes != null
-                    ? `${data.focusMinutes}${t("分")}`
-                    : appearance.pomodoroView === "cycle" && data.pomodoroCycle
-                      ? `${data.pomodoroCycle.done}/${data.pomodoroCycle.total}`
-                      : (data.pomodoros ?? 0)}
-                </span>
-              </>
-            )}
-            {id === "battery" && data.battery && (
-              <>
-                <img className="idle-widget-img" src={batteryIcon} alt="" />
-                <span>{data.battery.percent}%</span>
-              </>
-            )}
-            {id === "focus" && data.focusMinutes != null && (
-              <>
-                <img className="idle-widget-img" src={focusIcon} alt="" />
-                <span>{`${data.focusMinutes}${t("分")}`}</span>
-              </>
-            )}
-            {id === "streak" && data.streak != null && (
-              <>
-                <img className="idle-widget-img" src={streakIcon} alt="" />
-                <span>{`${data.streak}${t("天")}`}</span>
-              </>
-            )}
-            {id === "volume" && data.volume && (
-              <>
-                <img className="idle-widget-img" src={volumeIcon} alt="" />
-                <span>
-                  {data.volume.muted ? t("静音") : `${data.volume.percent}%`}
-                </span>
-              </>
-            )}
-            {id === "bluetooth" && data.bluetooth && (
-              <>
-                <img className="idle-widget-img" src={bluetoothIcon} alt="" />
-                <span>{data.bluetooth.battery}%</span>
-              </>
-            )}
-            {id === "countdown" && data.countdown && (
-              <>
-                {data.countdown.reached ? (
-                  <Check size={14} aria-hidden="true" />
-                ) : (
-                  <img className="idle-widget-img" src={countdownIcon} alt="" />
-                )}
-                <span>
-                  {data.countdown.reached
-                    ? t("已到")
-                    : formatCountdown(data.countdown.remainingMs)}
-                </span>
-              </>
-            )}
-            {id === "waterTimer" && data.waterTimer && (
-              <>
-                {"done" in data.waterTimer ? (
-                  <Check size={14} aria-hidden="true" />
-                ) : (
-                  <img
-                    className="idle-widget-img"
-                    src={waterTimerIcon}
-                    alt=""
-                  />
-                )}
-                <span>
-                  {"done" in data.waterTimer
-                    ? t("已达标")
-                    : "soon" in data.waterTimer
-                      ? t("即将")
-                      : "minutes" in data.waterTimer
-                        ? `${data.waterTimer.minutes}${t("分")}`
-                        : data.waterTimer.at}
-                </span>
-              </>
-            )}
-            {id === "sedentary" && data.sedentary && (
-              <>
-                <img className="idle-widget-img" src={sedentaryChair} alt="" />
-                <span>{`${data.sedentary.minutes}${t("分")}`}</span>
-              </>
-            )}
-            {id === "mascot" && (
-              <span className="idle-mascot" aria-hidden="true">
-                <img src={mascotIcon} alt="" draggable={false} />
-                <span className="idle-mascot-blink" />
-              </span>
-            )}
-            {id === "music" && (
-              <>
-                {data.music?.artwork ? (
-                  <img
-                    className="idle-widget-cover"
-                    src={data.music.artwork}
-                    alt=""
-                  />
-                ) : (
-                  <span className="idle-widget-cover is-empty">
-                    <img className="idle-widget-img" src={musicIcon} alt="" />
+            <span
+              className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone ? "is-done" : ""} ${sedentaryNear ? "is-near" : ""} ${sedentaryOver ? "is-over" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""} ${queued ? "is-queued" : ""}`}
+              key={id}
+              data-idle-widget={id}
+              title={widgetTitle(id)}
+              draggable={false}
+              onPointerDown={(event) => startDrag(event, id)}
+            >
+              {id === "clock" && (
+                <>
+                  <IdleArt src={clockIcon} />
+                  <CompactClock />
+                </>
+              )}
+              {id === "quota" && data.quota && (
+                <>
+                  {quotaRings(data.quota.items).length ? (
+                    <QuotaRings
+                      items={data.quota.items}
+                      compact
+                      provider={data.quota.provider}
+                    />
+                  ) : (
+                    <ProviderIcon
+                      provider={data.quota.provider}
+                      size="normal"
+                    />
+                  )}
+                </>
+              )}
+              {id === "water" && data.water && (
+                <>
+                  <span
+                    className="idle-water-progress"
+                    aria-hidden="true"
+                    style={
+                      {
+                        "--idle-water-progress": `${Math.max(0, Math.min(100, data.water.percent))}%`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <img className="idle-widget-drop" src={waterDrop} alt="" />
                   </span>
-                )}
-                <span className="idle-widget-wave" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
+                  <span>{data.water.percent}%</span>
+                </>
+              )}
+              {id === "pomodoro" && (
+                <>
+                  <IdleArt className="idle-widget-tomato" src={pomodoroClock} />
+                  <span>
+                    {appearance.pomodoroView === "focus" &&
+                    data.focusMinutes != null
+                      ? `${data.focusMinutes}${t("分")}`
+                      : appearance.pomodoroView === "cycle" &&
+                          data.pomodoroCycle
+                        ? `${data.pomodoroCycle.done}/${data.pomodoroCycle.total}`
+                        : (data.pomodoros ?? 0)}
+                  </span>
+                </>
+              )}
+              {id === "battery" && data.battery && (
+                <>
+                  <IdleArt src={batteryIcon} />
+                  <span>{data.battery.percent}%</span>
+                </>
+              )}
+              {id === "focus" && data.focusMinutes != null && (
+                <>
+                  <IdleArt src={focusIcon} />
+                  <span>{`${data.focusMinutes}${t("分")}`}</span>
+                </>
+              )}
+              {id === "streak" && data.streak != null && (
+                <>
+                  <IdleArt src={streakIcon} />
+                  <span>{`${data.streak}${t("天")}`}</span>
+                </>
+              )}
+              {id === "volume" && data.volume && (
+                <>
+                  <IdleArt src={volumeIcon} />
+                  <span>
+                    {data.volume.muted ? t("静音") : `${data.volume.percent}%`}
+                  </span>
+                </>
+              )}
+              {id === "bluetooth" && data.bluetooth && (
+                <>
+                  <IdleArt src={bluetoothIcon} />
+                  <span>{data.bluetooth.battery}%</span>
+                </>
+              )}
+              {id === "countdown" && data.countdown && (
+                <>
+                  {data.countdown.reached ? (
+                    <Check size={14} aria-hidden="true" />
+                  ) : (
+                    <IdleArt src={countdownIcon} />
+                  )}
+                  <span>
+                    {data.countdown.reached
+                      ? t("已到")
+                      : formatCountdown(data.countdown.remainingMs)}
+                  </span>
+                </>
+              )}
+              {id === "waterTimer" && data.waterTimer && (
+                <>
+                  {"done" in data.waterTimer ? (
+                    <Check size={14} aria-hidden="true" />
+                  ) : (
+                    <IdleArt src={waterTimerIcon} />
+                  )}
+                  <span>
+                    {"done" in data.waterTimer
+                      ? t("已达标")
+                      : "soon" in data.waterTimer
+                        ? t("即将")
+                        : "minutes" in data.waterTimer
+                          ? `${data.waterTimer.minutes}${t("分")}`
+                          : data.waterTimer.at}
+                  </span>
+                </>
+              )}
+              {id === "sedentary" && data.sedentary && (
+                <>
+                  <IdleArt src={sedentaryChair} />
+                  <span>{`${data.sedentary.minutes}${t("分")}`}</span>
+                </>
+              )}
+              {id === "mascot" && (
+                <span
+                  className={`idle-mascot ${mascotReaction ? `is-${mascotReaction}` : data.music ? "is-listening" : ""}`}
+                  aria-hidden="true"
+                >
+                  <img src={mascotIdle} alt="" draggable={false} />
+                  {mascotPose && (
+                    <img
+                      className="idle-mascot-pose"
+                      src={mascotPoses[mascotPose]}
+                      alt=""
+                      draggable={false}
+                    />
+                  )}
                 </span>
-              </>
-            )}
-          </span>
+              )}
+              {id === "music" && (
+                <>
+                  {data.music?.artwork ? (
+                    <img
+                      className="idle-widget-cover"
+                      src={data.music.artwork}
+                      alt=""
+                    />
+                  ) : (
+                    <span className="idle-widget-cover is-empty">
+                      <img className="idle-widget-img" src={musicIcon} alt="" />
+                    </span>
+                  )}
+                  <span className="idle-widget-wave" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                </>
+              )}
+            </span>
+          </Fragment>
         );
       })}
     </div>

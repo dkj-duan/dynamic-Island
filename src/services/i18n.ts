@@ -11,10 +11,14 @@ export const languageOptions: { value: Language; label: string }[] = [
 ];
 
 const en: Record<string, string> = {
+  稍后: "Later",
+  "10 分钟后再提醒": "Remind me again in 10 minutes",
   // —— Shell / navigation ——
   灵动岛: "Dynamic Island",
   小岛伙伴: "Island companion",
   展开样式: "Expanded shape",
+  "悬停展开时，可操作的提醒需要点击；微信红点可直接点击，胶囊主体仍可悬停展开。":
+    "In hover mode, actionable reminders require a click. Click the WeChat badge directly, or hover over the capsule to expand it.",
   选择展开面板的轮廓: "Choose the expanded panel outline",
   经典: "Classic",
   灵动: "Asymmetric",
@@ -74,8 +78,20 @@ const en: Record<string, string> = {
   夜间使用: "For night use",
   胶囊: "Capsule",
   灵动岛大小: "Island size",
-  "最多同时显示 6 个，没有数据的组件自动隐藏。":
-    "Show up to 6 at once; widgets without data hide automatically.",
+  "组件在桌面预览中拖动排序，前 6 个显示在灵动岛，其余排队备用；变化组件在数值变化后插队出现，数分钟后自动让位。":
+    "Drag inside the desktop preview to order the widgets; the first six show on the island and the rest wait in the queue; change-based ones cut in when their value moves and yield again after a few minutes.",
+  常驻显示: "Persistent",
+  活跃显示: "Active",
+  变化显示: "Change-based",
+  有数据即显示: "Show whenever data exists",
+  随状态出现: "Appear with their state",
+  数值变化后短暂出现: "Flash briefly after their value moves",
+  变化组件显示时长: "Change widget display time",
+  "1 分钟": "1 min",
+  "3 分钟": "3 min",
+  "5 分钟": "5 min",
+  "10 分钟": "10 min",
+  "15 分钟": "15 min",
   特小: "XS",
   小: "S",
   适中: "M",
@@ -94,8 +110,6 @@ const en: Record<string, string> = {
   "控制收起胶囊里显示的内容。": "Controls what the collapsed capsule shows.",
   岛上显示歌词: "Show lyrics on the island",
   岛上歌词: "Island lyrics",
-  "关闭时显示歌手；歌词仍可在展开的音乐页查看。":
-    "When off, the artist is shown; lyrics stay available on the music page.",
   正在播放: "Now playing",
   常驻额度: "Pinned quota",
   喝水进度: "Water progress",
@@ -122,6 +136,7 @@ const en: Record<string, string> = {
   恢复默认位置: "Reset position",
   已恢复: "Reset done",
   鼠标离开后自动收起: "Auto-collapse",
+  "自定义收起时长（秒）": "Custom collapse delay (seconds)",
   "点击或悬停展开后都生效；鼠标移出面板后按设定时间折叠，选择「立即」则马上收起，计时不会中断。":
     "Applies to click and hover expansion; the panel folds back after the pointer leaves. Choose Instant to close immediately. Timers keep running.",
   立即: "Instant",
@@ -675,6 +690,21 @@ const en: Record<string, string> = {
     "Registration failed, possibly held by another program: ",
   微信消息提醒: "WeChat notifications",
   微信消息上岛: "Show WeChat messages",
+  微信: "WeChat",
+  暂无微信消息: "No WeChat messages",
+  清空微信消息: "Clear WeChat messages",
+  打开微信: "Open WeChat",
+  "有微信提醒，点击查看": "WeChat reminder, click to view",
+  "微信演示提醒，点击查看": "WeChat preview reminder, click to view",
+  "无法打开微信，请确认微信已运行并允许切换窗口。":
+    "Could not open WeChat. Make sure it is running and Windows allows switching to it.",
+  微信消息演示: "WeChat message preview",
+  "使用示例内容预览微信提醒。": "Preview a sample WeChat message.",
+  "示例联系人：这是一条微信消息演示。":
+    "Sample contact：This is a sample WeChat message.",
+  "新的微信消息会显示在这里。": "New WeChat messages appear here.",
+  "在提醒设置中开启微信消息上岛。":
+    "Enable WeChat messages in reminder settings.",
   "读取微信会话列表中的未读状态和摘要，仅在本地处理。微信需运行并保留会话列表；不同版本或界面状态可能漏报。":
     "Read unread counts and previews from WeChat locally. WeChat must be running with the session list available; some versions or window states may miss messages.",
   应用通知转发: "Notification forwarding",
@@ -697,6 +727,10 @@ const en: Record<string, string> = {
   "关闭后胶囊只显示来源应用名，不显示消息文字。":
     "When off, the capsule only names the source app and never shows the message text.",
   新通知: "New notification",
+  通知演示: "Notification preview",
+  "这是一条用于预览的示例通知。": "This is a sample notification.",
+  "示例通知已发送到灵动岛。": "Sample notification sent to the island.",
+  "使用示例内容预览通知效果。": "Preview notifications with sample content.",
   "把系统通知转发到灵动岛胶囊，内容只在本地显示；需要在系统设置中授予通知访问权限。":
     "Forward desktop notifications to the island capsule; content stays local. Grant notification access in system settings first.",
   转发系统通知: "Forward notifications",

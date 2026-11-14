@@ -1,5 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { deviceChanges, systemChanges } from "./systemNotices";
+import {
+  deviceChanges,
+  acknowledgeWechatAttention,
+  nextWechatAttention,
+  notificationSource,
+  systemChanges,
+  wechatMessageView,
+} from "./systemNotices";
+
+describe("WeChat notification routing and privacy", () => {
+  it("only acknowledges the reminder that was actually viewed", () => {
+    const old = { id: 1, preview: false };
+    const newer = nextWechatAttention(old, { id: 2, preview: false });
+    expect(acknowledgeWechatAttention(newer, old.id)).toEqual(newer);
+    expect(acknowledgeWechatAttention(newer, 2)).toBeNull();
+    expect(nextWechatAttention(newer, { id: 3, preview: true })).toEqual(newer);
+    expect(nextWechatAttention(null, { id: 3, preview: true })).toEqual({
+      id: 3,
+      preview: true,
+    });
+  });
+  it("routes the local watcher and known system toast names to WeChat", () => {
+    expect(notificationSource("微信", "wechat")).toBe("wechat");
+    expect(notificationSource("WeChat", "system")).toBe("wechat");
+    expect(notificationSource("其他应用", "system")).toBe("system");
+  });
+
+  it("hides the sender and message when message content is disabled", () => {
+    expect(wechatMessageView("小明：你好", true)).toEqual({
+      sender: "小明",
+      text: "你好",
+    });
+    expect(wechatMessageView("小明：你好", false)).toEqual({
+      sender: "",
+      text: null,
+    });
+    expect(wechatMessageView("普通通知", true)).toEqual({
+      sender: "",
+      text: "普通通知",
+    });
+  });
+});
 
 describe("system status changes", () => {
   const initial = {

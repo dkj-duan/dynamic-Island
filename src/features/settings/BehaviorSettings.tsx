@@ -1,4 +1,12 @@
-import { App, Button, Segmented, Space, Switch, Typography } from "antd";
+import {
+  App,
+  Button,
+  InputNumber,
+  Segmented,
+  Space,
+  Switch,
+  Typography,
+} from "antd";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -22,6 +30,7 @@ function capturedKey(event: KeyboardEvent): string | null {
 
 /** Same window the native layer uses to decide a double press. */
 const DOUBLE_PRESS_WINDOW = 700;
+const collapsePresets = [0, 1, 3, 5, 10, 15];
 
 /** Maps a lone modifier keydown to its recorded name, or null to ignore it.
  * Win is excluded: its double press fights the Start menu. */
@@ -178,6 +187,11 @@ export function BehaviorSettings({
   canEdit: boolean;
 }) {
   const [positionReset, setPositionReset] = useState(false);
+  const [customCollapse, setCustomCollapse] = useState(
+    () => !collapsePresets.includes(appearance.autoCollapseSeconds),
+  );
+  const showCustomCollapse =
+    customCollapse || !collapsePresets.includes(appearance.autoCollapseSeconds);
   const [taskbarError, setTaskbarError] = useState(false);
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [autostartBusy, setAutostartBusy] = useState(false);
@@ -298,37 +312,65 @@ export function BehaviorSettings({
             }
           />
         </SettingRow>
-        <SettingRow
-          title={t("鼠标离开后自动收起")}
-          description={t(
-            "鼠标移回胶囊会取消收起计时；快捷键呼出的面板，等你把鼠标放上去之后再按此设置收起。",
-          )}
-        >
-          <Segmented
-            value={appearance.autoCollapseSeconds}
-            disabled={!canEdit}
-            onChange={(value) =>
-              onAppearanceChange({
-                ...appearance,
-                autoCollapseSeconds: value as number,
-              })
-            }
-            options={[
-              { value: 0, label: t("立即") },
-              { value: 1, label: t("1 秒") },
-              { value: 3, label: t("3 秒") },
-              { value: 5, label: t("5 秒") },
-              { value: 10, label: t("10 秒") },
-              { value: 15, label: t("15 秒") },
-            ]}
-          />
+        <SettingRow title={t("鼠标离开后自动收起")}>
+          <Space wrap size="small">
+            <Segmented
+              value={
+                showCustomCollapse ? "custom" : appearance.autoCollapseSeconds
+              }
+              disabled={!canEdit}
+              onChange={(value) => {
+                if (value === "custom") {
+                  setCustomCollapse(true);
+                  return;
+                }
+                setCustomCollapse(false);
+                onAppearanceChange({
+                  ...appearance,
+                  autoCollapseSeconds: value as number,
+                });
+              }}
+              options={[
+                { value: 0, label: t("立即") },
+                { value: 1, label: t("1 秒") },
+                { value: 3, label: t("3 秒") },
+                { value: 5, label: t("5 秒") },
+                { value: 10, label: t("10 秒") },
+                { value: 15, label: t("15 秒") },
+                { value: "custom", label: t("自定义") },
+              ]}
+            />
+            {showCustomCollapse && (
+              <InputNumber
+                key={appearance.autoCollapseSeconds}
+                aria-label={t("自定义收起时长（秒）")}
+                min={0}
+                max={60}
+                step={0.1}
+                precision={1}
+                defaultValue={appearance.autoCollapseSeconds}
+                disabled={!canEdit}
+                onBlur={(event) => {
+                  const input = event.currentTarget.value.trim();
+                  const collapseDraft = Number(input);
+                  if (!input || !Number.isFinite(collapseDraft)) return;
+                  const seconds =
+                    Math.round(Math.max(0, Math.min(60, collapseDraft)) * 10) /
+                    10;
+                  if (seconds !== appearance.autoCollapseSeconds)
+                    onAppearanceChange({
+                      ...appearance,
+                      autoCollapseSeconds: seconds,
+                    });
+                }}
+                onPressEnter={(event) => event.currentTarget.blur()}
+                addonAfter={t("秒")}
+                style={{ width: 116 }}
+              />
+            )}
+          </Space>
         </SettingRow>
-        <SettingRow
-          title={t("任务栏模式")}
-          description={t(
-            "将胶囊放在主屏幕底部任务栏左侧，面板向上展开；可拖动调整位置。",
-          )}
-        >
+        <SettingRow title={t("任务栏模式")}>
           <Switch
             checked={appearance.taskbarMode}
             disabled={!canEdit || !isTauri()}
@@ -353,10 +395,7 @@ export function BehaviorSettings({
             </span>
           )}
         </SettingRow>
-        <SettingRow
-          title={t("灵动岛位置")}
-          description={t("按住胶囊或面板顶栏即可拖动，松手后位置会被记住。")}
-        >
+        <SettingRow title={t("灵动岛位置")}>
           <Button
             disabled={!isTauri() || positionReset}
             onClick={() => {
@@ -375,12 +414,7 @@ export function BehaviorSettings({
         </SettingRow>
       </Section>
 
-      <Section
-        title={t("全局快捷键")}
-        description={t(
-          "快速按两次 Ctrl、Alt 或 Shift 录为双击触发；被其他程序占用的组合键会在下方列出。",
-        )}
-      >
+      <Section title={t("全局快捷键")}>
         <HotkeyRow
           title={t("开始 / 暂停专注")}
           fallback={{ combo: "Ctrl+Alt+P", double: false }}
@@ -420,12 +454,7 @@ export function BehaviorSettings({
         )}
       </Section>
 
-      <Section
-        title={t("启动")}
-        description={t(
-          "登录 Windows 后自动启动；开机启动只显示岛上小窗，不打开设置页。",
-        )}
-      >
+      <Section title={t("启动")}>
         <SettingRow title={t("开机自启动")}>
           <Switch
             checked={!!autostart}

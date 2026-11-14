@@ -1,13 +1,15 @@
 use serde::Serialize;
+use std::time::Duration;
+use tauri::Emitter;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, PartialEq, Serialize)]
 pub struct BluetoothStatus {
     id: String,
     name: String,
     battery: Option<u8>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Serialize)]
 pub struct DeviceStatus {
     brightness: Option<u8>,
     bluetooth: Option<Vec<BluetoothStatus>>,
@@ -256,7 +258,7 @@ fn read_devices() -> DeviceStatus {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemStatus {
     volume: Option<u8>,
@@ -273,6 +275,135 @@ pub async fn get_system_status() -> Result<SystemStatus, String> {
     tauri::async_runtime::spawn_blocking(read_status)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// How often the background sampler reads the cheap status snapshot
+/// (volume, power, default devices).
+const STATUS_SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
+/// Device snapshots (WMI brightness, Bluetooth enumeration) cost more to
+/// read; sample them every third round.
+const DEVICE_SAMPLE_EVERY: u64 = 3;
+
+/// Compares each sampled round against the previous one. The very first
+/// round is the baseline: nothing is emitted, so an app start never replays
+/// the current state as if it were a change.
+#[derive(Default)]
+struct StatusSampler {
+    last_status: Option<SystemStatus>,
+    last_devices: Option<DeviceStatus>,
+}
+
+impl StatusSampler {
+    /// Feeds one round and returns the snapshots worth broadcasting. Device
+    /// rounds without a fresh sample (`None`) keep the previous baseline.
+    fn observe(
+        &mut self,
+        status: SystemStatus,
+        devices: Option<DeviceStatus>,
+    ) -> (Option<SystemStatus>, Option<DeviceStatus>) {
+        let mut emit_status = None;
+        if self.last_status.is_some() && self.last_status.as_ref() != Some(&status) {
+            emit_status = Some(status.clone());
+        }
+        self.last_status = Some(status);
+        let mut emit_devices = None;
+        if let Some(devices) = devices {
+            if self.last_devices.is_some() && self.last_devices.as_ref() != Some(&devices) {
+                emit_devices = Some(devices.clone());
+            }
+            self.last_devices = Some(devices);
+        }
+        (emit_status, emit_devices)
+    }
+}
+
+/// Background sampler: reads system and device snapshots off the window
+/// thread and pushes only what changed as `system-status-changed` /
+/// `device-status-changed` events, so the frontends do not have to poll the
+/// status commands every second.
+pub fn spawn_status_sampler<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    let _ = std::thread::Builder::new()
+        .name("status-sampler".into())
+        .spawn(move || {
+            let mut sampler = StatusSampler::default();
+            let mut round: u64 = 0;
+            loop {
+                let devices = round.is_multiple_of(DEVICE_SAMPLE_EVERY).then(read_devices);
+                let (status, devices) = sampler.observe(read_status(), devices);
+                if let Some(status) = status {
+                    let _ = app.emit("system-status-changed", status);
+                }
+                if let Some(devices) = devices {
+                    let _ = app.emit("device-status-changed", devices);
+                }
+                round = round.wrapping_add(1);
+                std::thread::sleep(STATUS_SAMPLE_INTERVAL);
+            }
+        });
+}
+
+#[cfg(test)]
+mod sampler_tests {
+    use super::{BluetoothStatus, DeviceStatus, StatusSampler, SystemStatus};
+
+    fn status(volume: Option<u8>) -> SystemStatus {
+        SystemStatus {
+            volume,
+            muted: Some(false),
+            on_ac: Some(true),
+            battery: Some(80),
+            charging: Some(false),
+            output_device: None,
+            input_device: None,
+        }
+    }
+
+    fn devices(count: usize) -> DeviceStatus {
+        DeviceStatus {
+            brightness: Some(70),
+            bluetooth: Some(
+                (0..count)
+                    .map(|index| BluetoothStatus {
+                        id: format!("device-{index}"),
+                        name: format!("耳机{index}"),
+                        battery: Some(60),
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
+    #[test]
+    fn first_round_is_the_baseline() {
+        let mut sampler = StatusSampler::default();
+        let (emit_status, emit_devices) = sampler.observe(status(Some(30)), Some(devices(1)));
+        assert!(emit_status.is_none() && emit_devices.is_none());
+    }
+
+    #[test]
+    fn only_changes_are_emitted() {
+        let mut sampler = StatusSampler::default();
+        let _ = sampler.observe(status(Some(30)), Some(devices(1)));
+        let (emit_status, emit_devices) = sampler.observe(status(Some(30)), Some(devices(1)));
+        assert!(emit_status.is_none() && emit_devices.is_none());
+        let (emit_status, emit_devices) = sampler.observe(status(Some(45)), Some(devices(2)));
+        assert_eq!(emit_status.map(|s| s.volume), Some(Some(45)));
+        assert_eq!(
+            emit_devices.map(|d| d.bluetooth.map(|b| b.len())),
+            Some(Some(2))
+        );
+    }
+
+    #[test]
+    fn rounds_without_a_device_sample_keep_the_baseline() {
+        let mut sampler = StatusSampler::default();
+        let _ = sampler.observe(status(None), Some(devices(1)));
+        let (emit_status, emit_devices) = sampler.observe(status(None), None);
+        assert!(emit_status.is_none() && emit_devices.is_none());
+        // An unchanged device snapshot is not re-emitted either.
+        let (emit_status, emit_devices) = sampler.observe(status(None), Some(devices(1)));
+        assert!(emit_status.is_none() && emit_devices.is_none());
+    }
 }
 
 fn read_status() -> SystemStatus {

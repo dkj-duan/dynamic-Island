@@ -20,6 +20,7 @@ type Props = {
   waterError: string;
   setWaterError: Dispatch<SetStateAction<string>>;
   drinkWater: (amount: number) => Promise<void>;
+  onSnooze?: () => void;
 };
 
 export function WaterPage({
@@ -38,6 +39,7 @@ export function WaterPage({
   waterError,
   setWaterError,
   drinkWater,
+  onSnooze,
 }: Props) {
   return (
     <div className="water-view">
@@ -131,6 +133,15 @@ export function WaterPage({
           >
             {t("自定义")}
           </button>
+          {onSnooze && (
+            <button
+              className="water-more"
+              title={t("10 分钟后再提醒")}
+              onClick={onSnooze}
+            >
+              {t("稍后")}
+            </button>
+          )}
         </div>
       )}
       {waterError && (

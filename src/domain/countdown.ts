@@ -1,3 +1,9 @@
+import {
+  remainingMilliseconds,
+  type TimerMode,
+  type TimerState,
+} from "./timer";
+
 export const COUNTDOWN_VERSION = 1;
 export const MAX_COUNTDOWNS = 8;
 
@@ -134,4 +140,47 @@ export function formatCountdown(milliseconds: number): string {
 export function formatDurationSeconds(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/** The idle widget view of the countdown pinned to the island, if any. */
+export type IdleCountdownView = {
+  label: string;
+  remainingMs: number;
+  reached: boolean;
+} | null;
+
+/**
+ * What the collapsed island shows for the pinned countdown: target
+ * countdowns tick toward their time of day; duration countdowns only appear
+ * while a linked timer for that same item is actually running.
+ */
+export function idleCountdownView(
+  item: CountdownItem | null,
+  timerMode: TimerMode,
+  countdownId: string | null,
+  timer: TimerState,
+  now: number,
+): IdleCountdownView {
+  if (!item) return null;
+  if (item.kind === "target") {
+    const remainingMs = targetRemainingMilliseconds(item, now);
+    return {
+      label: item.label,
+      remainingMs,
+      reached: remainingMs <= 0,
+    };
+  }
+  if (
+    timerMode === "countdown" &&
+    countdownId === item.id &&
+    timer.status !== "idle"
+  ) {
+    const remainingMs = remainingMilliseconds(timer, now);
+    return {
+      label: item.label,
+      remainingMs,
+      reached: timer.status === "finished" || remainingMs <= 0,
+    };
+  }
+  return null;
 }

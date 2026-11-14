@@ -19,6 +19,25 @@ export function remainingMilliseconds(timer: TimerState, now: number): number {
   return 0;
 }
 
+/** Completed fraction of the current timer; unknown duration has no gauge. */
+export function timerProgress(
+  timer: TimerState,
+  durationMs: number,
+  now: number,
+): number | null {
+  if (
+    timer.status === "idle" ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0
+  )
+    return null;
+  if (timer.status === "finished") return 1;
+  return Math.max(
+    0,
+    Math.min(1, 1 - remainingMilliseconds(timer, now) / durationMs),
+  );
+}
+
 export function pauseTimer(timer: TimerState, now: number): TimerState {
   if (timer.status !== "running") return timer;
   const remainingMs = remainingMilliseconds(timer, now);

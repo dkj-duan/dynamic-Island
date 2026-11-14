@@ -5,7 +5,7 @@ import { t } from "../../services/i18n";
 
 /**
  * The island's notification page: the latest forwarded toast as a detail
- * view. One entry, wrapped text — the page never scrolls or truncates.
+ * view. Long text scrolls inside the page without changing tabs.
  */
 export function NoticePage({
   notifications,
@@ -34,7 +34,7 @@ export function NoticePage({
     );
   }
   return (
-    <div className="island-notice-view">
+    <div className="island-notice-view" key={latest.id}>
       <div className="island-notice-head">
         <span className="island-notice-icon" aria-hidden="true">
           <BellRing size={14} />
@@ -48,7 +48,7 @@ export function NoticePage({
           })}
         </span>
       </div>
-      <p className="island-notice-text">
+      <p className="island-notice-text" tabIndex={0}>
         {showText ? latest.text : t("新通知")}
       </p>
     </div>

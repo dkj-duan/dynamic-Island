@@ -1,8 +1,13 @@
 //! Fetch lyrics without blocking the UI. Song metadata is sent to the lyrics service.
 use serde::Serialize;
-use std::{io::Read, time::Duration};
+use std::{
+    collections::HashMap,
+    io::Read,
+    sync::{LazyLock, Mutex},
+    time::{Duration, Instant},
+};
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LyricResult {
     synced: bool,
@@ -162,7 +167,7 @@ pub async fn get_lyrics(
     duration: Option<f64>,
 ) -> Result<LyricResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        fetch(
+        fetch_cached(
             &title,
             &artist,
             duration.filter(|d| d.is_finite() && *d > 0.0),
@@ -170,6 +175,208 @@ pub async fn get_lyrics(
     })
     .await
     .map_err(|_| "歌词查询失败".to_string())?
+}
+
+/// A short-lived cache keyed by normalized song info. Players re-report the
+/// same track as their timeline details settle (for example a duration
+/// arriving after the title), and each such report must not turn into a
+/// fresh request to the external lyrics services.
+const LYRICS_TTL: Duration = Duration::from_secs(600);
+const LYRICS_ERROR_TTL: Duration = Duration::from_secs(120);
+const LYRICS_CACHE_CAP: usize = 32;
+
+struct CachedLyrics {
+    fetched_at: Instant,
+    result: Result<LyricResult, String>,
+}
+
+static LYRICS_CACHE: LazyLock<Mutex<HashMap<(String, String), CachedLyrics>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn lyrics_cache_key(title: &str, artist: &str) -> (String, String) {
+    (normalized(title), normalized(artist))
+}
+
+/// The cached result when present and fresh; misses must trigger a real
+/// fetch. The freshness window depends on whether the entry holds a result
+/// or a failure. `ttl` is injected so tests can exercise expiry instantly.
+fn cached_lyrics(
+    cache: &HashMap<(String, String), CachedLyrics>,
+    key: &(String, String),
+    now: Instant,
+    ttl: Duration,
+    error_ttl: Duration,
+) -> Option<Result<LyricResult, String>> {
+    let entry = cache.get(key)?;
+    let fresh = now.saturating_duration_since(entry.fetched_at)
+        <= if entry.result.is_ok() { ttl } else { error_ttl };
+    fresh.then(|| entry.result.clone())
+}
+
+fn remember_lyrics(
+    cache: &mut HashMap<(String, String), CachedLyrics>,
+    key: (String, String),
+    result: Result<LyricResult, String>,
+    now: Instant,
+) {
+    cache.insert(
+        key,
+        CachedLyrics {
+            fetched_at: now,
+            result,
+        },
+    );
+    // Bound the cache; oldest entries go first.
+    while cache.len() > LYRICS_CACHE_CAP {
+        let oldest = cache
+            .iter()
+            .min_by_key(|(_, entry)| entry.fetched_at)
+            .map(|(key, _)| key.clone());
+        match oldest {
+            Some(key) => {
+                cache.remove(&key);
+            }
+            None => break,
+        }
+    }
+}
+
+fn fetch_cached(title: &str, artist: &str, duration: Option<f64>) -> Result<LyricResult, String> {
+    let key = lyrics_cache_key(title, artist);
+    {
+        let cache = LYRICS_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(hit) = cached_lyrics(&cache, &key, Instant::now(), LYRICS_TTL, LYRICS_ERROR_TTL)
+        {
+            return hit;
+        }
+    }
+    let result = fetch(title, artist, duration);
+    let mut cache = LYRICS_CACHE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    remember_lyrics(&mut cache, key, result.clone(), Instant::now());
+    result
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::{LYRICS_CACHE_CAP, LyricResult, cached_lyrics, remember_lyrics};
+    use std::{
+        collections::HashMap,
+        time::{Duration, Instant},
+    };
+
+    fn lyric(text: &str) -> Result<LyricResult, String> {
+        Ok(LyricResult {
+            synced: false,
+            text: text.to_string(),
+        })
+    }
+
+    #[test]
+    fn cache_hits_within_ttl_and_expires_after() {
+        let mut cache = HashMap::new();
+        let key = ("song".into(), "artist".into());
+        let now = Instant::now();
+        remember_lyrics(&mut cache, key.clone(), lyric("hello"), now);
+        assert_eq!(
+            cached_lyrics(
+                &cache,
+                &key,
+                now,
+                Duration::from_secs(10),
+                Duration::from_secs(1)
+            ),
+            Some(lyric("hello"))
+        );
+        let later = now + Duration::from_secs(11);
+        assert_eq!(
+            cached_lyrics(
+                &cache,
+                &key,
+                later,
+                Duration::from_secs(10),
+                Duration::from_secs(1)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn failures_expire_sooner_than_results() {
+        let mut cache = HashMap::new();
+        let key = ("missing".into(), "song".into());
+        let now = Instant::now();
+        remember_lyrics(&mut cache, key.clone(), Err("未找到匹配歌词".into()), now);
+        let soon = now + Duration::from_secs(60);
+        assert!(
+            cached_lyrics(
+                &cache,
+                &key,
+                soon,
+                Duration::from_secs(600),
+                Duration::from_secs(120)
+            )
+            .is_some()
+        );
+        let later = now + Duration::from_secs(180);
+        assert!(
+            cached_lyrics(
+                &cache,
+                &key,
+                later,
+                Duration::from_secs(600),
+                Duration::from_secs(120)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn cache_evicts_oldest_beyond_cap() {
+        let mut cache = HashMap::new();
+        let now = Instant::now();
+        for index in 0..=LYRICS_CACHE_CAP {
+            let key = (format!("t{index}"), format!("a{index}"));
+            remember_lyrics(
+                &mut cache,
+                key,
+                lyric("x"),
+                now + Duration::from_millis(index as u64),
+            );
+        }
+        assert_eq!(cache.len(), LYRICS_CACHE_CAP);
+        assert!(!cache.contains_key(&("t0".into(), "a0".into())));
+        assert!(cache.contains_key(&(
+            format!("t{LYRICS_CACHE_CAP}"),
+            format!("a{LYRICS_CACHE_CAP}")
+        )));
+    }
+
+    #[test]
+    fn cache_dedupes_concurrent_track_reports() {
+        // Simulate the frontend re-reporting the same song with a settling
+        // timeline: the first fetch hits the network, the rest the cache.
+        let mut cache = HashMap::new();
+        let key = ("track".into(), "singer".into());
+        let now = Instant::now();
+        remember_lyrics(&mut cache, key.clone(), lyric("verse"), now);
+        for _ in 0..3 {
+            assert_eq!(
+                cached_lyrics(
+                    &cache,
+                    &key,
+                    now,
+                    Duration::from_secs(600),
+                    Duration::from_secs(120)
+                ),
+                Some(lyric("verse"))
+            );
+        }
+        assert_eq!(cache.len(), 1);
+    }
 }
 
 #[test]

@@ -14,6 +14,7 @@ describe("parseAppearance", () => {
       expandTrigger: "click",
       language: "zh-CN",
       idleWidgets: ["quota"],
+      idleChangeDisplayMinutes: 3,
       pomodoroView: "count",
       islandLyrics: false,
       reminderStyle: "breathe",
@@ -59,6 +60,43 @@ describe("parseAppearance", () => {
     ).toBe(true);
     expect(() =>
       parseAppearance({ ...old, version: 19, taskbarMode: undefined }),
+    ).toThrow();
+  });
+  it("migrates the change widget display time and rejects invalid values", () => {
+    const old = {
+      ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+      version: 19,
+    };
+    expect(parseAppearance(old).idleChangeDisplayMinutes).toBe(3);
+    expect(
+      parseAppearance({ ...old, version: 20, idleChangeDisplayMinutes: 10 })
+        .idleChangeDisplayMinutes,
+    ).toBe(10);
+    for (const bad of [0, 3.5, 61, "3", undefined]) {
+      expect(() =>
+        parseAppearance({ ...old, version: 20, idleChangeDisplayMinutes: bad }),
+      ).toThrow();
+    }
+  });
+  it("preserves old collapse delays and accepts tenths of a second in version 21", () => {
+    const old = {
+      ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+      version: 20,
+    };
+    expect(parseAppearance(old).autoCollapseSeconds).toBe(3);
+    for (const seconds of [0, 0.1, 0.5, 1, 2.3, 60]) {
+      expect(
+        parseAppearance({ ...old, version: 21, autoCollapseSeconds: seconds })
+          .autoCollapseSeconds,
+      ).toBe(seconds);
+    }
+    for (const seconds of [-0.1, 0.01, 60.1, NaN, Infinity, "0.5"]) {
+      expect(() =>
+        parseAppearance({ ...old, version: 21, autoCollapseSeconds: seconds }),
+      ).toThrow();
+    }
+    expect(() =>
+      parseAppearance({ ...old, autoCollapseSeconds: 0.5 }),
     ).toThrow();
   });
   it("migrates old shapes and rejects invalid new shapes", () => {
