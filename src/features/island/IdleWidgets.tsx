@@ -192,12 +192,14 @@ export function IdleWidgets({
 
   function applyMove(from: IdleWidgetId, to: IdleWidgetId) {
     if (!onReorder || from === to) return;
+    // A drop swaps the two widgets in place: every other icon keeps its
+    // slot, so a stray drag never shuffles the whole row.
     const order = [...appearance.idleWidgets];
     const fromIndex = order.indexOf(from);
     const toIndex = order.indexOf(to);
     if (fromIndex < 0 || toIndex < 0) return;
-    order.splice(fromIndex, 1);
-    order.splice(toIndex, 0, from);
+    order[fromIndex] = to;
+    order[toIndex] = from;
     onReorder(order);
   }
 
@@ -300,7 +302,10 @@ export function IdleWidgets({
       return `${t("下次喝水提醒")} · ${data.waterTimer.tomorrow ? `${t("明天")} ` : ""}${data.waterTimer.at}`;
     }
     if (id === "sedentary" && data.sedentary) {
-      return `${t("已坐")} ${data.sedentary.minutes} ${t("分钟")}`;
+      // Goal met: the nudges keep running, the chip says so calmly.
+      return data.sedentary.reached
+        ? `${t("已达标 · 继续保持")} · ${t("已坐")} ${data.sedentary.minutes} ${t("分钟")}`
+        : `${t("已坐")} ${data.sedentary.minutes} ${t("分钟")}`;
     }
     return undefined;
   }
@@ -316,9 +321,16 @@ export function IdleWidgets({
         const waterDone =
           id === "waterTimer" && !!data.waterTimer && "done" in data.waterTimer;
         const countdownDone = id === "countdown" && !!data.countdown?.reached;
+        // The daily goal met: a calm goal-met state instead of the near/over
+        // tones — the nudges keep running, the chip stops nagging.
+        const sedentaryDone = id === "sedentary" && !!data.sedentary?.reached;
         const sedentaryNear =
-          id === "sedentary" && !!data.sedentary && !data.sedentary.over;
-        const sedentaryOver = id === "sedentary" && !!data.sedentary?.over;
+          !sedentaryDone &&
+          id === "sedentary" &&
+          !!data.sedentary &&
+          !data.sedentary.over;
+        const sedentaryOver =
+          !sedentaryDone && id === "sedentary" && !!data.sedentary?.over;
         // Preview only: widgets past the island's six visible slots wait in
         // the queue — dim them and mark the boundary with a divider.
         const queued = preview && index >= MAX_IDLE_WIDGETS;
@@ -328,7 +340,7 @@ export function IdleWidgets({
               <span className="idle-queued-divider" aria-hidden="true" />
             )}
             <span
-              className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone ? "is-done" : ""} ${sedentaryNear ? "is-near" : ""} ${sedentaryOver ? "is-over" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""} ${queued ? "is-queued" : ""}`}
+              className={`idle-widget idle-widget-${id} ${lowBattery ? "is-low" : ""} ${waterDone || countdownDone || sedentaryDone ? "is-done" : ""} ${sedentaryNear ? "is-near" : ""} ${sedentaryOver ? "is-over" : ""} ${onReorder ? "is-draggable" : ""} ${dragId === id ? "is-dragging" : ""} ${overId === id ? "is-drop-target" : ""} ${queued ? "is-queued" : ""}`}
               key={id}
               data-idle-widget={id}
               title={widgetTitle(id)}
@@ -453,8 +465,16 @@ export function IdleWidgets({
               )}
               {id === "sedentary" && data.sedentary && (
                 <>
-                  <IdleArt src={sedentaryChair} />
-                  <span>{`${data.sedentary.minutes}${t("分")}`}</span>
+                  {data.sedentary.reached ? (
+                    <Check size={14} aria-hidden="true" />
+                  ) : (
+                    <IdleArt src={sedentaryChair} />
+                  )}
+                  <span>
+                    {data.sedentary.reached
+                      ? t("已达标")
+                      : `${data.sedentary.minutes}${t("分")}`}
+                  </span>
                 </>
               )}
               {id === "mascot" && (

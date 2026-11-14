@@ -196,6 +196,7 @@ const en: Record<string, string> = {
   临时倒计时: "Temporary countdown",
   设置里还没有时长倒计时: "No duration countdowns in Settings yet.",
   已达标: "Goal met",
+  "已达标 · 继续保持": "Goal met · keep it up",
   今日饮水已达标: "Today's water goal is met.",
   番茄组件显示: "Pomodoro widget",
   今日个数: "Today's count",

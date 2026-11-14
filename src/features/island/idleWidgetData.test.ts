@@ -23,7 +23,7 @@ const data: IdleData = {
   bluetooth: { name: "耳机", battery: 70 },
   waterTimer: { minutes: 20 },
   countdown: { label: "下班", remainingMs: 60_000, reached: false },
-  sedentary: { minutes: 30, over: false },
+  sedentary: { minutes: 30, over: false, reached: false },
 };
 
 const appearance = {

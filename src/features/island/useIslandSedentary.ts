@@ -23,9 +23,15 @@ import {
  * Sedentary tracking and reminders: how long the user has been sitting, the
  * periodic stand-up nudges during the active window, and logging a break.
  * Unlike water there is no goal gate — sitting is harmful regardless of how
- * many breaks were already logged today.
+ * many breaks were already logged today, so reminders and recording continue
+ * after the daily goal is met. The idle widget only flags the reached state
+ * for its display, it never gates the nudges.
  */
-export function useIslandSedentary(now: number, reminderSeconds: number) {
+export function useIslandSedentary(
+  now: number,
+  reminderSeconds: number,
+  todayBreaks: number,
+) {
   const [sedentary, setSedentary] = useState<SedentarySettings>(
     defaultSedentarySettings,
   );
@@ -169,11 +175,20 @@ export function useIslandSedentary(now: number, reminderSeconds: number) {
     setSedentaryReminder(false);
   }
   // The idle widget mirrors the reminder rules: minutes since the last break,
-  // with an `over` flag once the interval has elapsed.
-  function sedentaryWidgetState(): { minutes: number; over: boolean } | null {
+  // with an `over` flag once the interval has elapsed. `reached` only drives
+  // the widget's display (a calm goal-met state); the nudges keep running.
+  function sedentaryWidgetState(): {
+    minutes: number;
+    over: boolean;
+    reached: boolean;
+  } | null {
     if (!sedentaryRef.current.enabled) return null;
     const minutes = sittingMinutes(lastBreakRef.current, now);
-    return { minutes, over: minutes >= sedentaryRef.current.reminderMinutes };
+    return {
+      minutes,
+      over: minutes >= sedentaryRef.current.reminderMinutes,
+      reached: todayBreaks >= sedentaryRef.current.goalBreaks,
+    };
   }
   return {
     sedentary,

@@ -24,7 +24,7 @@ export type IdleData = {
   waterTimer?: IdleWaterTimer | null;
   countdown?: { label: string; remainingMs: number; reached: boolean } | null;
   pomodoroCycle?: { done: number; total: number } | null;
-  sedentary?: { minutes: number; over: boolean } | null;
+  sedentary?: { minutes: number; over: boolean; reached: boolean } | null;
 };
 
 /**

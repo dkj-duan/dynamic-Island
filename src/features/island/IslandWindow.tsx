@@ -168,6 +168,7 @@ export function IslandWindow() {
     todayStat?.pomodoros ?? pomodoroProgress.completedToday;
   const todayFocusMinutes = Math.floor((todayStat?.focusSeconds ?? 0) / 60);
   const focusDays = focusStreak(dailyStats.stats, dailyStats.today);
+  const todaySedentaryBreaks = todayStat?.sedentaryBreaks ?? 0;
   const {
     water,
     waterReminder,
@@ -202,7 +203,11 @@ export function IslandWindow() {
     standNow,
     snoozeSedentary,
     sedentaryWidgetState,
-  } = useIslandSedentary(now, appearance.reminderDisplaySeconds);
+  } = useIslandSedentary(
+    now,
+    appearance.reminderDisplaySeconds,
+    todaySedentaryBreaks,
+  );
   const mediaState = useIslandMedia();
   const { media, mediaKey, artwork, mediaPosition, currentLyric } = mediaState;
   const [mediaBadge, setMediaBadge] = useState<MediaBadge>("quota");
@@ -532,7 +537,6 @@ export function IslandWindow() {
   const waterCupsToday = waterCups(todayWater, water.cupMl);
   const waterToneValue = waterTone(todayWater, water.goalMl);
   const waterToneColor = waterToneColors[waterToneValue];
-  const todaySedentaryBreaks = todayStat?.sedentaryBreaks ?? 0;
   const sedentaryWidget = sedentaryWidgetState();
   const sedentarySitting = sedentaryWidget?.minutes ?? 0;
   const sedentaryToneValue = sedentaryTone(
