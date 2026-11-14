@@ -123,6 +123,7 @@ export function IslandWindow() {
     messageAttention,
     messageArrival,
     acknowledgeMessages,
+    clearOpenedMessages,
     clearNotifications,
     clearMessages,
   } = useSystemNotice({
@@ -517,14 +518,12 @@ export function IslandWindow() {
   }
   async function openChatApp(source: "wechat" | "qq") {
     const command = source === "wechat" ? "open_wechat" : "open_qq";
-    // Acknowledge against the attention id, not the message list: a preview
-    // (demo) arrival never enters the list, so a list id would never match
-    // and the mark would never clear.
-    const viewedId = messageAttention[source]?.id ?? null;
+    const viewedId = messageArrival[source];
     try {
       await invoke(command);
-      acknowledgeMessages(source, viewedId);
-    } catch {
+      clearOpenedMessages(source, viewedId);
+    } catch (error) {
+      console.error("Unable to open chat application", error);
       setError(
         source === "wechat"
           ? t("无法打开微信，请确认微信已运行并允许切换窗口。")

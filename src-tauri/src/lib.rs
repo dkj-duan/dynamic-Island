@@ -7,6 +7,8 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WindowEvent};
 
 mod ai_quota;
 mod audio;
+#[cfg(target_os = "windows")]
+mod chat_shortcut;
 mod hotkeys;
 mod lyrics;
 mod mail;
@@ -16,6 +18,8 @@ mod netease_log;
 mod netease_timeline;
 mod notifications;
 mod qq;
+#[cfg(target_os = "windows")]
+mod qq_tray;
 mod storage;
 mod system_status;
 mod wechat;

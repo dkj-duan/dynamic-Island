@@ -329,6 +329,22 @@ export function useSystemNotice({
       [source]: acknowledgeMessageAttention(current[source], id),
     }));
   }
+  function clearOpenedMessages(source: MessageKey, throughId: number) {
+    setMessages((current) => ({
+      ...current,
+      [source]: current[source].filter((item) => item.id > throughId),
+    }));
+    setPreviewNotification((current) =>
+      current?.source === source && current.id <= throughId ? null : current,
+    );
+    setMessageAttention((current) => ({
+      ...current,
+      [source]:
+        current[source] && current[source].id <= throughId
+          ? null
+          : current[source],
+    }));
+  }
   const visibleNotifications =
     notice?.kind === "notification" &&
     previewNotification !== null &&
@@ -364,6 +380,7 @@ export function useSystemNotice({
     messageAttention,
     messageArrival,
     acknowledgeMessages,
+    clearOpenedMessages,
     clearNotifications,
     clearMessages,
   };

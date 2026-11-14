@@ -6,13 +6,41 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+static OPENING: AtomicBool = AtomicBool::new(false);
 
 /// Bring an already running, verified WeChat main window to the foreground.
 #[tauri::command]
 pub async fn open_wechat() -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(activate_wechat)
-        .await
-        .map_err(|_| "无法打开微信，请手动打开微信窗口。".to_string())?
+    if OPENING.swap(true, Ordering::SeqCst) {
+        return Err("正在打开微信。".into());
+    }
+    tauri::async_runtime::spawn_blocking(|| {
+        struct OpeningGuard;
+        impl Drop for OpeningGuard {
+            fn drop(&mut self) {
+                OPENING.store(false, Ordering::SeqCst);
+            }
+        }
+        let _guard = OpeningGuard;
+        activate_wechat()
+    })
+    .await
+    .map_err(|_| "无法打开微信，请手动打开微信窗口。".to_string())?
+}
+
+#[cfg(target_os = "windows")]
+fn scan_paused(hwnd: windows::Win32::Foundation::HWND) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    if OPENING.load(Ordering::SeqCst) {
+        return true;
+    }
+    unsafe {
+        let mut target_pid = 0;
+        let mut foreground_pid = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut target_pid));
+        GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut foreground_pid));
+        target_pid != 0 && target_pid == foreground_pid
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -23,8 +51,8 @@ fn activate_wechat() -> Result<(), String> {
         QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SW_RESTORE, SW_SHOW,
-        SetForegroundWindow, ShowWindowAsync,
+        FindWindowW, GetForegroundWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+        SetForegroundWindow,
     };
     use windows::core::{PWSTR, w};
 
@@ -53,28 +81,25 @@ fn activate_wechat() -> Result<(), String> {
         {
             return Err("找到的窗口不是微信，请手动打开微信。".into());
         }
-        if IsIconic(hwnd).as_bool() {
-            if !ShowWindowAsync(hwnd, SW_RESTORE).as_bool() {
-                return Err("无法恢复微信窗口，请手动打开微信。".into());
+        if IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
+            return if SetForegroundWindow(hwnd).as_bool() {
+                Ok(())
+            } else {
+                Err("无法切换到微信窗口。".into())
+            };
+        }
+        crate::chat_shortcut::open(&["微信.lnk", "WeChat.lnk"], "微信")?;
+        // A shell launch request is not proof that the existing window opened.
+        for _ in 0..40 {
+            let mut foreground_pid = 0;
+            GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut foreground_pid));
+            if IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() && foreground_pid == pid
+            {
+                return Ok(());
             }
-        } else if !IsWindowVisible(hwnd).as_bool() && !ShowWindowAsync(hwnd, SW_SHOW).as_bool() {
-            return Err("无法显示微信窗口，请手动打开微信。".into());
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        // ShowWindowAsync returns before the other process paints its window.
-        // Keep the wait bounded and on this worker, never on the window thread.
-        for _ in 0..10 {
-            if IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(25));
-        }
-        if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
-            return Err("无法显示微信窗口，请手动打开微信。".into());
-        }
-        if !SetForegroundWindow(hwnd).as_bool() {
-            return Err("系统未允许切换到微信，请手动打开微信。".into());
-        }
-        Ok(())
+        Err("未能切换到已运行的微信窗口，请手动打开。".into())
     }
 }
 
@@ -260,6 +285,9 @@ fn scan(
     use windows::core::{PWSTR, w};
     unsafe {
         let hwnd = FindWindowW(None, w!("微信")).ok()?;
+        if scan_paused(hwnd) {
+            return None;
+        }
         let mut pid = 0;
         GetWindowThreadProcessId(hwnd, Some(&mut pid));
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
@@ -283,9 +311,15 @@ fn scan(
         }
         let root = automation.ElementFromHandle(hwnd).ok()?;
         let condition = automation.CreateTrueCondition().ok()?;
+        if scan_paused(hwnd) {
+            return None;
+        }
         let descendants = root.FindAll(TreeScope_Descendants, &condition).ok()?;
         let mut list = None;
         for index in 0..descendants.Length().ok()?.min(500) {
+            if scan_paused(hwnd) {
+                return None;
+            }
             let Ok(item) = descendants.GetElement(index) else {
                 continue;
             };
@@ -297,9 +331,15 @@ fn scan(
                 break;
             }
         }
+        if scan_paused(hwnd) {
+            return None;
+        }
         let children = list?.FindAll(TreeScope_Children, &condition).ok()?;
         let mut rows = Vec::new();
         for index in 0..children.Length().ok()?.min(200) {
+            if scan_paused(hwnd) {
+                return None;
+            }
             let Ok(item) = children.GetElement(index) else {
                 continue;
             };

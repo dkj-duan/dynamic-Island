@@ -6,84 +6,40 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+static OPENING: AtomicBool = AtomicBool::new(false);
 
-/// Bring an already running, verified QQ main window to the foreground.
 #[tauri::command]
 pub async fn open_qq() -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(activate_qq)
-        .await
-        .map_err(|_| "无法打开QQ，请手动打开QQ窗口。".to_string())?
-}
-
-/// Bring an already running, verified QQ main window to the foreground.
-#[cfg(target_os = "windows")]
-fn activate_qq() -> Result<(), String> {
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
-        QueryFullProcessImageNameW,
-    };
-    use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SW_RESTORE, SW_SHOW,
-        SetForegroundWindow, ShowWindowAsync,
-    };
-    use windows::core::{PWSTR, w};
-
-    unsafe {
-        let hwnd =
-            FindWindowW(None, w!("QQ")).map_err(|_| "未找到QQ窗口，请先打开QQ。".to_string())?;
-        let mut pid = 0;
-        GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
-            .map_err(|_| "无法确认QQ窗口，请手动打开QQ。".to_string())?;
-        let mut path = [0u16; 1024];
-        let mut length = path.len() as u32;
-        let result = QueryFullProcessImageNameW(
-            process,
-            PROCESS_NAME_WIN32,
-            PWSTR(path.as_mut_ptr()),
-            &mut length,
-        );
-        let _ = CloseHandle(process);
-        result.map_err(|_| "无法确认QQ窗口，请手动打开QQ。".to_string())?;
-        let path = String::from_utf16_lossy(&path[..length as usize]);
-        let executable = path.rsplit(['\\', '/']).next().unwrap_or("");
-        if !executable.eq_ignore_ascii_case("QQ.exe") {
-            return Err("找到的窗口不是QQ，请手动打开QQ。".into());
-        }
-        if IsIconic(hwnd).as_bool() {
-            if !ShowWindowAsync(hwnd, SW_RESTORE).as_bool() {
-                return Err("无法恢复QQ窗口，请手动打开QQ。".to_string());
-            }
-        } else if !IsWindowVisible(hwnd).as_bool() && !ShowWindowAsync(hwnd, SW_SHOW).as_bool() {
-            return Err("无法显示QQ窗口，请手动打开QQ。".to_string());
-        }
-        // ShowWindowAsync returns before the other process paints its window.
-        // Keep the wait bounded and on this worker, never on the window thread.
-        for _ in 0..10 {
-            if IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(25));
-        }
-        if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
-            return Err("无法显示QQ窗口，请手动打开QQ。".to_string());
-        }
-        if !SetForegroundWindow(hwnd).as_bool() {
-            return Err("系统未允许切换到QQ，请手动打开QQ。".into());
-        }
-        Ok(())
+    if OPENING.swap(true, Ordering::SeqCst) {
+        return Err("正在打开QQ。".into());
     }
+    tauri::async_runtime::spawn_blocking(|| {
+        struct OpeningGuard;
+        impl Drop for OpeningGuard {
+            fn drop(&mut self) {
+                OPENING.store(false, Ordering::SeqCst);
+            }
+        }
+        let _guard = OpeningGuard;
+        open_qq_from_tray()
+    })
+    .await
+    .map_err(|_| "无法从托盘打开QQ。".to_string())?
 }
 
 #[cfg(not(target_os = "windows"))]
-fn activate_qq() -> Result<(), String> {
+fn open_qq_from_tray() -> Result<(), String> {
     Err("打开QQ目前仅支持 Windows。".into())
+}
+
+#[cfg(target_os = "windows")]
+fn open_qq_from_tray() -> Result<(), String> {
+    crate::qq_tray::open()
 }
 
 /// The handle of a running QQ main window, when present.
 #[cfg(target_os = "windows")]
-fn qq_window() -> Option<windows::Win32::Foundation::HWND> {
+pub(crate) fn qq_window() -> Option<windows::Win32::Foundation::HWND> {
     use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
     use windows::core::w;
     unsafe { FindWindowW(None, w!("QQ")).ok() }
@@ -146,6 +102,10 @@ fn worker(app: tauri::AppHandle) {
                 previous.clear();
                 initialized = false;
                 std::thread::sleep(Duration::from_millis(500));
+                continue;
+            }
+            if OPENING.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(250));
                 continue;
             }
             // Scanning QQ's UIA tree while it is in the foreground steals its
