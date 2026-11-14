@@ -1,6 +1,6 @@
 [package]
 name = "dynamic-island"
-version = "0.1.14"
+version = "0.2.0"
 description = "A Windows dynamic island for timers, water, media, mail codes, AI quota and audio devices"
 authors = ["dkj"]
 license = "MIT"

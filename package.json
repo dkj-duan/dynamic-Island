@@ -1,7 +1,7 @@
 {
   "name": "dynamic-island",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.2.0",
   "description": "A Windows dynamic island for timers, water, media, mail codes, AI quota and audio devices.",
   "license": "MIT",
   "author": "dkj",
