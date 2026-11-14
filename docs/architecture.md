@@ -28,6 +28,7 @@
 - 高分辨率屏幕按逻辑宽度分级缩放 WebView（1.0–1.4），布局仍按 360×320 CSS 像素计算。
 - 托盘提供显示设置、输出设备子菜单、开机自启动与退出；设备列表变化时重建菜单。
 - 开机自启动使用 `tauri-plugin-autostart`，启动参数 `--autostart` 使应用只显示灵动岛、不弹设置窗口。
+- 拖拽松手后（位置事件静默 600 毫秒即视为松手），若胶囊顶端落在屏幕顶部 36 逻辑像素内，自动贴齐到标准顶端偏移并保存位置；任务栏模式下不生效，可在交互设置关闭（`set_island_snap_top`）。
 - Windows 使用 `tauri-plugin-single-instance`，避免两个进程写入不同数据库。
 
 ## 系统集成
@@ -55,16 +56,16 @@
 ### 快捷键、通知转发与任务栏模式
 
 - 全局快捷键在 Rust 侧注册（`apply_hotkeys`），三个动作（专注、喝水、展开/收起）各自可开关并支持双击；被占用的组合键以失败列表返回设置页，触发后经 `global-hotkey` 事件派发到灵动岛。
-- 应用通知转发与微信消息上岛只读本地内容（toast 首行文本、微信 4.x 会话列表未读数与摘要），经 `app-notification` 事件进入灵动岛的提示队列，不落盘、不上传；通知平台未就绪时有限重试。
-- 消息带来源标识，微信与普通通知分别展示在独立页面并各自在内存保留最新一条；内容隐藏设置同时遮住微信联系人和摘要，演示消息不覆盖真实消息。
-- 微信提醒在会话内维护待查看标识，胶囊为不影响提醒优先级的空闲、音乐和计时状态预留独立点击区域；用户查看对应提醒或成功切换微信后才清除，不能将其视为微信未读数。打开微信只切换已运行且可验证进程的窗口。
+- 应用通知转发与消息上岛只读本地内容（toast 首行文本、微信 4.x 与 QQ NT 会话列表未读数与摘要），经 `app-notification` 事件进入灵动岛的提示队列，不落盘、不上传；通知平台未就绪时有限重试。
+- 消息源以注册表组织（`wechat.rs` / `qq.rs` 各自实现扫描器，结构镜像）：按应用校验窗口进程名，发现会话列表容器后逐项解析联系人、预览与未读数。消息带来源标识，微信、QQ 与普通通知分别聚合在「消息」页与通知页并各自在内存保留最新一条；内容隐藏设置同时遮住联系人和摘要，演示消息不覆盖真实消息。
+- 消息提醒在会话内维护按来源的待查看标识，胶囊为不影响提醒优先级的空闲、音乐和计时状态预留统一的消息点击区域（显示最近到达来源的图标）；用户查看对应提醒或成功切换应用后才清除，不能将其视为应用的准确未读数。打开应用只切换已运行且可验证进程的窗口。QQ 最小化时 UIA 树不可读，会漏报。
 - 任务栏模式（`check_taskbar_mode` / `set_taskbar_mode`）把胶囊覆盖在主显示器底部任务栏左侧，面板向上展开；桌面/任务栏两种摆放决定面板的展开方向与命中区域计算。
 
 ### 存储与迁移
 
 - SQLite 位于可配置的数据目录，默认使用应用数据目录；位置索引写在应用配置目录的 `data-location.json`。
 - 数据库 `PRAGMA user_version` 当前为 5：`settings`（键值 JSON）、`mail_accounts`、`ai_accounts`、`daily_stats`（喝水、番茄、久坐）。
-- 设置结构带版本（外观当前为 v22），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
+- 设置结构带版本（外观当前为 v23），读取时校验版本与字段；未知或未来版本报错而不是覆盖。
 - 切换数据目录使用 SQLite 备份、完整性检查与原子更新索引；不覆盖目标目录已有文件，旧目录保留。
 - 数据库连接与迁移失败时不静默重建，避免覆盖用户数据。
 
@@ -97,7 +98,7 @@ Tauri 命令按模块注册，主要包括：
 
 - 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`set_fullscreen_avoid`、`apply_island_scale`、`start_island_drag`、`check_taskbar_mode`、`set_taskbar_mode`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
 - 自启动：`get_autostart`、`set_autostart`、`is_autostart_launch`。
-- 快捷键与通知：`hotkeys::apply_hotkeys`、`notifications::get_notification_access`、`notifications::set_notification_forwarding`、`notifications::open_notification_settings`、`wechat::set_wechat_notifications`、`wechat::open_wechat`。
+- 快捷键与通知：`hotkeys::apply_hotkeys`、`notifications::get_notification_access`、`notifications::set_notification_forwarding`、`notifications::open_notification_settings`、`wechat::set_wechat_notifications`、`wechat::open_wechat`、`qq::set_qq_notifications`、`qq::open_qq`、`set_island_snap_top`。
 - 媒体：`get_media_state`、`get_media_artwork`、`control_media`、`seek_media`；歌词 `lyrics::get_lyrics`。
 - 系统与音频：`system_status::get_system_status`、`system_status::get_device_status`、`get_audio_devices`、`set_audio_device`。
 - 邮件：`mail::list_mail_accounts`、`add_mail_account`、`remove_mail_account`、`poll_mail`、`get_mail_monitor_status`、`copy_mail_code`。

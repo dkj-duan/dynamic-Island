@@ -1,4 +1,5 @@
 import { t } from "../services/i18n";
+import type { AppearanceSettings } from "./settings";
 
 export type SystemStatus = {
   volume: number | null;
@@ -31,55 +32,52 @@ export type SystemNotice = {
   source?: NotificationSource;
 };
 
-export type NotificationSource = "wechat" | "system";
+export type NotificationSource = "wechat" | "qq" | "system";
 
-/** Hidden WeChat content is signalled only by its attention badge. */
+/** Hidden message content is signalled only by its attention badge. */
 export function shouldShowNotificationFlash(
   source: NotificationSource | undefined,
   showText: boolean,
 ): boolean {
-  return source !== "wechat" || showText;
+  return source === "system" || source === undefined || showText;
 }
 
-/** Keep message sources independent, including forwarded WeChat notifications. */
+/** Keep message sources independent, including forwarded chat notifications. */
 export function notificationDisplayPolicy(
   source: NotificationSource | undefined,
-  settings: {
-    noticeExpand: boolean;
-    noticeShowText: boolean;
-    noticeDisplaySeconds: number;
-    wechatNoticeExpand: boolean;
-    wechatShowText: boolean;
-    wechatDisplaySeconds: number;
-  },
+  appearance: AppearanceSettings,
 ) {
-  return source === "wechat"
-    ? {
-        expand: settings.wechatNoticeExpand,
-        showText: settings.wechatShowText,
-        seconds: settings.wechatDisplaySeconds,
-      }
-    : {
-        expand: settings.noticeExpand,
-        showText: settings.noticeShowText,
-        seconds: settings.noticeDisplaySeconds,
+  if (source && source !== "system") {
+    const perSource = appearance.notificationSources[source];
+    if (perSource) {
+      return {
+        expand: perSource.expand,
+        showText: perSource.showText,
+        seconds: perSource.seconds,
       };
+    }
+  }
+  return {
+    expand: appearance.noticeExpand,
+    showText: appearance.noticeShowText,
+    seconds: appearance.noticeDisplaySeconds,
+  };
 }
 
 /** An island reminder, not WeChat's authoritative unread state. */
-export type WechatAttention = { id: number; preview: boolean } | null;
+export type MessageAttention = { id: number; preview: boolean } | null;
 
-export function nextWechatAttention(
-  current: WechatAttention,
-  incoming: NonNullable<WechatAttention>,
-): WechatAttention {
+export function nextMessageAttention(
+  current: MessageAttention,
+  incoming: NonNullable<MessageAttention>,
+): MessageAttention {
   return incoming.preview && current && !current.preview ? current : incoming;
 }
 
-export function acknowledgeWechatAttention(
-  current: WechatAttention,
+export function acknowledgeMessageAttention(
+  current: MessageAttention,
   seenId: number | null,
-): WechatAttention {
+): MessageAttention {
   return current?.id === seenId ? null : current;
 }
 
@@ -92,19 +90,26 @@ export type AppNoticeItem = {
   source: NotificationSource;
 };
 
-/** A WeChat Windows toast and the local session watcher share one destination. */
+/** A chat app's Windows toast and its local session watcher share one destination. */
 export function notificationSource(
   app: string,
   source?: string,
 ): NotificationSource {
   const name = app.trim().toLowerCase();
-  return source === "wechat" || name === "微信" || name === "wechat"
-    ? "wechat"
-    : "system";
+  if (source === "wechat" || source === "qq") {
+    return source;
+  }
+  if (name === "微信" || name === "wechat") {
+    return "wechat";
+  }
+  if (name === "qq" || name === "tencent qq") {
+    return "qq";
+  }
+  return "system";
 }
 
 /** Avoid exposing either the contact or message when previews are hidden. */
-export function wechatMessageView(text: string, showText: boolean) {
+export function messageView(text: string, showText: boolean) {
   if (!showText) return { sender: "", text: null };
   const separator = text.indexOf("：");
   return separator > 0

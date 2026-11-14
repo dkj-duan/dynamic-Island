@@ -126,6 +126,9 @@ const en: Record<string, string> = {
   点击展开: "Click",
   悬停展开: "Hover",
   任务栏模式: "Taskbar mode",
+  吸附屏幕顶部: "Snap to screen top",
+  "拖动松手时靠近屏幕顶部会自动贴齐顶端；任务栏模式下不生效。":
+    "When a drag release lands near the screen top the capsule docks there; no effect in taskbar mode.",
   "将胶囊放在主屏幕底部任务栏左侧，面板向上展开；可拖动调整位置。":
     "Place the capsule on the left of the primary bottom taskbar, with the panel opening upwards. Drag to adjust its position.",
   "无法放置到任务栏，请检查任务栏位置和灵动岛大小。":
@@ -198,6 +201,18 @@ const en: Record<string, string> = {
   已达标: "Goal met",
   "已达标 · 继续保持": "Goal met · keep it up",
   今日饮水已达标: "Today's water goal is met.",
+  消息上岛: "Show messages on the island",
+  收到消息时: "When a message arrives",
+  消息演示: "Message demo",
+  "使用示例内容预览消息提醒。":
+    "Preview the message reminder with sample content.",
+  打开QQ: "Open QQ",
+  暂无新消息: "No new messages",
+  "在消息提醒设置中开启消息上岛。":
+    "Turn on message reminders in the message settings.",
+  "无法打开QQ，请确认QQ已运行并允许切换窗口。":
+    "Could not open QQ. Make sure QQ is running and allowed to switch windows.",
+  QQ消息提醒: "QQ message reminders",
   番茄组件显示: "Pomodoro widget",
   今日个数: "Today's count",
   专注分钟: "Focus minutes",

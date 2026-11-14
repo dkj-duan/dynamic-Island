@@ -48,7 +48,8 @@ import { SedentaryPage } from "./SedentaryPage";
 import { QuotaPage } from "./QuotaPage";
 import { MailPage } from "./MailPage";
 import { NoticePage } from "./NoticePage";
-import { WechatPage } from "./WechatPage";
+import { MessagesPage } from "./MessagesPage";
+import { QQIcon } from "./QQIcon";
 import { WechatIcon } from "./WechatIcon";
 import { MusicPage } from "./MusicPage";
 import { DevicePage } from "./DevicePage";
@@ -70,6 +71,12 @@ import { focusStreak } from "../../domain/dailyStats";
 import { setLanguage, t } from "../../services/i18n";
 import waterDrop from "../../assets/water-drop.webp";
 import sedentaryChair from "../../assets/island/away-chair.png";
+
+/** Display labels for the watched chat apps, keyed by notification source. */
+const MESSAGE_SOURCE_LABELS: Record<"wechat" | "qq", string> = {
+  wechat: "微信",
+  qq: "QQ",
+};
 
 export function IslandWindow() {
   const ai = useAiQuota();
@@ -112,17 +119,27 @@ export function IslandWindow() {
     system,
     devices,
     notifications,
-    wechatNotifications,
-    wechatAttention,
-    wechatArrival,
-    acknowledgeWechat,
+    messages,
+    messageAttention,
+    messageArrival,
+    acknowledgeMessages,
     clearNotifications,
-    clearWechatNotifications,
+    clearMessages,
   } = useSystemNotice({
     notificationSeconds: appearance.noticeDisplaySeconds,
-    wechatSeconds: appearance.wechatDisplaySeconds,
-    wechatShowText: appearance.wechatShowText,
+    sources: appearance.notificationSources,
   });
+  // The capsule's message mark aggregates every watched source: it shows the
+  // latest arrival's icon while any source still waits to be viewed.
+  const messageAttentionSources = (["wechat", "qq"] as const).filter(
+    (source) => messageAttention[source] !== null,
+  );
+  // The mark shows the icon of the source that arrived last.
+  const latestMessageSource = messageAttentionSources.length
+    ? messageAttentionSources.reduce((a, b) =>
+        messageArrival[b] >= messageArrival[a] ? b : a,
+      )
+    : undefined;
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
   useEffect(() => watchDisplayTier(setLargeDisplay), []);
@@ -349,11 +366,26 @@ export function IslandWindow() {
       enabled: appearance.forwardNotifications,
     }).catch(() => {});
   }, [appearance.forwardNotifications]);
+  // The Rust side snaps the capsule to the monitor top on drag release; the
+  // static reads this switch so the behaviour follows the settings live.
   useEffect(() => {
-    void invoke("set_wechat_notifications", {
-      enabled: appearance.wechatNotifications,
+    void invoke("set_island_snap_top", {
+      enabled: appearance.snapToTop,
     }).catch(() => {});
-  }, [appearance.wechatNotifications]);
+  }, [appearance.snapToTop]);
+  useEffect(() => {
+    // Every watched source owns its scan toggle; unknown sources silently
+    // no-op until their Rust command exists.
+    for (const source of ["wechat", "qq"] as const) {
+      const command =
+        source === "wechat"
+          ? "set_wechat_notifications"
+          : "set_qq_notifications";
+      void invoke(command, {
+        enabled: appearance.notificationSources[source].enabled,
+      }).catch(() => {});
+    }
+  }, [appearance.notificationSources]);
   // Hotkey actions must read the latest state, so the dispatch lives in a
   // per-render ref while the listener registers only once.
   const hotkeyDispatch = useRef<(action: string) => void>(() => {});
@@ -395,8 +427,10 @@ export function IslandWindow() {
   function selectPage(tab: IslandTab) {
     setActiveTab(tab);
     notePageSwitch();
-    if (tab === "wechat") {
-      acknowledgeWechat(wechatNotifications[0]?.id ?? null);
+    if (tab === "messages") {
+      for (const source of ["wechat", "qq"] as const) {
+        acknowledgeMessages(source, messageAttention[source]?.id ?? null);
+      }
     }
     if (tab === "mail") {
       setMailIndex(0);
@@ -481,13 +515,21 @@ export function IslandWindow() {
       setError(t("操作失败，请重试"));
     }
   }
-  async function openWechat() {
-    const viewedId = wechatNotifications[0]?.id ?? null;
+  async function openChatApp(source: "wechat" | "qq") {
+    const command = source === "wechat" ? "open_wechat" : "open_qq";
+    // Acknowledge against the attention id, not the message list: a preview
+    // (demo) arrival never enters the list, so a list id would never match
+    // and the mark would never clear.
+    const viewedId = messageAttention[source]?.id ?? null;
     try {
-      await invoke("open_wechat");
-      acknowledgeWechat(viewedId);
+      await invoke(command);
+      acknowledgeMessages(source, viewedId);
     } catch {
-      setError(t("无法打开微信，请确认微信已运行并允许切换窗口。"));
+      setError(
+        source === "wechat"
+          ? t("无法打开微信，请确认微信已运行并允许切换窗口。")
+          : t("无法打开QQ，请确认QQ已运行并允许切换窗口。"),
+      );
     }
   }
   // Reminder capsules carry their own destination, so opening the panel from
@@ -506,9 +548,12 @@ export function IslandWindow() {
     } else if (display === "sedentary" || display === "sedentaryLogged") {
       setActiveTab("sedentary");
     } else if (display === "notice" && displayNotice?.kind === "notification") {
-      setActiveTab(displayNotice.source === "wechat" ? "wechat" : "notice");
-      if (acknowledge && displayNotice.source === "wechat") {
-        acknowledgeWechat(wechatNotifications[0]?.id ?? null);
+      const source = displayNotice.source;
+      const target =
+        source === "wechat" || source === "qq" ? "messages" : "notice";
+      setActiveTab(target);
+      if (acknowledge && (source === "wechat" || source === "qq")) {
+        acknowledgeMessages(source, messages[source][0]?.id ?? null);
       }
     } else if (display === "finished") {
       setActiveTab("timer");
@@ -662,11 +707,13 @@ export function IslandWindow() {
   // Idle capsules shrink to their measured content; a numeric width lets the
   // panel animate smoothly into the expanded layout. Resolution scaling is
   // applied natively (webview zoom), so these widths stay in base CSS pixels.
-  const showWechatAttention =
+  const showMessageAttention =
     !expanded &&
-    !!wechatAttention &&
+    messageAttentionSources.length > 0 &&
     (display === "idle" || display === "media" || display === "timer");
-  const wechatIndicatorWidth = showWechatAttention ? 30 : 0;
+  const messageIndicatorWidth = showMessageAttention
+    ? 30 * messageAttentionSources.length
+    : 0;
   const roomyReminder =
     display === "water" ||
     display === "waterLogged" ||
@@ -684,10 +731,10 @@ export function IslandWindow() {
       : display === "idle"
         ? idleWidth === null
           ? "fit-content"
-          : Math.min(356, idleWidth + 2 + wechatIndicatorWidth)
+          : Math.min(356, idleWidth + 2 + messageIndicatorWidth)
         : largeDisplay
-          ? 240 + wechatIndicatorWidth
-          : 232 + wechatIndicatorWidth;
+          ? 240 + messageIndicatorWidth
+          : 232 + messageIndicatorWidth;
   // The banner lane adds 34px; the layout cap keeps the tallest panel inside
   // the 320px island viewport instead of clipping the pager.
   const deviceHasHint =
@@ -742,7 +789,7 @@ export function IslandWindow() {
       >
         <div
           ref={panel}
-          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${showWechatAttention ? "has-wechat-attention" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${display === "sedentary" ? "is-sedentary-reminder" : ""}`}
+          className={`island-panel ${display === "notice" ? "is-notice" : ""} ${panelHasBanner ? "has-banner" : ""} ${showMessageAttention ? "has-message-attention" : ""} ${display === "water" ? `is-water-reminder tone-${waterToneValue}` : ""} ${display === "sedentary" ? "is-sedentary-reminder" : ""}`}
           data-alert={alertKind ?? undefined}
           data-roomy-reminder={!expanded && roomyReminder ? "true" : undefined}
           data-notice-source={displayNotice?.source}
@@ -750,6 +797,8 @@ export function IslandWindow() {
           style={
             {
               width: panelWidth,
+              // Water and per-source message flashes drive the alert colour
+              // from data; everything else uses the stylesheet defaults.
               ...(alertKind === "water"
                 ? { "--alert-color": waterToneColor }
                 : {}),
@@ -797,7 +846,7 @@ export function IslandWindow() {
                 idleData={idleData}
                 changeShownAt={idleChangeShownAt}
                 mascotReaction={mascotReaction}
-                reservedWidth={wechatIndicatorWidth}
+                reservedWidth={messageIndicatorWidth}
                 changeWindowMs={appearance.idleChangeDisplayMinutes * 60_000}
                 now={now}
                 isPomodoroMode={isPomodoroMode}
@@ -831,50 +880,61 @@ export function IslandWindow() {
               />
             )}
           </button>
-          {showWechatAttention && (
-            <button
-              type="button"
-              className="island-wechat-attention"
-              aria-label={t(
-                wechatAttention?.preview
-                  ? "微信演示提醒，点击查看"
-                  : "有微信提醒，点击查看",
-              )}
-              title={t(
-                wechatAttention?.preview
-                  ? "微信演示提醒，点击查看"
-                  : "有微信提醒，点击查看",
-              )}
-              onMouseEnter={cancelHoverExpand}
-              onMouseLeave={(event) => {
-                if (
-                  event.relatedTarget instanceof Node &&
-                  event.currentTarget.parentElement?.contains(
-                    event.relatedTarget,
-                  )
-                ) {
-                  handlePanelEnter();
-                }
-              }}
-              onClick={() => {
-                const viewedId = wechatNotifications[0]?.id ?? null;
-                setActiveTab("wechat");
-                notePageSwitch();
-                void toggleExpanded().then((opened) => {
-                  if (opened) acknowledgeWechat(viewedId);
-                });
-              }}
-            >
-              <span
-                className="wechat-attention-mark"
-                key={wechatArrival}
-                aria-hidden="true"
-              >
-                <WechatIcon size={18} />
-                <span className="island-wechat-dot" />
-              </span>
-            </button>
-          )}
+          {showMessageAttention &&
+            messageAttentionSources.map((source, markIndex) => {
+              const attention = messageAttention[source];
+              if (!attention) return null;
+              const label = MESSAGE_SOURCE_LABELS[source];
+              return (
+                <button
+                  key={source}
+                  type="button"
+                  className={`island-wechat-attention ${source === "qq" ? "is-qq" : ""}`}
+                  // Marks flow leftwards from the capsule's right edge; the
+                  // base style pins the first one at right: 4px.
+                  style={{ right: `calc(4px + ${markIndex * 30}px)` }}
+                  aria-label={t(
+                    attention.preview
+                      ? `${label}演示提醒，点击查看`
+                      : `${label}有新提醒，点击查看`,
+                  )}
+                  title={t(
+                    attention.preview
+                      ? `${label}演示提醒，点击查看`
+                      : `${label}有新提醒，点击查看`,
+                  )}
+                  onMouseEnter={cancelHoverExpand}
+                  onMouseLeave={(event) => {
+                    if (
+                      event.relatedTarget instanceof Node &&
+                      event.currentTarget.parentElement?.contains(
+                        event.relatedTarget,
+                      )
+                    ) {
+                      handlePanelEnter();
+                    }
+                  }}
+                  onClick={() => {
+                    // One click: the app's window comes forward and the mark
+                    // clears. The island keeps its current state.
+                    void openChatApp(source);
+                  }}
+                >
+                  <span
+                    className="wechat-attention-mark"
+                    key={messageArrival[source]}
+                    aria-hidden="true"
+                  >
+                    {source === "qq" ? (
+                      <QQIcon size={18} />
+                    ) : (
+                      <WechatIcon size={18} />
+                    )}
+                    <span className="island-wechat-dot" />
+                  </span>
+                </button>
+              );
+            })}
           {!expanded && display === "water" && (
             <button
               className={`island-copy island-water-add ${waterToneValue === "low" ? "is-low" : ""}`}
@@ -941,10 +1001,13 @@ export function IslandWindow() {
               <button
                 key={displayNotice.eventId}
                 type="button"
-                className={`system-notice-banner is-actionable ${displayNotice.source === "wechat" ? "is-wechat" : ""}`}
+                className={`system-notice-banner is-actionable ${displayNotice.source === "wechat" ? "is-wechat" : displayNotice.source === "qq" ? "is-qq" : ""}`}
                 onClick={() =>
                   selectPage(
-                    displayNotice.source === "wechat" ? "wechat" : "notice",
+                    displayNotice.source === "wechat" ||
+                      displayNotice.source === "qq"
+                      ? "messages"
+                      : "notice",
                   )
                 }
                 aria-label={`${displayNotice.label} · ${displayNotice.value}`}
@@ -1045,15 +1108,19 @@ export function IslandWindow() {
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
                 )}
-                {activeTab === "wechat" && wechatNotifications.length > 0 && (
-                  <button
-                    aria-label={t("清空微信消息")}
-                    title={t("清空微信消息")}
-                    onClick={clearWechatNotifications}
-                  >
-                    <Trash2 size={15} aria-hidden="true" />
-                  </button>
-                )}
+                {activeTab === "messages" &&
+                  (messages.wechat.length > 0 || messages.qq.length > 0) && (
+                    <button
+                      aria-label={t("清空消息")}
+                      title={t("清空消息")}
+                      onClick={() => {
+                        clearMessages("wechat");
+                        clearMessages("qq");
+                      }}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  )}
                 {/* Without auto-collapse or hover mode this is the only way out
                   of the expanded panel, so it stays for that case. */}
                 {appearance.expandTrigger !== "hover" &&
@@ -1153,16 +1220,25 @@ export function IslandWindow() {
                 <MusicPage mediaState={mediaState} />
               ) : activeTab === "device" ? (
                 <DevicePage deviceState={deviceState} />
-              ) : activeTab === "wechat" ? (
-                <WechatPage
-                  notifications={wechatNotifications}
-                  enabled={
-                    appearance.wechatNotifications ||
-                    appearance.forwardNotifications
-                  }
-                  showText={appearance.wechatShowText}
+              ) : activeTab === "messages" ? (
+                <MessagesPage
+                  messages={messages}
+                  sources={{
+                    wechat: {
+                      enabled:
+                        appearance.notificationSources.wechat.enabled ||
+                        appearance.forwardNotifications,
+                      showText: appearance.notificationSources.wechat.showText,
+                    },
+                    qq: {
+                      enabled:
+                        appearance.notificationSources.qq.enabled ||
+                        appearance.forwardNotifications,
+                      showText: appearance.notificationSources.qq.showText,
+                    },
+                  }}
                   language={appearance.language}
-                  onOpenWechat={openWechat}
+                  onOpenApp={openChatApp}
                 />
               ) : activeTab === "notice" ? (
                 <NoticePage
@@ -1216,20 +1292,20 @@ export function IslandWindow() {
                     role="tab"
                     aria-selected={activeTab === page.id}
                     aria-label={
-                      page.id === "wechat" && wechatAttention
-                        ? t("有微信提醒，点击查看")
+                      page.id === "messages" && latestMessageSource
+                        ? `${MESSAGE_SOURCE_LABELS[latestMessageSource]}有新提醒，点击查看`
                         : t(page.label)
                     }
                     title={
-                      page.id === "wechat" && wechatAttention
-                        ? t("有微信提醒，点击查看")
+                      page.id === "messages" && latestMessageSource
+                        ? `${MESSAGE_SOURCE_LABELS[latestMessageSource]}有新提醒，点击查看`
                         : t(page.label)
                     }
                     className={`pager-tab is-${page.id} ${activeTab === page.id ? "active" : ""}`}
                     onClick={() => selectPage(page.id)}
                   >
                     <IslandPageIcon page={page.id} />
-                    {page.id === "wechat" && wechatAttention && (
+                    {page.id === "messages" && latestMessageSource && (
                       <span className="pager-wechat-dot" aria-hidden="true" />
                     )}
                   </button>

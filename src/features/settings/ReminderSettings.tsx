@@ -2,8 +2,8 @@ import { Button, Divider, Segmented, Switch } from "antd";
 import { CheckCircleFilled, SoundOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { emitTo } from "@tauri-apps/api/event";
 import type { AppearanceSettings, ReminderStyle } from "../../domain/settings";
+import { emitTo } from "@tauri-apps/api/event";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
 import { ReminderBeam } from "../island/ReminderBeam";
@@ -29,16 +29,13 @@ export function ReminderSettings({
     "allowed" | "denied" | "unspecified" | null
   >(null);
   const [previewStatus, setPreviewStatus] = useState("");
-  async function previewNotification(source: "wechat" | "system" = "system") {
+  async function previewNotification() {
     try {
       await emitTo("island", "system-notice-preview", {
         kind: "notification",
-        label: source === "wechat" ? t("微信") : t("通知演示"),
-        value:
-          source === "wechat"
-            ? t("示例联系人：这是一条微信消息演示。")
-            : t("这是一条用于预览的示例通知。"),
-        source,
+        label: t("通知演示"),
+        value: t("这是一条用于预览的示例通知。"),
+        source: "system",
       });
       setPreviewStatus(t("示例通知已发送到灵动岛。"));
     } catch {
@@ -55,7 +52,7 @@ export function ReminderSettings({
     refreshNotificationAccess();
   }, [refreshNotificationAccess]);
   return (
-    <div className="antd-stack settings-adaptive-grid reminder-layout">
+    <div className="antd-stack">
       <Section title={t("提醒动效")}>
         <div
           className="reminder-style-grid"
@@ -142,100 +139,6 @@ export function ReminderSettings({
               { value: 60, label: t("60 秒") },
             ]}
           />
-        </SettingRow>
-      </Section>
-
-      <Section
-        title={t("微信消息提醒")}
-        description={t(
-          "读取微信会话列表中的未读状态和摘要，仅在本地处理。微信需运行并保留会话列表；不同版本或界面状态可能漏报。",
-        )}
-      >
-        <SettingRow title={t("微信消息上岛")}>
-          <Switch
-            checked={appearance.wechatNotifications}
-            disabled={!canEdit}
-            onChange={(checked) =>
-              onAppearanceChange({
-                ...appearance,
-                wechatNotifications: checked,
-              })
-            }
-          />
-        </SettingRow>
-        <SettingRow title={t("收到微信消息时")}>
-          <Segmented
-            value={appearance.wechatNoticeExpand ? "expand" : "capsule"}
-            disabled={
-              !canEdit ||
-              !appearance.wechatShowText ||
-              !(
-                appearance.wechatNotifications ||
-                appearance.forwardNotifications
-              )
-            }
-            onChange={(value) =>
-              onAppearanceChange({
-                ...appearance,
-                wechatNoticeExpand: value === "expand",
-              })
-            }
-            options={[
-              { value: "capsule", label: t("显示在胶囊上") },
-              { value: "expand", label: t("展开灵动岛") },
-            ]}
-          />
-        </SettingRow>
-        <SettingRow title={t("显示消息内容")}>
-          <Switch
-            checked={appearance.wechatShowText}
-            disabled={
-              !canEdit ||
-              !(
-                appearance.wechatNotifications ||
-                appearance.forwardNotifications
-              )
-            }
-            onChange={(checked) =>
-              onAppearanceChange({ ...appearance, wechatShowText: checked })
-            }
-          />
-        </SettingRow>
-        <SettingRow title={t("消息显示时长")}>
-          <Segmented
-            value={appearance.wechatDisplaySeconds}
-            disabled={
-              !canEdit ||
-              !appearance.wechatShowText ||
-              !(
-                appearance.wechatNotifications ||
-                appearance.forwardNotifications
-              )
-            }
-            onChange={(value) =>
-              onAppearanceChange({
-                ...appearance,
-                wechatDisplaySeconds: value as number,
-              })
-            }
-            options={[
-              { value: 3, label: t("3 秒") },
-              { value: 5, label: t("5 秒") },
-              { value: 10, label: t("10 秒") },
-              { value: 15, label: t("15 秒") },
-            ]}
-          />
-        </SettingRow>
-        <SettingRow
-          title={t("微信消息演示")}
-          description={t("使用示例内容预览微信提醒。")}
-        >
-          <Button
-            disabled={!isTauri()}
-            onClick={() => void previewNotification("wechat")}
-          >
-            {t("演示")}
-          </Button>
         </SettingRow>
       </Section>
 

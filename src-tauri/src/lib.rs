@@ -15,6 +15,7 @@ mod netease_log;
 #[cfg(target_os = "windows")]
 mod netease_timeline;
 mod notifications;
+mod qq;
 mod storage;
 mod system_status;
 mod wechat;
@@ -844,6 +845,18 @@ fn is_visible_on_any_monitor(app: &tauri::AppHandle, x: i32, y: i32) -> bool {
 /// The window moves in a burst while dragging; only the last position is saved.
 static POSITION_SAVER_RUNNING: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
+/// Milliseconds of the last island `Moved` event: the quiet window after a
+/// burst doubles as the drag-end detector for the top-edge snap.
+static LAST_ISLAND_MOVE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Whether a drag release near the monitor top docks the capsule.
+static SNAP_TOP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 fn schedule_position_save(app: &tauri::AppHandle) {
     use std::sync::atomic::Ordering;
@@ -853,15 +866,52 @@ fn schedule_position_save(app: &tauri::AppHandle) {
     let handle = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(600));
-        POSITION_SAVER_RUNNING.store(false, Ordering::SeqCst);
-        let Some(window) = handle.get_webview_window("island") else {
-            return;
-        };
-        let Ok(position) = window.outer_position() else {
-            return;
-        };
-        let storage = handle.state::<storage::Storage>();
-        let _ = storage::save_island_position(storage.inner(), position.x, position.y);
+        // Stay attached while the drag continues: the loop re-checks every
+        // 400 ms so the release is never missed by a one-shot wake-up.
+        loop {
+            POSITION_SAVER_RUNNING.store(false, Ordering::SeqCst);
+            let Some(window) = handle.get_webview_window("island") else {
+                return;
+            };
+            let Ok(position) = window.outer_position() else {
+                return;
+            };
+            let storage = handle.state::<storage::Storage>();
+            // The quiet window doubles as the drag-end detector: while the OS
+            // drag loop is still moving the window its events keep arriving,
+            // and a programmatic snap would fight the cursor.
+            let still_dragging =
+                now_millis().saturating_sub(LAST_ISLAND_MOVE.load(Ordering::SeqCst)) < 400;
+            if !still_dragging
+                && SNAP_TOP.load(Ordering::SeqCst)
+                && !TASKBAR_MODE.load(Ordering::SeqCst)
+                && let Ok(Some(monitor)) = window.current_monitor()
+            {
+                let scale = monitor.scale_factor();
+                let monitor_y = monitor.position().y;
+                let top_gap = position.y - monitor_y;
+                // Docked flush means the capsule's top edge sits at the very
+                // top — the webview draws it 13 CSS px below the window top
+                // (`.island-panel` margin-top), so the window itself reaches
+                // 13 px above the screen.
+                let docked_y = monitor_y - (13.0 * scale).round() as i32;
+                let threshold = (36.0 * scale).round() as i32;
+                // Within 36 logical px of the monitor top: dock the capsule
+                // flush at the top, keeping the dragged x.
+                if top_gap >= 0 && top_gap <= threshold && position.y != docked_y {
+                    let _ = window.set_position(PhysicalPosition::new(position.x, docked_y));
+                    let _ = storage::save_island_position(storage.inner(), position.x, docked_y);
+                    return;
+                }
+            }
+            let _ = storage::save_island_position(storage.inner(), position.x, position.y);
+            if !still_dragging {
+                return;
+            }
+            // Still dragging: keep following until the release, holding the
+            // running flag so concurrent schedule calls stay collapsed.
+            std::thread::sleep(std::time::Duration::from_millis(400));
+        }
     });
 }
 
@@ -1041,6 +1091,12 @@ fn taskbar_bounds(window: &tauri::WebviewWindow) -> Result<(i32, i32, i32, i32),
         return Err("无法读取任务栏区域".into());
     }
     Ok((rect.left, rect.top, rect.right, rect.bottom))
+}
+
+/// Toggles the drag-release snap to the current monitor's top edge.
+#[tauri::command]
+fn set_island_snap_top(enabled: bool) {
+    SNAP_TOP.store(enabled, std::sync::atomic::Ordering::SeqCst);
 }
 
 #[tauri::command]
@@ -1601,6 +1657,8 @@ pub fn run() {
             notifications::set_notification_forwarding,
             wechat::set_wechat_notifications,
             wechat::open_wechat,
+            qq::set_qq_notifications,
+            qq::open_qq,
             notifications::open_notification_settings,
             is_autostart_launch,
             get_autostart,
@@ -1608,6 +1666,7 @@ pub fn run() {
             apply_island_scale,
             start_island_drag,
             check_taskbar_mode,
+            set_island_snap_top,
             set_taskbar_mode,
             reset_island_position,
             set_window_theme,
@@ -1851,6 +1910,7 @@ pub fn run() {
                 }
             }
             if window.label() == "island" && matches!(event, WindowEvent::Moved(_)) {
+                LAST_ISLAND_MOVE.store(now_millis(), std::sync::atomic::Ordering::SeqCst);
                 schedule_position_save(window.app_handle());
             }
         })

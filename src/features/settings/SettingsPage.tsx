@@ -30,6 +30,7 @@ import type { AppearanceSettings } from "../../domain/settings";
 import { AppearancePage } from "./AppearanceSettings";
 import { BehaviorSettings } from "./BehaviorSettings";
 import { ReminderSettings } from "./ReminderSettings";
+import { MessagesSettings } from "./MessagesSettings";
 import { AboutSettings } from "./AboutSettings";
 import { CountdownSettings } from "./CountdownSettings";
 import { StatusSettings } from "./StatusSettings";
@@ -58,6 +59,7 @@ type Page =
   | "sedentary"
   | "countdown"
   | "mail"
+  | "messages"
   | "ai"
   | "storage"
   | "about";
@@ -72,6 +74,7 @@ const pageMeta: Record<Page, { title: string }> = {
   sedentary: { title: "久坐提醒" },
   countdown: { title: "倒计时" },
   mail: { title: "邮箱提醒" },
+  messages: { title: "消息提醒" },
   ai: { title: "AI 额度" },
   storage: { title: "数据与存储" },
   about: { title: "关于" },
@@ -104,7 +107,7 @@ const navGroups: { label: string; ids: Page[]; icon: ReactNode }[] = [
     ids: ["pomodoro", "water", "sedentary", "countdown"],
     icon: <ThunderboltOutlined />,
   },
-  { label: "服务", ids: ["mail", "ai"], icon: <MailOutlined /> },
+  { label: "服务", ids: ["mail", "messages", "ai"], icon: <MailOutlined /> },
   {
     label: "系统",
     ids: ["status", "storage", "about"],
@@ -122,6 +125,7 @@ const navIcons: Record<Page, ReactNode> = {
   countdown: <HourglassOutlined />,
   status: <NotificationOutlined />,
   mail: <MailOutlined />,
+  messages: <BellOutlined />,
   ai: <RobotOutlined />,
   storage: <DatabaseOutlined />,
   about: <InfoCircleOutlined />,
@@ -279,7 +283,7 @@ export function SettingsPage({
             </Typography.Title>
             <div
               key={page}
-              className={`antd-page-body ${page === "behavior" || page === "reminder" ? "settings-responsive-container" : ""}`}
+              className={`antd-page-body ${page === "behavior" ? "settings-responsive-container" : ""}`}
             >
               {page === "appearance" && (
                 <AppearancePage
@@ -315,6 +319,13 @@ export function SettingsPage({
                 />
               )}
               {page === "mail" && <MailSettings />}
+              {page === "messages" && (
+                <MessagesSettings
+                  appearance={appearance}
+                  onAppearanceChange={onAppearanceChange}
+                  canEdit={canEdit}
+                />
+              )}
               {page === "ai" && <AiSettings />}
               {page === "about" && (
                 <AboutSettings onStorage={() => setPage("storage")} />

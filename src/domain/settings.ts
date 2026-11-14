@@ -61,6 +61,81 @@ export type HotkeySetting = { combo: string; double: boolean };
 export const hotkeyKeyPattern =
   /^(?:[A-Z0-9]|F(?:1[0-9]?|2[0-4]|[1-9])|Space)$/;
 
+/** Chat apps whose unread session lists the island can scan locally. */
+export const notificationSourceIds = ["wechat", "qq"] as const;
+export type NotificationSourceId = (typeof notificationSourceIds)[number];
+
+/** Per-app message reminder behaviour for one notification source. */
+export type NotificationSourceSettings = {
+  /** Scan the app's session list and surface new messages on the island. */
+  enabled: boolean;
+  /** Open the panel passively when a new message arrives. */
+  expand: boolean;
+  /** Show the message text, not just the app name. */
+  showText: boolean;
+  /** How long a message flash stays on the capsule, in seconds. */
+  seconds: number;
+};
+
+export const defaultNotificationSourceSettings: NotificationSourceSettings = {
+  enabled: false,
+  expand: false,
+  showText: true,
+  seconds: 3,
+};
+
+const NOTIFICATION_SOURCE_SECONDS = [3, 5, 10, 15];
+
+export function parseNotificationSourceSettings(
+  value: unknown,
+): NotificationSourceSettings {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("消息提醒设置无效");
+  }
+  const item = value as Record<string, unknown>;
+  if (
+    typeof item.enabled !== "boolean" ||
+    typeof item.expand !== "boolean" ||
+    typeof item.showText !== "boolean" ||
+    typeof item.seconds !== "number" ||
+    !NOTIFICATION_SOURCE_SECONDS.includes(item.seconds)
+  ) {
+    throw new Error("消息提醒设置无效");
+  }
+  return {
+    enabled: item.enabled,
+    expand: item.expand,
+    showText: item.showText,
+    seconds: item.seconds,
+  };
+}
+
+/** Parses the per-source map; unknown sources are rejected, not ignored. */
+export function parseNotificationSources(
+  value: unknown,
+): Record<NotificationSourceId, NotificationSourceSettings> {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("消息提醒设置无效");
+  }
+  const item = value as Record<string, unknown>;
+  const sources = {} as Record<
+    NotificationSourceId,
+    NotificationSourceSettings
+  >;
+  for (const id of notificationSourceIds) {
+    if (!(id in item)) {
+      throw new Error("消息提醒设置无效");
+    }
+    sources[id] = parseNotificationSourceSettings(item[id]);
+  }
+  for (const key of Object.keys(item)) {
+    if (!notificationSourceIds.includes(key as NotificationSourceId)) {
+      throw new Error("消息提醒设置无效");
+    }
+  }
+  return sources;
+}
+
 export interface AppearanceSettings {
   expandedShape: ExpandedShape;
   theme: "system" | "light" | "dark";
@@ -91,10 +166,8 @@ export interface AppearanceSettings {
   hotkeyIsland: HotkeySetting | null;
   /** Forward desktop toast notifications to the island capsule. */
   forwardNotifications: boolean;
-  wechatNotifications: boolean;
-  wechatNoticeExpand: boolean;
-  wechatShowText: boolean;
-  wechatDisplaySeconds: number;
+  /** Per-app message reminder settings, keyed by notification source. */
+  notificationSources: Record<NotificationSourceId, NotificationSourceSettings>;
   /** Open the panel passively when a forwarded notification arrives. */
   noticeExpand: boolean;
   /** Show the forwarded notification text, not just the app name. */
@@ -106,6 +179,8 @@ export interface AppearanceSettings {
   /** Step aside while a fullscreen app owns the screen. */
   fullscreenAvoid: boolean;
   taskbarMode: boolean;
+  /** Dock the capsule when a drag release lands near the monitor top. */
+  snapToTop: boolean;
 }
 export const defaultAppearance: AppearanceSettings = {
   expandedShape: "classic",
@@ -125,16 +200,17 @@ export const defaultAppearance: AppearanceSettings = {
   hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
   hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
   forwardNotifications: false,
-  wechatNotifications: false,
-  wechatNoticeExpand: false,
-  wechatShowText: true,
-  wechatDisplaySeconds: 3,
+  notificationSources: {
+    wechat: { ...defaultNotificationSourceSettings },
+    qq: { ...defaultNotificationSourceSettings },
+  },
   noticeExpand: false,
   noticeShowText: true,
   noticeDisplaySeconds: 3,
   reminderDisplaySeconds: 20,
   fullscreenAvoid: true,
   taskbarMode: false,
+  snapToTop: true,
 };
 
 function parseHotkey(value: unknown): HotkeySetting | null {
@@ -226,7 +302,9 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 19 &&
       item.version !== 20 &&
       item.version !== 21 &&
-      item.version !== 22) ||
+      item.version !== 22 &&
+      item.version !== 23 &&
+      item.version !== 24) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -347,25 +425,42 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     fullscreenAvoid = item.fullscreenAvoid;
   }
-  const wechatNotifications =
-    item.version >= 18 ? item.wechatNotifications : false;
-  if (typeof wechatNotifications !== "boolean")
-    throw new Error("微信提醒设置无效");
-  const wechatNoticeExpand =
-    item.version >= 22 ? item.wechatNoticeExpand : false;
-  const wechatShowText =
-    item.version >= 22 ? item.wechatShowText : noticeShowText;
-  const wechatDisplaySeconds =
-    item.version >= 22 ? item.wechatDisplaySeconds : noticeDisplaySeconds;
-  if (
-    typeof wechatNoticeExpand !== "boolean" ||
-    typeof wechatShowText !== "boolean" ||
-    typeof wechatDisplaySeconds !== "number" ||
-    ![3, 5, 10, 15].includes(wechatDisplaySeconds)
-  )
-    throw new Error("微信提醒设置无效");
+  // Version 23 folds the flat WeChat fields into per-source settings. Older
+  // payloads migrate: WeChat inherits what v22 stored, QQ starts from the
+  // defaults (disabled until the user turns it on).
+  let notificationSources: Record<
+    NotificationSourceId,
+    NotificationSourceSettings
+  >;
+  if (item.version >= 23) {
+    notificationSources = parseNotificationSources(item.notificationSources);
+  } else {
+    const wechatLegacy = {
+      enabled:
+        item.version >= 18 ? (item.wechatNotifications as unknown) : false,
+      expand: item.version >= 22 ? (item.wechatNoticeExpand as unknown) : false,
+      showText:
+        item.version >= 22
+          ? (item.wechatShowText as unknown)
+          : item.version >= 14
+            ? noticeShowText
+            : defaultAppearance.notificationSources.wechat.showText,
+      seconds:
+        item.version >= 22
+          ? (item.wechatDisplaySeconds as unknown)
+          : item.version >= 15
+            ? noticeDisplaySeconds
+            : defaultAppearance.notificationSources.wechat.seconds,
+    };
+    notificationSources = {
+      wechat: parseNotificationSourceSettings(wechatLegacy),
+      qq: { ...defaultNotificationSourceSettings },
+    };
+  }
   const taskbarMode = item.version >= 19 ? item.taskbarMode : false;
   if (typeof taskbarMode !== "boolean") throw new Error("任务栏模式设置无效");
+  const snapToTop = item.version >= 24 ? item.snapToTop : true;
+  if (typeof snapToTop !== "boolean") throw new Error("顶部吸附设置无效");
   const idleChangeDisplayMinutes =
     item.version >= 20
       ? item.idleChangeDisplayMinutes
@@ -399,15 +494,13 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     hotkeyWater,
     hotkeyIsland,
     forwardNotifications,
-    wechatNotifications,
-    wechatNoticeExpand,
-    wechatShowText,
-    wechatDisplaySeconds,
+    notificationSources,
     noticeExpand,
     noticeShowText,
     noticeDisplaySeconds,
     reminderDisplaySeconds,
     fullscreenAvoid,
     taskbarMode,
+    snapToTop,
   };
 }

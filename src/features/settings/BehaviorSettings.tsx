@@ -395,6 +395,20 @@ export function BehaviorSettings({
             </span>
           )}
         </SettingRow>
+        <SettingRow
+          title={t("吸附屏幕顶部")}
+          description={t(
+            "拖动松手时靠近屏幕顶部会自动贴齐顶端；任务栏模式下不生效。",
+          )}
+        >
+          <Switch
+            checked={appearance.snapToTop}
+            disabled={!canEdit}
+            onChange={(checked) =>
+              onAppearanceChange({ ...appearance, snapToTop: checked })
+            }
+          />
+        </SettingRow>
         <SettingRow title={t("灵动岛位置")}>
           <Button
             disabled={!isTauri() || positionReset}

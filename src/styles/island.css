@@ -249,7 +249,7 @@ html.island-window #root {
   text-overflow: ellipsis;
 }
 
-.island-panel.has-wechat-attention .island-toggle {
+.island-panel.has-message-attention .island-toggle {
   width: calc(100% - 30px);
 }
 
@@ -286,6 +286,22 @@ html.island-window #root {
 
 .island-wechat-attention:active {
   background: rgb(104 211 143 / 0.28);
+}
+
+/* QQ keeps its own brand blue so two marks never read as one app. */
+.island-wechat-attention.is-qq {
+  color: #12b7fc;
+}
+
+.island-wechat-attention.is-qq:hover {
+  background: rgb(18 183 252 / 0.16);
+  box-shadow: inset 0 0 0 1px rgb(18 183 252 / 0.3);
+}
+
+.island-wechat-attention.is-qq:focus-visible {
+  background: rgb(18 183 252 / 0.2);
+  box-shadow: inset 0 0 0 1px #12b7fc;
+  outline: none;
 }
 
 .wechat-attention-mark {
@@ -1376,6 +1392,72 @@ html.island-window #root {
   color: #f0b26b;
 }
 
+/* —— 消息页:每个来源一行的紧凑合并列表 —— */
+.island-message-list {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.island-message-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.05);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.island-message-row:hover {
+  background: rgb(255 255 255 / 0.09);
+}
+
+.island-message-row.is-wechat .island-notice-icon {
+  color: #8be3aa;
+  background: rgb(76 188 114 / 0.2);
+}
+
+.island-message-row.is-qq .island-notice-icon {
+  color: #12b7fc;
+  background: rgb(18 183 252 / 0.16);
+}
+
+.island-message-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.island-message-sender {
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e6e6ea;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.island-message-preview {
+  overflow: hidden;
+  font-size: 11px;
+  color: #9a9aa2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.island-message-time {
+  flex: none;
+  font-size: 10.5px;
+  color: rgb(255 255 255 / 0.45);
+}
+
 .island-notice-app {
   flex: 1;
   min-width: 0;
@@ -1486,6 +1568,13 @@ html.island-window #root {
 .system-notice-banner.is-wechat svg,
 .system-notice-banner.is-wechat strong {
   color: #83d9a2;
+}
+
+.system-notice[data-source="qq"] svg,
+.system-notice[data-source="qq"] strong,
+.system-notice-banner.is-qq svg,
+.system-notice-banner.is-qq strong {
+  color: #12b7fc;
 }
 
 /* —— Pager: ghost steppers in a fixed slot + wheel switching —— */
@@ -3351,6 +3440,11 @@ html.island-window #root {
 .island-panel[data-alert="notification"][data-notice-source="wechat"] {
   --alert-color: #70d893;
   border-color: rgb(112 216 147 / 0.48);
+}
+
+.island-panel[data-alert="notification"][data-notice-source="qq"] {
+  --alert-color: #12b7fc;
+  border-color: rgb(18 183 252 / 0.48);
 }
 
 .island-panel[data-alert="water"] {

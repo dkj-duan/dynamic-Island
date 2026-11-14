@@ -6,6 +6,7 @@ import {
   Droplet,
   Headphones,
   Mail,
+  MessagesSquare,
   Music2,
   PersonStanding,
   PlugZap,
@@ -13,7 +14,9 @@ import {
   Timer,
   Volume2,
 } from "lucide-react";
+import type { NotificationSource } from "../../domain/systemNotices";
 import type { IslandTab } from "./islandPages";
+import { QQIcon } from "./QQIcon";
 import { WechatIcon } from "./WechatIcon";
 
 export function NoticeIcon({
@@ -22,10 +25,13 @@ export function NoticeIcon({
 }: {
   kind:
     "volume" | "power" | "brightness" | "bluetooth" | "audio" | "notification";
-  source?: "wechat" | "system";
+  source?: NotificationSource;
 }) {
   if (kind === "notification" && source === "wechat") {
     return <WechatIcon size={15} />;
+  }
+  if (kind === "notification" && source === "qq") {
+    return <QQIcon size={15} />;
   }
   const Icon =
     kind === "volume"
@@ -67,7 +73,8 @@ export function IslandEmpty({
 
 /** Glyph for the bottom page switcher: one icon per island page. */
 export function IslandPageIcon({ page }: { page: IslandTab }) {
-  if (page === "wechat") return <WechatIcon size={15} />;
+  if (page === "messages")
+    return <MessagesSquare size={13} aria-hidden="true" />;
   const Icon =
     page === "timer"
       ? Timer

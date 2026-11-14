@@ -1,54 +1,67 @@
 import { describe, expect, it } from "vitest";
 import {
   deviceChanges,
-  acknowledgeWechatAttention,
-  nextWechatAttention,
+  acknowledgeMessageAttention,
+  nextMessageAttention,
   notificationSource,
   notificationDisplayPolicy,
   shouldShowNotificationFlash,
   systemChanges,
-  wechatMessageView,
+  messageView,
 } from "./systemNotices";
+import { parseAppearance } from "./settings";
 
-describe("WeChat notification routing and privacy", () => {
-  it("suppresses only WeChat flashes when message content is hidden", () => {
+const appearance = {
+  ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+  noticeExpand: true,
+  noticeShowText: false,
+  noticeDisplaySeconds: 20,
+  notificationSources: {
+    wechat: { enabled: true, expand: false, showText: true, seconds: 5 },
+    qq: { enabled: true, expand: true, showText: false, seconds: 15 },
+  },
+};
+
+describe("Chat notification routing and privacy", () => {
+  it("suppresses message flashes when content is hidden", () => {
     expect(shouldShowNotificationFlash("wechat", false)).toBe(false);
     expect(shouldShowNotificationFlash("wechat", true)).toBe(true);
+    expect(shouldShowNotificationFlash("qq", false)).toBe(false);
+    expect(shouldShowNotificationFlash("qq", true)).toBe(true);
     expect(shouldShowNotificationFlash("system", false)).toBe(true);
     expect(shouldShowNotificationFlash(undefined, false)).toBe(true);
   });
-  it("chooses independent policies for WeChat and ordinary notifications", () => {
-    const settings = {
-      noticeExpand: true,
-      noticeShowText: true,
-      noticeDisplaySeconds: 10,
-      wechatNoticeExpand: false,
-      wechatShowText: false,
-      wechatDisplaySeconds: 3,
-    };
-    expect(notificationDisplayPolicy("system", settings)).toEqual({
+  it("chooses independent policies per source with a system fallback", () => {
+    expect(notificationDisplayPolicy("system", appearance)).toEqual({
       expand: true,
-      showText: true,
-      seconds: 10,
-    });
-    expect(notificationDisplayPolicy("wechat", settings)).toEqual({
-      expand: false,
       showText: false,
-      seconds: 3,
+      seconds: 20,
     });
-    expect(notificationDisplayPolicy(undefined, settings)).toEqual({
-      expand: true,
+    expect(notificationDisplayPolicy("wechat", appearance)).toEqual({
+      expand: false,
       showText: true,
-      seconds: 10,
+      seconds: 5,
+    });
+    expect(notificationDisplayPolicy("qq", appearance)).toEqual({
+      expand: true,
+      showText: false,
+      seconds: 15,
+    });
+    expect(notificationDisplayPolicy(undefined, appearance)).toEqual({
+      expand: true,
+      showText: false,
+      seconds: 20,
     });
   });
   it("only acknowledges the reminder that was actually viewed", () => {
     const old = { id: 1, preview: false };
-    const newer = nextWechatAttention(old, { id: 2, preview: false });
-    expect(acknowledgeWechatAttention(newer, old.id)).toEqual(newer);
-    expect(acknowledgeWechatAttention(newer, 2)).toBeNull();
-    expect(nextWechatAttention(newer, { id: 3, preview: true })).toEqual(newer);
-    expect(nextWechatAttention(null, { id: 3, preview: true })).toEqual({
+    const newer = nextMessageAttention(old, { id: 2, preview: false });
+    expect(acknowledgeMessageAttention(newer, old.id)).toEqual(newer);
+    expect(acknowledgeMessageAttention(newer, 2)).toBeNull();
+    expect(nextMessageAttention(newer, { id: 3, preview: true })).toEqual(
+      newer,
+    );
+    expect(nextMessageAttention(null, { id: 3, preview: true })).toEqual({
       id: 3,
       preview: true,
     });
@@ -60,15 +73,15 @@ describe("WeChat notification routing and privacy", () => {
   });
 
   it("hides the sender and message when message content is disabled", () => {
-    expect(wechatMessageView("小明：你好", true)).toEqual({
+    expect(messageView("小明：你好", true)).toEqual({
       sender: "小明",
       text: "你好",
     });
-    expect(wechatMessageView("小明：你好", false)).toEqual({
+    expect(messageView("小明：你好", false)).toEqual({
       sender: "",
       text: null,
     });
-    expect(wechatMessageView("普通通知", true)).toEqual({
+    expect(messageView("普通通知", true)).toEqual({
       sender: "",
       text: "普通通知",
     });

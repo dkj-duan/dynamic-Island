@@ -7,15 +7,19 @@ import {
   systemChanges,
   notificationSource,
   shouldShowNotificationFlash,
-  nextWechatAttention,
-  acknowledgeWechatAttention,
+  nextMessageAttention,
+  acknowledgeMessageAttention,
   type AppNoticeItem,
   type BluetoothStatus,
   type SystemNotice,
   type SystemStatus,
   type NotificationSource,
-  type WechatAttention,
+  type MessageAttention,
 } from "../../domain/systemNotices";
+import type {
+  NotificationSourceId,
+  NotificationSourceSettings,
+} from "../../domain/settings";
 
 export type DeviceSnapshot = {
   brightness: number | null;
@@ -25,49 +29,64 @@ export type DeviceSnapshot = {
 /** The notification page shows the latest forwarded toast only, as detail. */
 const NOTIFICATION_HISTORY = 1;
 
+/** Sources with a local session watcher: their reminders carry an attention badge. */
+const MESSAGE_SOURCES = ["wechat", "qq"] as const;
+type MessageKey = (typeof MESSAGE_SOURCES)[number];
+
+type MessageMaps = Record<MessageKey, AppNoticeItem[]>;
+type AttentionMap = Record<MessageKey, MessageAttention>;
+type ArrivalMap = Record<MessageKey, number>;
+
+function emptyMessages(): MessageMaps {
+  return { wechat: [], qq: [] };
+}
+function emptyAttention(): AttentionMap {
+  return { wechat: null, qq: null };
+}
+function emptyArrival(): ArrivalMap {
+  return { wechat: 0, qq: 0 };
+}
+
 export function useSystemNotice({
   notificationSeconds,
-  wechatSeconds,
-  wechatShowText,
+  sources,
 }: {
   notificationSeconds: number;
-  wechatSeconds: number;
-  wechatShowText: boolean;
+  sources: Record<NotificationSourceId, NotificationSourceSettings>;
 }) {
   const [notice, setNotice] = useState<SystemNotice | null>(null);
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [devices, setDevices] = useState<DeviceSnapshot | null>(null);
   const [notifications, setNotifications] = useState<AppNoticeItem[]>([]);
-  const [wechatNotifications, setWechatNotifications] = useState<
-    AppNoticeItem[]
-  >([]);
+  const [messages, setMessages] = useState<MessageMaps>(emptyMessages);
   const [previewNotification, setPreviewNotification] =
     useState<AppNoticeItem | null>(null);
-  const [wechatAttention, setWechatAttention] = useState<WechatAttention>(null);
-  const [wechatArrival, setWechatArrival] = useState(0);
+  const [messageAttention, setMessageAttention] =
+    useState<AttentionMap>(emptyAttention);
+  const [messageArrival, setMessageArrival] =
+    useState<ArrivalMap>(emptyArrival);
   const notificationId = useRef(0);
-  // The listeners register once, but the duration follows the settings, so
-  // the flash timer reads it through a per-render ref.
+  // The listeners register once, but the durations and preview gates follow
+  // the settings, so the flash timer reads them through a per-render ref.
   const secondsRef = useRef(notificationSeconds);
-  const wechatSecondsRef = useRef(wechatSeconds);
-  const wechatShowTextRef = useRef(wechatShowText);
+  const sourceSettingsRef = useRef(sources);
   useLayoutEffect(() => {
-    wechatShowTextRef.current = wechatShowText;
-  }, [wechatShowText]);
+    sourceSettingsRef.current = sources;
+  }, [sources]);
   useEffect(() => {
     secondsRef.current = notificationSeconds;
   }, [notificationSeconds]);
-  useEffect(() => {
-    wechatSecondsRef.current = wechatSeconds;
-  }, [wechatSeconds]);
-  function flashDuration(notice: SystemNotice) {
+  function flashSeconds(notice: SystemNotice): number {
+    if (
+      notice.kind === "notification" &&
+      notice.source &&
+      notice.source !== "system"
+    ) {
+      const perSource = sourceSettingsRef.current[notice.source];
+      if (perSource) return Math.max(1, perSource.seconds) * 1000;
+    }
     return notice.kind === "notification"
-      ? Math.max(
-          1,
-          notice.source === "wechat"
-            ? wechatSecondsRef.current
-            : secondsRef.current,
-        ) * 1000
+      ? Math.max(1, secondsRef.current) * 1000
       : 3000;
   }
   useEffect(() => {
@@ -84,7 +103,7 @@ export function useSystemNotice({
       current = pending.shift() ?? null;
       setNotice(current);
       if (current)
-        dismissal = window.setTimeout(advance, flashDuration(current));
+        dismissal = window.setTimeout(advance, flashSeconds(current));
     }
     function show(next: SystemNotice) {
       if (
@@ -98,7 +117,7 @@ export function useSystemNotice({
         window.clearTimeout(dismissal);
         current = next;
         setNotice(next);
-        dismissal = window.setTimeout(advance, flashDuration(next));
+        dismissal = window.setTimeout(advance, flashSeconds(next));
       } else {
         if (
           next.kind === "volume" ||
@@ -116,6 +135,9 @@ export function useSystemNotice({
         if (pending.length < 8) pending.push(next);
       }
     }
+    function isMessageSource(source: NotificationSource): source is MessageKey {
+      return (MESSAGE_SOURCES as readonly string[]).includes(source);
+    }
     function showNotification(
       app: string,
       text: string,
@@ -124,7 +146,10 @@ export function useSystemNotice({
     ) {
       notificationId.current += 1;
       const id = notificationId.current;
-      if (shouldShowNotificationFlash(source, wechatShowTextRef.current)) {
+      const settings = isMessageSource(source)
+        ? sourceSettingsRef.current[source]
+        : undefined;
+      if (shouldShowNotificationFlash(source, settings?.showText ?? true)) {
         show({
           kind: "notification",
           label: app,
@@ -134,23 +159,38 @@ export function useSystemNotice({
         });
       }
       const item = { id, app, text, at: Date.now(), source };
-      if (source === "wechat") {
-        setWechatArrival(id);
-        setWechatAttention((current) =>
-          nextWechatAttention(current, { id, preview }),
-        );
+      if (isMessageSource(source)) {
+        setMessageArrival((current) => ({ ...current, [source]: id }));
+        setMessageAttention((current) => ({
+          ...current,
+          [source]: nextMessageAttention(current[source], { id, preview }),
+        }));
       }
       if (preview) {
         setPreviewNotification(item);
       } else {
         setPreviewNotification(null);
-        if (source !== "wechat") {
-          setWechatAttention((current) => (current?.preview ? null : current));
+        if (isMessageSource(source)) {
+          setMessages((current) => ({
+            ...current,
+            [source]: [item, ...current[source]].slice(0, NOTIFICATION_HISTORY),
+          }));
+        } else {
+          // A real system notification clears attention that only a preview
+          // had raised; watched arrivals keep theirs until acknowledged.
+          setMessageAttention((current) => {
+            const next = { ...current };
+            for (const key of MESSAGE_SOURCES) {
+              if (next[key]?.preview) {
+                next[key] = acknowledgeMessageAttention(next[key], null);
+              }
+            }
+            return next;
+          });
+          setNotifications((list) =>
+            [item, ...list].slice(0, NOTIFICATION_HISTORY),
+          );
         }
-        const update = (list: AppNoticeItem[]) =>
-          [item, ...list].slice(0, NOTIFICATION_HISTORY);
-        if (source === "wechat") setWechatNotifications(update);
-        else setNotifications(update);
       }
     }
     // The Rust side samples in the background and pushes changes as events;
@@ -273,17 +313,21 @@ export function useSystemNotice({
       current?.source === "system" ? null : current,
     );
   }
-  function clearWechatNotifications() {
-    setWechatNotifications([]);
+  function clearMessages(source: MessageKey) {
+    setMessages((current) => ({ ...current, [source]: [] }));
     setPreviewNotification((current) =>
-      current?.source === "wechat" ? null : current,
+      current?.source === source ? null : current,
     );
-    setWechatAttention((current) =>
-      acknowledgeWechatAttention(current, wechatAttention?.id ?? null),
-    );
+    setMessageAttention((current) => ({
+      ...current,
+      [source]: acknowledgeMessageAttention(current[source], null),
+    }));
   }
-  function acknowledgeWechat(id: number | null) {
-    setWechatAttention((current) => acknowledgeWechatAttention(current, id));
+  function acknowledgeMessages(source: MessageKey, id: number | null) {
+    setMessageAttention((current) => ({
+      ...current,
+      [source]: acknowledgeMessageAttention(current[source], id),
+    }));
   }
   const visibleNotifications =
     notice?.kind === "notification" &&
@@ -292,26 +336,35 @@ export function useSystemNotice({
     previewNotification.source === "system"
       ? [previewNotification]
       : notifications;
-  const visibleWechatNotifications =
-    previewNotification !== null &&
-    previewNotification.source === "wechat" &&
-    ((notice?.kind === "notification" &&
-      previewNotification.id === notice.eventId) ||
-      wechatAttention?.id === previewNotification.id ||
-      wechatAttention === null ||
-      wechatNotifications.length === 0)
-      ? [previewNotification]
-      : wechatNotifications;
+  // A source's preview replaces its history list while the flash or the
+  // attention badge still points at it, mirroring the system list above.
+  function visibleMessagesFor(source: MessageKey): AppNoticeItem[] {
+    const preview =
+      previewNotification !== null &&
+      previewNotification.source === source &&
+      ((notice?.kind === "notification" &&
+        previewNotification.id === notice.eventId) ||
+        messageAttention[source]?.id === previewNotification.id ||
+        messageAttention[source] === null ||
+        messages[source].length === 0)
+        ? [previewNotification]
+        : null;
+    return preview ?? messages[source];
+  }
+  const visibleMessages: MessageMaps = {
+    wechat: visibleMessagesFor("wechat"),
+    qq: visibleMessagesFor("qq"),
+  };
   return {
     notice,
     system,
     devices,
     notifications: visibleNotifications,
-    wechatNotifications: visibleWechatNotifications,
-    wechatAttention,
-    wechatArrival,
-    acknowledgeWechat,
+    messages: visibleMessages,
+    messageAttention,
+    messageArrival,
+    acknowledgeMessages,
     clearNotifications,
-    clearWechatNotifications,
+    clearMessages,
   };
 }

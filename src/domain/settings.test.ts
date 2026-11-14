@@ -23,16 +23,17 @@ describe("parseAppearance", () => {
       hotkeyWater: { combo: "Ctrl+Alt+W", double: false },
       hotkeyIsland: { combo: "Ctrl+Alt+E", double: false },
       forwardNotifications: false,
-      wechatNotifications: false,
-      wechatNoticeExpand: false,
-      wechatShowText: true,
-      wechatDisplaySeconds: 3,
+      notificationSources: {
+        wechat: { enabled: false, expand: false, showText: true, seconds: 3 },
+        qq: { enabled: false, expand: false, showText: true, seconds: 3 },
+      },
       noticeExpand: false,
       noticeShowText: true,
       noticeDisplaySeconds: 3,
       reminderDisplaySeconds: 20,
       fullscreenAvoid: true,
       taskbarMode: false,
+      snapToTop: true,
     });
   });
   it("defaults old settings to disabled and validates the WeChat switch", () => {
@@ -40,10 +41,10 @@ describe("parseAppearance", () => {
       ...parseAppearance({ version: 1, scale: 1, showClock: true }),
       version: 17,
     };
-    expect(parseAppearance(old).wechatNotifications).toBe(false);
+    expect(parseAppearance(old).notificationSources.wechat.enabled).toBe(false);
     expect(
       parseAppearance({ ...old, version: 18, wechatNotifications: true })
-        .wechatNotifications,
+        .notificationSources.wechat.enabled,
     ).toBe(true);
     expect(() =>
       parseAppearance({ ...old, version: 18, wechatNotifications: "yes" }),
@@ -56,15 +57,17 @@ describe("parseAppearance", () => {
     const old = {
       ...parseAppearance({ version: 1, scale: 1, showClock: true }),
       version: 21,
+      wechatNotifications: false,
       noticeExpand: true,
       noticeShowText: false,
       noticeDisplaySeconds: 10,
     };
     expect(parseAppearance(old)).toMatchObject({
       noticeExpand: true,
-      wechatNoticeExpand: false,
-      wechatShowText: false,
-      wechatDisplaySeconds: 10,
+      notificationSources: {
+        wechat: { enabled: false, expand: false, showText: false, seconds: 10 },
+        qq: { enabled: false, expand: false, showText: true, seconds: 3 },
+      },
     });
     const next = {
       ...old,
@@ -75,9 +78,9 @@ describe("parseAppearance", () => {
     };
     expect(parseAppearance(next)).toMatchObject({
       noticeExpand: true,
-      wechatNoticeExpand: true,
-      wechatShowText: true,
-      wechatDisplaySeconds: 5,
+      notificationSources: {
+        wechat: { enabled: false, expand: true, showText: true, seconds: 5 },
+      },
     });
     for (const invalid of [
       { wechatNoticeExpand: undefined },
@@ -87,10 +90,73 @@ describe("parseAppearance", () => {
       expect(() => parseAppearance({ ...next, ...invalid })).toThrow();
     }
   });
+  it("folds WeChat settings into per-source entries and validates QQ in version 23", () => {
+    const v22 = {
+      ...parseAppearance({ version: 1, scale: 1, showClock: true }),
+      version: 22,
+      wechatNotifications: true,
+      wechatNoticeExpand: true,
+      wechatShowText: true,
+      wechatDisplaySeconds: 10,
+    };
+    const migrated = parseAppearance(v22);
+    expect(migrated.notificationSources.wechat).toEqual({
+      enabled: true,
+      expand: true,
+      showText: true,
+      seconds: 10,
+    });
+    expect(migrated.notificationSources.qq).toEqual({
+      enabled: false,
+      expand: false,
+      showText: true,
+      seconds: 3,
+    });
+    const sources = {
+      wechat: { enabled: true, expand: false, showText: false, seconds: 5 },
+      qq: { enabled: true, expand: false, showText: false, seconds: 3 },
+    };
+    const v23 = { ...v22, version: 23, notificationSources: sources };
+    expect(parseAppearance(v23).notificationSources).toEqual(sources);
+    for (const bad of [
+      { notificationSources: undefined },
+      {
+        notificationSources: {
+          wechat: sources.wechat,
+        },
+      },
+      {
+        notificationSources: {
+          ...sources,
+          dingtalk: {
+            enabled: false,
+            expand: false,
+            showText: false,
+            seconds: 3,
+          },
+        },
+      },
+      {
+        notificationSources: {
+          ...sources,
+          qq: { ...sources.qq, seconds: 4 },
+        },
+      },
+      {
+        notificationSources: {
+          ...sources,
+          qq: { ...sources.qq, showText: "yes" },
+        },
+      },
+    ]) {
+      expect(() => parseAppearance({ ...v22, version: 23, ...bad })).toThrow();
+    }
+  });
   it("migrates taskbar mode and rejects invalid values", () => {
     const old = {
       ...parseAppearance({ version: 1, scale: 1, showClock: true }),
       version: 18,
+      wechatNotifications: false,
     };
     expect(parseAppearance(old).taskbarMode).toBe(false);
     expect(
@@ -104,6 +170,7 @@ describe("parseAppearance", () => {
     const old = {
       ...parseAppearance({ version: 1, scale: 1, showClock: true }),
       version: 19,
+      wechatNotifications: false,
     };
     expect(parseAppearance(old).idleChangeDisplayMinutes).toBe(3);
     expect(
@@ -120,6 +187,7 @@ describe("parseAppearance", () => {
     const old = {
       ...parseAppearance({ version: 1, scale: 1, showClock: true }),
       version: 20,
+      wechatNotifications: false,
     };
     expect(parseAppearance(old).autoCollapseSeconds).toBe(3);
     for (const seconds of [0, 0.1, 0.5, 1, 2.3, 60]) {

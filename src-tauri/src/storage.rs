@@ -253,14 +253,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_f64())
         .filter(|v| {
-            if matches!(version, Some(21 | 22)) {
+            if matches!(version, Some(21..=24)) {
                 (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
             } else {
                 [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
             }
         });
     let idle_widgets_valid = match version {
-        Some(8..=22) => value
+        Some(8..=24) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -287,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=22))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=24))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -317,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=22) => value
+        Some(7..=24) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=22) => matches!(
+        Some(8..=24) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=22) => {
+        Some(10..=24) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -351,13 +351,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=22))
+    let shape_valid = !matches!(version, Some(12..=24))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
     let hotkeys_valid = match version {
-        Some(13..=22) => {
+        Some(13..=24) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -369,7 +369,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=22) => {
+        Some(14..=24) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -404,7 +404,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    if (version >= Some(22)
+    if (version == Some(22)
         && (value
             .get("wechatNoticeExpand")
             .and_then(|v| v.as_bool())
@@ -418,11 +418,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                 Some(3 | 5 | 10 | 15)
             )))
         || (version >= Some(19) && value.get("taskbarMode").and_then(|v| v.as_bool()).is_none())
-        || (version >= Some(18)
+        || (matches!(version, Some(18..=22))
             && value
                 .get("wechatNotifications")
                 .and_then(|v| v.as_bool())
                 .is_none())
+        || (version >= Some(23) && !notification_sources_valid(value))
+        || (version >= Some(24) && value.get("snapToTop").and_then(|v| v.as_bool()).is_none())
         || !shape_valid
         || !hotkeys_valid
         || !notice_valid
@@ -446,6 +448,31 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         return Err("设置格式无效，未保存".into());
     }
     Ok(())
+}
+
+/// Version 23 folds per-source message reminders into one map keyed by the
+/// known chat apps; unknown sources are rejected so a future version never
+/// validates by accident.
+fn notification_sources_valid(value: &serde_json::Value) -> bool {
+    let Some(sources) = value.get("notificationSources").and_then(|v| v.as_object()) else {
+        return false;
+    };
+    for key in ["wechat", "qq"] {
+        let Some(entry) = sources.get(key).and_then(|v| v.as_object()) else {
+            return false;
+        };
+        if entry.get("enabled").and_then(|v| v.as_bool()).is_none()
+            || entry.get("expand").and_then(|v| v.as_bool()).is_none()
+            || entry.get("showText").and_then(|v| v.as_bool()).is_none()
+            || !matches!(
+                entry.get("seconds").and_then(|v| v.as_u64()),
+                Some(3 | 5 | 10 | 15)
+            )
+        {
+            return false;
+        }
+    }
+    sources.len() == 2
 }
 
 /// `null` disables a hotkey; otherwise modifiers plus exactly one key, or a
@@ -2208,5 +2235,51 @@ mod tests {
                 v22
             );
         }
+        // Version 23 folds the flat WeChat fields into per-source entries and
+        // adds the QQ source; unknown sources are rejected.
+        let mut v23 = v22.clone();
+        v23["version"] = serde_json::json!(23);
+        v23["notificationSources"] = serde_json::json!({
+            "wechat": { "enabled": true, "expand": true, "showText": true, "seconds": 10 },
+            "qq": { "enabled": false, "expand": false, "showText": true, "seconds": 3 },
+        });
+        assert!(save_appearance_value(&conn, &v23).is_ok());
+        let mut unknown = v23.clone();
+        unknown["notificationSources"]["dingtalk"] = serde_json::json!({ "enabled": false, "expand": false, "showText": true, "seconds": 3 });
+        assert!(save_appearance_value(&conn, &unknown).is_err());
+        let mut missing_qq = v23.clone();
+        missing_qq["notificationSources"] = serde_json::json!({ "wechat": { "enabled": true, "expand": true, "showText": true, "seconds": 10 } });
+        assert!(save_appearance_value(&conn, &missing_qq).is_err());
+        for (field, invalid) in [
+            ("enabled", serde_json::json!("yes")),
+            ("expand", serde_json::json!(null)),
+            ("showText", serde_json::json!(1)),
+            ("seconds", serde_json::json!(4)),
+        ] {
+            let mut bad = v23.clone();
+            bad["notificationSources"]["qq"][field] = invalid;
+            assert!(save_appearance_value(&conn, &bad).is_err());
+            let saved: String = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='appearance'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&saved).unwrap(),
+                v23
+            );
+        }
+        // Version 24 adds the drag-release snap-to-top switch.
+        let mut v24 = v23.clone();
+        v24["version"] = serde_json::json!(24);
+        assert!(save_appearance_value(&conn, &v24).is_err());
+        v24["snapToTop"] = serde_json::json!(true);
+        assert!(save_appearance_value(&conn, &v24).is_ok());
+        v24["snapToTop"] = serde_json::json!(false);
+        assert!(save_appearance_value(&conn, &v24).is_ok());
+        v24["snapToTop"] = serde_json::json!("yes");
+        assert!(save_appearance_value(&conn, &v24).is_err());
     }
 }
