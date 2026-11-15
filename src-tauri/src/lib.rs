@@ -544,8 +544,51 @@ fn raise_island(window: &tauri::WebviewWindow) -> Result<(), String> {
     if raised == 0 {
         return Err(std::io::Error::last_os_error().to_string());
     }
+    keep_island_borderless(window);
     Ok(())
 }
+
+/// tao rebuilds the window styles from its flag set on every runtime change
+/// (pass-through, always-on-top, focus, …) and that default set contains
+/// `WS_CAPTION | WS_SYSMENU | WS_EX_WINDOWEDGE`. On an undecorated island the
+/// caption comes back with it, so Windows paints minimize/maximize/close over
+/// the capsule while the window is active or being dragged. Strip the frame
+/// bits again and refresh the non-client area; only the webview remains.
+#[cfg(target_os = "windows")]
+fn keep_island_borderless(window: &tauri::WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, GWL_STYLE, GetWindowLongW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOSIZE, SWP_NOZORDER, SetWindowLongW, SetWindowPos, WS_CAPTION, WS_EX_WINDOWEDGE,
+        WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let style = unsafe { GetWindowLongW(hwnd.0, GWL_STYLE) } as u32;
+    let ex_style = unsafe { GetWindowLongW(hwnd.0, GWL_EXSTYLE) } as u32;
+    let frame = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME;
+    let next = style & !frame;
+    let next_ex = ex_style & !WS_EX_WINDOWEDGE;
+    if next == style && next_ex == ex_style {
+        return;
+    }
+    unsafe {
+        SetWindowLongW(hwnd.0, GWL_STYLE, next as i32);
+        SetWindowLongW(hwnd.0, GWL_EXSTYLE, next_ex as i32);
+        SetWindowPos(
+            hwnd.0,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn keep_island_borderless(_window: &tauri::WebviewWindow) {}
 
 fn autostart_enabled<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
     use tauri_plugin_autostart::ManagerExt;
@@ -1200,6 +1243,10 @@ fn start_island_drag(window: tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "island" {
         return Err("当前窗口不支持拖动".into());
     }
+    // Dragging runs the system move loop, which paints the native caption if
+    // an earlier flag change restored it — the buttons would show up over the
+    // capsule for the duration of the drag.
+    keep_island_borderless(&window);
     window.start_dragging().map_err(|e| e.to_string())
 }
 
@@ -1332,6 +1379,7 @@ fn spawn_passive_hover_watch(window: tauri::WebviewWindow) {
             // Roughly 400ms of deliberate hovering; sweeps never reach this.
             if dwell >= 4 {
                 let _ = window.set_ignore_cursor_events(false);
+                keep_island_borderless(&window);
                 return;
             }
         }
@@ -1540,6 +1588,8 @@ fn set_island_expanded(
     window
         .set_ignore_cursor_events(passive && expanded)
         .map_err(|e| e.to_string())?;
+    // Pass-through rebuilds the native styles, caption included.
+    keep_island_borderless(&window);
     #[cfg(target_os = "windows")]
     if passive && expanded {
         // The pass-through style includes WS_EX_LAYERED, and a layered window

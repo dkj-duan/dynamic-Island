@@ -100,7 +100,7 @@ export function AppearancePage({
   }
 
   return (
-    <div className="antd-stack">
+    <div className="antd-stack appearance-page">
       <Section
         title={t("桌面预览")}
         extra={
@@ -131,9 +131,6 @@ export function AppearancePage({
 
       <Section
         title={t("空闲组件")}
-        description={t(
-          "组件在桌面预览中拖动排序，前 6 个显示在灵动岛，其余排队备用；变化组件在数值变化后插队出现，数分钟后自动让位。",
-        )}
         extra={
           <span className="section-inline-note">
             {appearance.idleWidgets.length} / {idleWidgetOptions.length}
@@ -143,57 +140,62 @@ export function AppearancePage({
         {/* Widgets grouped by how they earn their slot: click a chip to put
             it on the island, click again to take it off. Order is adjusted
             by dragging inside the desktop preview above. */}
-        {idleWidgetGroups.map((group) => (
-          <div key={group.key} className="antd-widget-group">
-            <div className="antd-widget-group-label">
-              {t(group.label)}
-              <span className="section-inline-note"> {t(group.hint)}</span>
+        <div className="appearance-widget-groups">
+          {idleWidgetGroups.map((group) => (
+            <div key={group.key} className="antd-widget-group">
+              <div className="antd-widget-group-label">
+                {t(group.label)}
+                <span className="section-inline-note"> {t(group.hint)}</span>
+              </div>
+              <div className="antd-widget-chips is-unified">
+                {idleWidgetOptions
+                  .filter(
+                    (option) => IDLE_WIDGET_MODES[option.id] === group.key,
+                  )
+                  .map((option) => {
+                    const on = appearance.idleWidgets.includes(option.id);
+                    return (
+                      <div
+                        role="button"
+                        tabIndex={canEdit ? 0 : -1}
+                        key={option.id}
+                        className={`antd-widget-chip is-widget-toggle ${
+                          on ? "is-on" : "is-off"
+                        }`}
+                        aria-pressed={on}
+                        title={
+                          on
+                            ? `${t("移除")} ${t(option.label)}`
+                            : `${t("添加")} ${t(option.label)}`
+                        }
+                        onClick={() => {
+                          if (!canEdit) return;
+                          toggleIdleWidget(option.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ")
+                            return;
+                          event.preventDefault();
+                          if (!canEdit) return;
+                          toggleIdleWidget(option.id);
+                        }}
+                      >
+                        <span className="antd-widget-icon" aria-hidden="true">
+                          {option.icon}
+                        </span>
+                        <span className="antd-widget-label">
+                          {t(option.label)}
+                        </span>
+                        {on ? null : <PlusOutlined className="antd-chip-add" />}
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
-            <div className="antd-widget-chips is-unified">
-              {idleWidgetOptions
-                .filter((option) => IDLE_WIDGET_MODES[option.id] === group.key)
-                .map((option) => {
-                  const on = appearance.idleWidgets.includes(option.id);
-                  return (
-                    <div
-                      role="button"
-                      tabIndex={canEdit ? 0 : -1}
-                      key={option.id}
-                      className={`antd-widget-chip is-widget-toggle ${
-                        on ? "is-on" : "is-off"
-                      }`}
-                      aria-pressed={on}
-                      title={
-                        on
-                          ? `${t("移除")} ${t(option.label)}`
-                          : `${t("添加")} ${t(option.label)}`
-                      }
-                      onClick={() => {
-                        if (!canEdit) return;
-                        toggleIdleWidget(option.id);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter" && event.key !== " ") return;
-                        event.preventDefault();
-                        if (!canEdit) return;
-                        toggleIdleWidget(option.id);
-                      }}
-                    >
-                      <span className="antd-widget-icon" aria-hidden="true">
-                        {option.icon}
-                      </span>
-                      <span className="antd-widget-label">
-                        {t(option.label)}
-                      </span>
-                      {on ? null : <PlusOutlined className="antd-chip-add" />}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
-        <Divider style={{ margin: "12px 0 8px" }} />
+        <Divider style={{ margin: "6px 0 4px" }} />
         <div className="antd-setting-row">
           <div className="antd-setting-copy">
             <div className="antd-setting-title">{t("变化组件显示时长")}</div>
@@ -214,7 +216,7 @@ export function AppearancePage({
           />
         </div>
 
-        <Divider style={{ margin: "12px 0 8px" }} />
+        <Divider style={{ margin: "6px 0 4px" }} />
         <div className="antd-setting-row">
           <div className="antd-setting-copy">
             <div className="antd-setting-title">{t("番茄组件显示")}</div>
@@ -235,7 +237,7 @@ export function AppearancePage({
           />
         </div>
 
-        <Divider style={{ margin: "12px 0 8px" }} />
+        <Divider style={{ margin: "6px 0 4px" }} />
         <div className="antd-setting-row">
           <div className="antd-setting-copy">
             <div className="antd-setting-title">{t("岛上显示歌词")}</div>

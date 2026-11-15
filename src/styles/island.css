@@ -4621,9 +4621,14 @@ html.island-window #root {
     linear-gradient(180deg, rgb(18 22 30 / 0.6), rgb(8 10 15 / 0.82));
   --panel-border: rgb(255 255 255 / 0.16);
   --panel-outline: 0 0 0 1px rgb(255 255 255 / 0.05);
+  /* The native hit region only leaves a 24px margin around the panel; a wider
+     drop shadow gets clipped into a rectangular gray band. Glass therefore
+     keeps a tight shadow that fades out well before that edge, and drops the
+     accent halo: on a dark desktop it reads as a second, teal-tinted shadow. */
+  --island-accent-glow: transparent;
   --panel-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.22),
-    inset 0 0 24px rgb(150 190 225 / 0.06), 0 10px 30px rgb(0 0 0 / 0.34);
+    inset 0 0 24px rgb(150 190 225 / 0.06), 0 3px 12px rgb(0 0 0 / 0.3);
   height: 40px;
 }
 
@@ -4652,9 +4657,10 @@ html.island-window #root {
     );
   --panel-border: rgb(255 255 255 / 0.15);
   --panel-outline: 0 0 0 1px rgb(255 255 255 / 0.05);
+  --island-accent-glow: transparent;
   --panel-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.2),
-    inset 0 0 34px rgb(150 190 225 / 0.05), 0 14px 36px rgb(0 0 0 / 0.36);
+    inset 0 0 34px rgb(150 190 225 / 0.05), 0 5px 16px rgb(0 0 0 / 0.32);
 }
 
 .desktop-island[data-idle-style="card"] .island-toggle {

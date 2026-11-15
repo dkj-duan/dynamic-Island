@@ -1347,8 +1347,127 @@
   background: rgb(233 240 248 / 0.88);
 }
 
-.idle-glass-note {
-  display: block;
-  margin-top: 10px;
-  line-height: 1.55;
+/* —— Appearance page: keep the whole page on one screen ——
+   The style pickers drop their prose, the accent swatches sit beside the
+   expanded-shape cards, and the cards use a slightly denser body. Together
+   with the compact widget chips this fits the default window without a
+   scrollbar while leaving the preview at a readable size. */
+.appearance-page {
+  gap: 6px;
+}
+
+.appearance-page .ant-card > .ant-card-head {
+  min-height: 30px;
+}
+
+.appearance-page .ant-card:not(.antd-plain-card) > .ant-card-body {
+  padding: 6px 20px 8px;
+}
+
+/* The large-display tier enlarges the stage to 148px; on this page that is
+   enough to push the widget list past the window, so the cap below wins on
+   specificity and borrows a little height back on tall windows. */
+.appearance-page .preview-stage,
+:root[data-large-display="true"] .appearance-page .preview-stage {
+  height: 84px;
+  margin-top: 4px;
+}
+
+@media (min-height: 740px) {
+  .appearance-page .preview-stage,
+  :root[data-large-display="true"] .appearance-page .preview-stage {
+    height: 104px;
+  }
+}
+
+.appearance-page .island-style-cards {
+  gap: 6px;
+}
+
+.appearance-page .island-style-cards .island-style-card {
+  width: 64px;
+  padding: 7px 3px 6px;
+  gap: 4px;
+}
+
+.appearance-page .island-style-chip,
+.appearance-page .idle-style-chip {
+  width: 50px;
+  height: 26px;
+}
+
+.appearance-page .idle-style-chip {
+  gap: 3px;
+  padding: 0 5px;
+}
+
+.appearance-page .idle-style-chip i {
+  width: 9px;
+  height: 3px;
+}
+
+.appearance-page .idle-style-chip i:nth-child(2) {
+  width: 6px;
+}
+
+.appearance-page .island-accent-row {
+  gap: 8px;
+}
+
+.appearance-page .island-accent-dot {
+  width: 20px;
+  height: 20px;
+}
+
+/* Three widget groups share two columns: the long 常驻 list keeps the left
+   column while 活跃 and 变化 stack on the right, which halves the section's
+   height without hiding a single chip. */
+.appearance-widget-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 6px 18px;
+  align-items: start;
+}
+
+.appearance-widget-groups > :first-child {
+  grid-row: span 2;
+}
+
+.appearance-widget-groups .antd-widget-group + .antd-widget-group {
+  margin-top: 0;
+}
+
+.appearance-page .antd-widget-group-label {
+  margin-bottom: 4px;
+}
+
+.appearance-page .antd-widget-chips {
+  gap: 6px;
+}
+
+.appearance-page .antd-widget-chip {
+  height: 28px;
+}
+
+.appearance-page .antd-setting-row {
+  padding: 3px 0;
+}
+
+/* Expanded shapes and the accent swatches share one line. */
+.expand-style-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 18px;
+}
+
+.expand-style-row .island-style-cards {
+  margin-bottom: 0;
+}
+
+.expand-accent {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
 }
