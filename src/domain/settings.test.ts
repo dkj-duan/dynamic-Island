@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { parseAppearance } from "./settings";
+import { defaultAppearance, parseAppearance } from "./settings";
 
 describe("parseAppearance", () => {
+  it("restores the removed experimental style without losing other settings", () => {
+    const previous = { ...defaultAppearance, version: 24 };
+    expect(parseAppearance(previous).expandedShape).toBe("classic");
+    expect(() =>
+      parseAppearance({ ...previous, expandedShape: "anime" }),
+    ).toThrow();
+    expect(
+      parseAppearance({ ...previous, version: 25, expandedShape: "anime" })
+        .expandedShape,
+    ).toBe("classic");
+    expect(
+      parseAppearance({ ...previous, version: 25, expandedShape: "asymmetric" })
+        .expandedShape,
+    ).toBe("asymmetric");
+    expect(() =>
+      parseAppearance({ ...previous, version: 25, expandedShape: "unknown" }),
+    ).toThrow();
+  });
   it("accepts supported settings", () => {
     expect(
       parseAppearance({ version: 1, scale: 1.1, showClock: false }),

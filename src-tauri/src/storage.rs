@@ -253,14 +253,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_f64())
         .filter(|v| {
-            if matches!(version, Some(21..=24)) {
+            if matches!(version, Some(21..=25)) {
                 (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
             } else {
                 [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
             }
         });
     let idle_widgets_valid = match version {
-        Some(8..=24) => value
+        Some(8..=25) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -287,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=24))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=25))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -317,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=24) => value
+        Some(7..=25) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=24) => matches!(
+        Some(8..=25) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=24) => {
+        Some(10..=25) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -351,13 +351,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=24))
+    let shape_valid = !matches!(version, Some(12..=25))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval")
         );
     let hotkeys_valid = match version {
-        Some(13..=24) => {
+        Some(13..=25) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -369,7 +369,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=24) => {
+        Some(14..=25) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -2279,6 +2279,27 @@ mod tests {
         assert!(save_appearance_value(&conn, &v24).is_ok());
         v24["snapToTop"] = serde_json::json!(false);
         assert!(save_appearance_value(&conn, &v24).is_ok());
+        let mut v25 = v24.clone();
+        v25["version"] = serde_json::json!(25);
+        assert!(save_appearance_value(&conn, &v25).is_ok());
+        v25["expandedShape"] = serde_json::json!("anime");
+        assert!(save_appearance_value(&conn, &v25).is_err());
+        v25["expandedShape"] = serde_json::json!("invalid");
+        assert!(save_appearance_value(&conn, &v25).is_err());
+        let saved: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&saved).unwrap()["expandedShape"],
+            "classic"
+        );
+        v25["version"] = serde_json::json!(24);
+        v25["expandedShape"] = serde_json::json!("anime");
+        assert!(save_appearance_value(&conn, &v25).is_err());
         v24["snapToTop"] = serde_json::json!("yes");
         assert!(save_appearance_value(&conn, &v24).is_err());
     }

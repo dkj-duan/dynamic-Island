@@ -304,7 +304,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 21 &&
       item.version !== 22 &&
       item.version !== 23 &&
-      item.version !== 24) ||
+      item.version !== 24 &&
+      item.version !== 25) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -370,7 +371,13 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       throw new Error("提醒展开设置无效");
     reminderAutoExpand = item.reminderAutoExpand;
   }
-  const expandedShape = item.version >= 12 ? item.expandedShape : "classic";
+  // Version 25 was briefly used by the removed experimental style.
+  const expandedShape =
+    item.version === 25 && item.expandedShape === "anime"
+      ? "classic"
+      : item.version >= 12
+        ? item.expandedShape
+        : "classic";
   if (!expandedShapes.includes(expandedShape as ExpandedShape))
     throw new Error("展开样式无效");
   let hotkeyFocus = defaultAppearance.hotkeyFocus;
