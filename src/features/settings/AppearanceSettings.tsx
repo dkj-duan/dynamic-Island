@@ -130,7 +130,7 @@ export function AppearancePage({
       />
 
       <Section
-        title={t("胶囊")}
+        title={t("空闲组件")}
         description={t(
           "组件在桌面预览中拖动排序，前 6 个显示在灵动岛，其余排队备用；变化组件在数值变化后插队出现，数分钟后自动让位。",
         )}

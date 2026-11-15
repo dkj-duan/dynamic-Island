@@ -17,6 +17,14 @@ const en: Record<string, string> = {
   灵动岛: "Dynamic Island",
   小岛伙伴: "Island companion",
   展开样式: "Expanded shape",
+  空闲岛样式: "Idle island style",
+  收起样式: "Collapsed style",
+  经典胶囊: "Classic capsule",
+  圆角卡片: "Rounded card",
+  分组组件: "Grouped widgets",
+  极简细条: "Minimal bar",
+  "空闲、计时、音乐与提醒等收起状态统一使用所选轮廓；消息角标和展开面板保留各自的尺寸与操作。":
+    "Idle, timer, music and reminder states share the selected collapsed outline; message marks and the expanded panel keep their own sizes and actions.",
   "悬停展开时，可操作的提醒需要点击；微信红点可直接点击，胶囊主体仍可悬停展开。":
     "In hover mode, actionable reminders require a click. Click the WeChat badge directly, or hover over the capsule to expand it.",
   选择展开面板的轮廓: "Choose the expanded panel outline",
@@ -29,8 +37,8 @@ const en: Record<string, string> = {
   绛紫: "Violet",
   雾蓝: "Mist blue",
   绯红: "Rose",
-  "选择展开面板的轮廓与材质，收起胶囊保持深色底；强调色出现在描边微光、页标题与激活页签上。":
-    "Pick the outline and material of the expanded panel; the collapsed capsule keeps its dark base. The accent tints the edge glow, page titles and the active tab.",
+  "选择展开面板的轮廓与材质；经典采用无描边纯黑极简面板，灵动保留不对称轮廓。强调色用于微光、页标题与激活页签。":
+    "Pick the outline and material of the expanded panel: Classic is a borderless near-black surface, while Liquid keeps its asymmetric outline. The accent tints the glow, page titles and the active tab.",
   设置: "Settings",
   设置分区: "Settings sections",
   外观: "Appearance",
@@ -86,6 +94,7 @@ const en: Record<string, string> = {
   深色: "Dark",
   夜间使用: "For night use",
   胶囊: "Capsule",
+  空闲组件: "Idle widgets",
   灵动岛大小: "Island size",
   "组件在桌面预览中拖动排序，前 6 个显示在灵动岛，其余排队备用；变化组件在数值变化后插队出现，数分钟后自动让位。":
     "Drag inside the desktop preview to order the widgets; the first six show on the island and the rest wait in the queue; change-based ones cut in when their value moves and yield again after a few minutes.",

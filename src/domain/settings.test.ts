@@ -33,6 +33,7 @@ describe("parseAppearance", () => {
       expandTrigger: "click",
       language: "zh-CN",
       idleWidgets: ["quota"],
+      idleStyle: "capsule",
       idleChangeDisplayMinutes: 3,
       pomodoroView: "count",
       islandLyrics: false,
@@ -261,6 +262,7 @@ describe("parseAppearance", () => {
     };
     expect(parseAppearance(v26).expandedShape).toBe("asymmetric");
     expect(parseAppearance(v26).islandAccent).toBe("white");
+    expect(parseAppearance(v26).idleStyle).toBe("capsule");
     const missingAccent = { ...v26 } as Record<string, unknown>;
     delete missingAccent.islandAccent;
     expect(() => parseAppearance(missingAccent)).toThrow();
@@ -269,6 +271,27 @@ describe("parseAppearance", () => {
     ).toThrow();
     expect(() =>
       parseAppearance({ ...v26, expandedShape: "unknown" }),
+    ).toThrow();
+  });
+  it("reads idle-only styles from version 27 and preserves the capsule on upgrade", () => {
+    const previous = { ...defaultAppearance, version: 26 };
+    expect(parseAppearance(previous).idleStyle).toBe("capsule");
+    for (const idleStyle of ["capsule", "card", "grouped", "minimal"]) {
+      expect(
+        parseAppearance({ ...previous, version: 27, idleStyle }).idleStyle,
+      ).toBe(idleStyle);
+    }
+    const missingStyle = { ...previous, version: 27 } as Record<
+      string,
+      unknown
+    >;
+    delete missingStyle.idleStyle;
+    expect(() => parseAppearance(missingStyle)).toThrow();
+    expect(() =>
+      parseAppearance({ ...previous, version: 27, idleStyle: "floating" }),
+    ).toThrow();
+    expect(() =>
+      parseAppearance({ ...previous, version: 27, idleStyle: 1 }),
     ).toThrow();
   });
   it("migrates version 2 and validates the selected theme", () => {

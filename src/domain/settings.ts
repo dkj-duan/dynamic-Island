@@ -49,6 +49,11 @@ const legacyReminderStyles: readonly ReminderStyle[] = [
 
 export const expandedShapes = ["classic", "asymmetric"] as const;
 export type ExpandedShape = (typeof expandedShapes)[number];
+
+/** Visual treatments for the collapsed island while nothing needs attention. */
+export const idleStyles = ["capsule", "card", "grouped", "minimal"] as const;
+export type IdleStyle = (typeof idleStyles)[number];
+
 /** Ids older payloads may carry; they all fold to classic on read. */
 const legacyExpandedShapes = ["soft", "oval", "flat"] as const;
 
@@ -160,6 +165,8 @@ export interface AppearanceSettings {
   language: Language;
   /** Ordered pieces shown in the capsule while the island is idle. */
   idleWidgets: IdleWidgetId[];
+  /** Shell and composition used only by the collapsed idle display. */
+  idleStyle: IdleStyle;
   /** How long a change-tier idle widget stays on after its value moved. */
   idleChangeDisplayMinutes: number;
   /** What the pomodoro idle widget reports. */
@@ -204,6 +211,7 @@ export const defaultAppearance: AppearanceSettings = {
   expandTrigger: "click",
   language: defaultLanguage,
   idleWidgets: ["clock", "quota"],
+  idleStyle: "capsule",
   idleChangeDisplayMinutes: 3,
   pomodoroView: "count",
   islandLyrics: false,
@@ -319,7 +327,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 23 &&
       item.version !== 24 &&
       item.version !== 25 &&
-      item.version !== 26) ||
+      item.version !== 26 &&
+      item.version !== 27) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -412,6 +421,18 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       throw new Error("岛强调色无效");
     }
     islandAccent = item.islandAccent as IslandAccent;
+  }
+  // Version 27 adds independent idle-only shells. Older payloads keep the
+  // original capsule, so upgrading never changes the user's current layout.
+  let idleStyle: IdleStyle = defaultAppearance.idleStyle;
+  if (item.version >= 27) {
+    if (
+      typeof item.idleStyle !== "string" ||
+      !idleStyles.includes(item.idleStyle as IdleStyle)
+    ) {
+      throw new Error("空闲岛样式无效");
+    }
+    idleStyle = item.idleStyle as IdleStyle;
   }
   let hotkeyFocus = defaultAppearance.hotkeyFocus;
   let hotkeyWater = defaultAppearance.hotkeyWater;
@@ -525,6 +546,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     expandTrigger,
     language,
     idleWidgets,
+    idleStyle,
     idleChangeDisplayMinutes,
     pomodoroView,
     islandLyrics,

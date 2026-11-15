@@ -85,6 +85,10 @@ const MESSAGE_SOURCE_LABELS: Record<"wechat" | "qq", string> = {
   qq: "QQ",
 };
 
+/** The compact row and up to two 30px message marks share this width; the
+ *  440px island viewport still leaves room for the fading outer shadow. */
+const IDLE_PANEL_MAX_WIDTH = 400;
+
 export function IslandWindow() {
   const ai = useAiQuota();
   const reloadAiQuota = ai.reload;
@@ -752,7 +756,10 @@ export function IslandWindow() {
       : display === "idle"
         ? idleWidth === null
           ? "fit-content"
-          : Math.min(356, idleWidth + 2 + messageIndicatorWidth)
+          : Math.min(
+              IDLE_PANEL_MAX_WIDTH,
+              idleWidth + 2 + messageIndicatorWidth,
+            )
         : display === "media" && mediaWidth !== null
           ? Math.min(356, mediaWidth + 2 + messageIndicatorWidth)
           : largeDisplay
@@ -806,6 +813,8 @@ export function IslandWindow() {
       data-placement={taskbarActive ? "taskbar" : "desktop"}
       data-shape={appearance.expandedShape}
       data-accent={appearance.islandAccent}
+      data-idle-style={!expanded ? appearance.idleStyle : undefined}
+      data-display={!expanded ? display : undefined}
       data-app-hidden={appHidden || undefined}
       data-page={expanded ? activeTab : undefined}
     >

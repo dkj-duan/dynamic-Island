@@ -161,10 +161,12 @@ export function IdleWidgets({
   const widgetKey = widgets.join(",");
   const reportedWidth = useRef(0);
   // The preview is not bound by the island's on-screen width; its wider cap
-  // keeps every ambient widget readable for drag ordering.
+  // keeps every ambient widget readable for drag ordering. Message marks sit
+  // in their own lane beside this row: IslandWindow widens the 400px panel for
+  // that lane, leaving the normal 338px content cap intact for six widgets.
   const widthCap = preview
     ? 720
-    : Math.min(MAX_IDLE_WIDTH, 354 - reservedWidth);
+    : Math.min(MAX_IDLE_WIDTH, 398 - reservedWidth);
   useLayoutEffect(() => {
     const element = rootRef.current;
     if (!element) return;
@@ -187,7 +189,14 @@ export function IdleWidgets({
       fitLevelRef.current += 1;
       setFitLevel(fitLevelRef.current);
     }
-  }, [widgetKey, fitLevel, data, onWidthChange, widthCap]);
+  }, [
+    widgetKey,
+    fitLevel,
+    data,
+    onWidthChange,
+    widthCap,
+    appearance.idleStyle,
+  ]);
   const style = { width: "fit-content", maxWidth: widthCap } as const;
 
   function applyMove(from: IdleWidgetId, to: IdleWidgetId) {

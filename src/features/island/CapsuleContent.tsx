@@ -322,7 +322,7 @@ export function CapsuleContent({
         />
       ) : (
         <IdleWidgets
-          key={`${appearance.idleWidgets.join(",")}:${reservedWidth ?? 0}`}
+          key={`${appearance.idleStyle}:${appearance.idleWidgets.join(",")}:${reservedWidth ?? 0}`}
           appearance={appearance}
           data={idleData}
           mascotReaction={mascotReaction}
