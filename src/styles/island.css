@@ -250,7 +250,7 @@ html.island-window #root {
 }
 
 .island-panel.has-message-attention .island-toggle {
-  width: calc(100% - 30px);
+  width: calc(100% - var(--attention-reserve, 30px));
 }
 
 .island-wechat-attention {
@@ -481,6 +481,13 @@ html.island-window #root {
 .system-notice svg,
 .system-notice-banner svg {
   color: var(--island-alert);
+  flex: none;
+}
+
+.system-notice-art {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
   flex: none;
 }
 
@@ -808,6 +815,11 @@ html.island-window #root {
   min-width: 0;
 }
 
+/* The title centers over the current line. */
+.island-media-current .compact-primary {
+  text-align: center;
+}
+
 .compact-timer,
 .island-media-current {
   height: 38px;
@@ -1129,6 +1141,52 @@ html.island-window #root {
   font-variant-numeric: tabular-nums;
 }
 
+/* The current line centers while it fits; the drift reads from a left
+   start, so an overflowing line stays left-aligned. */
+.media-lyric {
+  text-align: center;
+}
+
+.media-lyric.is-overflow {
+  text-align: left;
+}
+
+/* The current line drives the capsule width; whatever still overflows the
+   panel cap drifts so the full text passes through instead of clipping. */
+.media-lyric-inner {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.media-lyric.is-overflow .media-lyric-inner {
+  animation: media-lyric-drift var(--lyric-duration, 10s) linear infinite;
+}
+
+@keyframes media-lyric-drift {
+  0%,
+  14% {
+    transform: translateX(0);
+  }
+  48%,
+  64% {
+    transform: translateX(calc(-1 * var(--lyric-overflow, 0px)));
+  }
+  96%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-lyric.is-overflow .media-lyric-inner {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: none;
+  }
+}
+
 .island-timer-status {
   font-size: 13px;
   color: #b0b0ba;
@@ -1307,6 +1365,25 @@ html.island-window #root {
 .pager-tab.active {
   color: #e9e9ef;
   background: #2c2c34;
+}
+
+/* Tabs carrying island art: the cartoon dims into the strip while inactive
+   and returns to full colour as the tab lights up. */
+.pager-tab .pager-tab-img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  filter: grayscale(1);
+  opacity: 0.55;
+  transition:
+    filter var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+.pager-tab:hover .pager-tab-img,
+.pager-tab.active .pager-tab-img {
+  filter: none;
+  opacity: 1;
 }
 
 /* The active page keeps its title colour, so the strip reads as navigation. */
@@ -1868,7 +1945,7 @@ html.island-window #root {
   }
 }
 
-/* Shared empty page state (Music, Mail, AI quota). The hint stays narrow so
+/* Shared empty page state. The hint stays narrow so
    the pager arrows on both edges never touch the copy. */
 .island-empty {
   flex: 1;
@@ -1885,27 +1962,15 @@ html.island-window #root {
 .island-empty-icon {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 38px;
+  height: 38px;
   margin-bottom: 3px;
-  border-radius: 9px;
-  background: rgb(255 255 255 / 0.06);
-  color: #b0b0ba;
 }
 
-.island-empty.is-music .island-empty-icon {
-  background: rgb(127 212 195 / 0.14);
-  color: #7fd4c3;
-}
-
-.island-empty.is-mail .island-empty-icon {
-  background: rgb(179 162 248 / 0.16);
-  color: #c0b3f8;
-}
-
-.island-empty.is-ai .island-empty-icon {
-  background: rgb(143 192 242 / 0.15);
-  color: #8fc0f2;
+.island-empty-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .island-empty strong {

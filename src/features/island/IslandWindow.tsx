@@ -143,6 +143,7 @@ export function IslandWindow() {
     : undefined;
   const [largeDisplay, setLargeDisplay] = useState(isLargeDisplay);
   const [idleWidth, setIdleWidth] = useState<number | null>(null);
+  const [mediaWidth, setMediaWidth] = useState<number | null>(null);
   useEffect(() => watchDisplayTier(setLargeDisplay), []);
   const {
     timer,
@@ -731,9 +732,11 @@ export function IslandWindow() {
         ? idleWidth === null
           ? "fit-content"
           : Math.min(356, idleWidth + 2 + messageIndicatorWidth)
-        : largeDisplay
-          ? 240 + messageIndicatorWidth
-          : 232 + messageIndicatorWidth;
+        : display === "media" && mediaWidth !== null
+          ? Math.min(356, mediaWidth + 2 + messageIndicatorWidth)
+          : largeDisplay
+            ? 240 + messageIndicatorWidth
+            : 232 + messageIndicatorWidth;
   // The banner lane adds 34px; the layout cap keeps the tallest panel inside
   // the 320px island viewport instead of clipping the pager.
   const deviceHasHint =
@@ -796,6 +799,11 @@ export function IslandWindow() {
           style={
             {
               width: panelWidth,
+              // Message marks float over the panel edge; the toggle gives
+              // each source its own 30px slot instead of a fixed lane.
+              ...(showMessageAttention
+                ? { "--attention-reserve": `${messageIndicatorWidth}px` }
+                : {}),
               // Water and per-source message flashes drive the alert colour
               // from data; everything else uses the stylesheet defaults.
               ...(alertKind === "water"
@@ -842,6 +850,7 @@ export function IslandWindow() {
                 display={display}
                 displayNotice={displayNotice}
                 onWidthChange={setIdleWidth}
+                onMediaWidthChange={setMediaWidth}
                 idleData={idleData}
                 changeShownAt={idleChangeShownAt}
                 mascotReaction={mascotReaction}

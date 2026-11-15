@@ -1,4 +1,4 @@
-import { type CSSProperties } from "react";
+import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { Music2, Mail, Timer } from "lucide-react";
 import { t } from "../../services/i18n";
 import type { IslandDisplay } from "../../domain/islandDisplay";
@@ -18,6 +18,11 @@ import { formatMediaTime } from "./islandFormat";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
 import waterDrop from "../../assets/water-drop.webp";
 import sedentaryChair from "../../assets/island/away-chair.png";
+import mascotIdle from "../../assets/mascot/idle.png";
+import mascotListening from "../../assets/mascot/listening.png";
+import mascotWater from "../../assets/mascot/water.png";
+import mascotCelebrate from "../../assets/mascot/celebrate.png";
+import mascotAttention from "../../assets/mascot/attention.png";
 
 /** The media capsule has one spare slot; these are the candidates. */
 export type MediaBadge = "pomodoro" | "water" | "quota";
@@ -27,6 +32,8 @@ type CapsuleContentProps = {
   display: IslandDisplay;
   displayNotice: SystemNotice | null;
   onWidthChange?: (width: number) => void;
+  /** Measured width of the media capsule; see MediaCapsule. */
+  onMediaWidthChange?: (width: number) => void;
   idleData: IdleData;
   mascotReaction?: MascotReaction | null;
   reservedWidth?: number;
@@ -79,6 +86,7 @@ export function CapsuleContent({
   display,
   displayNotice,
   onWidthChange,
+  onMediaWidthChange,
   idleData,
   mascotReaction,
   reservedWidth,
@@ -295,72 +303,23 @@ export function CapsuleContent({
           )}
         </span>
       ) : display === "media" && media?.title ? (
-        <span className="island-current island-media-current">
-          <span
-            className={`compact-art ${media.playing && artwork?.key === mediaKey && artwork.src ? "is-spinning" : ""}`}
-          >
-            {artwork?.key === mediaKey && artwork.src ? (
-              <img src={artwork.src} alt="" />
-            ) : (
-              <Music2 size={14} aria-hidden="true" />
-            )}
-          </span>
-          <span className="compact-copy">
-            <span className="compact-primary">{media.title}</span>
-            <span className="compact-secondary">
-              {appearance.islandLyrics && currentLyric
-                ? currentLyric
-                : media.artist || t("未知艺术家")}
-            </span>
-          </span>
-          <span className="media-playing-mark">
-            <MediaWave playing={media.playing} compact />
-            {mediaPosition !== null && (
-              <span className="media-time">
-                {formatMediaTime(mediaPosition)}
-              </span>
-            )}
-            <span className="media-mark-slot" key={mediaBadgeShown}>
-              {mediaBadgeShown === "quota" && idleData.quota ? (
-                <QuotaRings
-                  items={idleData.quota.items}
-                  compact
-                  provider={idleData.quota.provider}
-                />
-              ) : mediaBadgeShown === "water" ? (
-                <span
-                  className="media-badge"
-                  role="img"
-                  aria-label={`${t("喝水进度")} ${waterPercentToday}%`}
-                  title={`${t("喝水进度")} ${waterPercentToday}%`}
-                  style={
-                    {
-                      "--badge-percent": `${waterPercentToday}%`,
-                      "--badge-color": waterToneColor,
-                    } as CSSProperties
-                  }
-                >
-                  <img src={waterDrop} alt="" />
-                </span>
-              ) : (
-                <span
-                  className="media-badge"
-                  role="img"
-                  aria-label={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
-                  title={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
-                  style={
-                    {
-                      "--badge-percent": `${pomodoroBadgePercent}%`,
-                      "--badge-color": pomodoroBadgeColor,
-                    } as CSSProperties
-                  }
-                >
-                  <img src={pomodoroClock} alt="" />
-                </span>
-              )}
-            </span>
-          </span>
-        </span>
+        <MediaCapsule
+          appearance={appearance}
+          media={media}
+          mediaKey={mediaKey}
+          artwork={artwork}
+          currentLyric={currentLyric}
+          mediaPosition={mediaPosition}
+          mediaBadgeShown={mediaBadgeShown}
+          pomodoroBadgePercent={pomodoroBadgePercent}
+          pomodoroBadgeColor={pomodoroBadgeColor}
+          waterPercentToday={waterPercentToday}
+          waterToneColor={waterToneColor}
+          quota={idleData.quota}
+          mascotReaction={mascotReaction}
+          reservedWidth={reservedWidth}
+          onWidthChange={onMediaWidthChange}
+        />
       ) : (
         <IdleWidgets
           key={`${appearance.idleWidgets.join(",")}:${reservedWidth ?? 0}`}
@@ -375,5 +334,204 @@ export function CapsuleContent({
         />
       )}
     </>
+  );
+}
+
+/** The lyric capsule reports its natural width up to this cap — the same
+ * headroom the idle strip gets — and the panel sizes to the report. */
+const MEDIA_CAPSULE_MAX = 354;
+/** A tiny current line should not collapse the capsule to a sliver. */
+const MEDIA_COPY_MIN = 120;
+
+const mascotPoses = {
+  listening: mascotListening,
+  water: mascotWater,
+  celebrate: mascotCelebrate,
+  attention: mascotAttention,
+};
+
+type MediaCapsuleProps = {
+  appearance: AppearanceSettings;
+  media: MediaState;
+  mediaKey: string;
+  artwork: { key: string; src: string | null } | null;
+  currentLyric: string | null;
+  mediaPosition: number | null;
+  mediaBadgeShown: MediaBadge;
+  pomodoroBadgePercent: number;
+  pomodoroBadgeColor: string;
+  waterPercentToday: number;
+  waterToneColor: string;
+  quota: IdleData["quota"];
+  mascotReaction?: MascotReaction | null;
+  reservedWidth?: number;
+  onWidthChange?: (width: number) => void;
+};
+
+/**
+ * The collapsed lyrics island: cover, title and the current line, the
+ * transport marks and the buddy listening along at the end. The panel takes
+ * a numeric width, so the capsule measures itself: the current line drives
+ * the width up to the cap, longer lines drift through instead of clipping,
+ * and the title keeps its ellipsis.
+ */
+function MediaCapsule({
+  appearance,
+  media,
+  mediaKey,
+  artwork,
+  currentLyric,
+  mediaPosition,
+  mediaBadgeShown,
+  pomodoroBadgePercent,
+  pomodoroBadgeColor,
+  waterPercentToday,
+  waterToneColor,
+  quota,
+  mascotReaction,
+  reservedWidth,
+  onWidthChange,
+}: MediaCapsuleProps) {
+  const capsuleRef = useRef<HTMLSpanElement | null>(null);
+  const copyRef = useRef<HTMLSpanElement | null>(null);
+  const titleRef = useRef<HTMLSpanElement | null>(null);
+  const lyricInnerRef = useRef<HTMLSpanElement | null>(null);
+  const [lyricOverflow, setLyricOverflow] = useState(0);
+  const reportedWidth = useRef(0);
+  const lyricText =
+    appearance.islandLyrics && currentLyric
+      ? currentLyric
+      : media.artist || t("未知艺术家");
+  const measureKey = [
+    mediaKey,
+    artwork?.key ?? "",
+    media.title,
+    lyricText,
+    reservedWidth ?? 0,
+  ].join("|");
+  useLayoutEffect(() => {
+    const capsule = capsuleRef.current;
+    const copy = copyRef.current;
+    const inner = lyricInnerRef.current;
+    if (!capsule || !copy || !inner) return;
+    // The lyric inner is width:max-content, so its offsetWidth is the full
+    // text width even while the panel still clamps the capsule.
+    const natural = Math.max(
+      copy.scrollWidth,
+      inner.offsetWidth,
+      titleRef.current?.scrollWidth ?? 0,
+    );
+    // Everything around the copy keeps its width while clamped, so the
+    // difference isolates the fixed part.
+    const fixed = capsule.offsetWidth - copy.offsetWidth;
+    const copyCap = Math.max(
+      0,
+      MEDIA_CAPSULE_MAX - (reservedWidth ?? 0) - fixed,
+    );
+    const copyWidth = Math.min(
+      copyCap,
+      Math.max(natural, Math.min(MEDIA_COPY_MIN, copyCap)),
+    );
+    setLyricOverflow(Math.max(0, Math.ceil(inner.offsetWidth - copyWidth)));
+    const desired = Math.ceil(fixed + copyWidth);
+    if (desired > 0 && desired !== reportedWidth.current) {
+      reportedWidth.current = desired;
+      onWidthChange?.(desired);
+    }
+  }, [measureKey, onWidthChange, reservedWidth]);
+  // Media only owns the capsule while playing, so the buddy listens along;
+  // a one-off reaction pose still takes precedence.
+  const pose = mascotReaction ?? (media.playing ? "listening" : null);
+  return (
+    <span ref={capsuleRef} className="island-current island-media-current">
+      <span
+        className={`compact-art ${media.playing && artwork?.key === mediaKey && artwork.src ? "is-spinning" : ""}`}
+      >
+        {artwork?.key === mediaKey && artwork.src ? (
+          <img src={artwork.src} alt="" />
+        ) : (
+          <Music2 size={14} aria-hidden="true" />
+        )}
+      </span>
+      <span className="compact-copy" ref={copyRef}>
+        <span className="compact-primary" ref={titleRef} title={media.title}>
+          {media.title}
+        </span>
+        <span
+          className={`compact-secondary media-lyric ${lyricOverflow > 0 ? "is-overflow" : ""}`}
+          title={lyricText}
+        >
+          <span
+            ref={lyricInnerRef}
+            className="media-lyric-inner"
+            style={
+              lyricOverflow > 0
+                ? ({
+                    "--lyric-overflow": `${lyricOverflow}px`,
+                    "--lyric-duration": `${Math.min(16, 4 + lyricOverflow / 18).toFixed(1)}s`,
+                  } as CSSProperties)
+                : undefined
+            }
+          >
+            {lyricText}
+          </span>
+        </span>
+      </span>
+      <span className="media-playing-mark">
+        <MediaWave playing={media.playing} compact />
+        {mediaPosition !== null && (
+          <span className="media-time">{formatMediaTime(mediaPosition)}</span>
+        )}
+        <span className="media-mark-slot" key={mediaBadgeShown}>
+          {mediaBadgeShown === "quota" && quota ? (
+            <QuotaRings items={quota.items} compact provider={quota.provider} />
+          ) : mediaBadgeShown === "water" ? (
+            <span
+              className="media-badge"
+              role="img"
+              aria-label={`${t("喝水进度")} ${waterPercentToday}%`}
+              title={`${t("喝水进度")} ${waterPercentToday}%`}
+              style={
+                {
+                  "--badge-percent": `${waterPercentToday}%`,
+                  "--badge-color": waterToneColor,
+                } as CSSProperties
+              }
+            >
+              <img src={waterDrop} alt="" />
+            </span>
+          ) : (
+            <span
+              className="media-badge"
+              role="img"
+              aria-label={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
+              title={`${t("番茄进度")} ${pomodoroBadgePercent}%`}
+              style={
+                {
+                  "--badge-percent": `${pomodoroBadgePercent}%`,
+                  "--badge-color": pomodoroBadgeColor,
+                } as CSSProperties
+              }
+            >
+              <img src={pomodoroClock} alt="" />
+            </span>
+          )}
+        </span>
+      </span>
+      <span
+        className={`idle-mascot media-mascot ${pose ? `is-${pose}` : ""}`}
+        aria-hidden="true"
+      >
+        <img src={mascotIdle} alt="" draggable={false} />
+        {pose && (
+          <img
+            className="idle-mascot-pose"
+            src={mascotPoses[pose]}
+            alt=""
+            draggable={false}
+          />
+        )}
+      </span>
+    </span>
   );
 }

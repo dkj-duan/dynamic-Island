@@ -71,8 +71,7 @@ export function MessagesPage({
     return (
       <div className="wechat-empty">
         <IslandEmpty
-          tone="music"
-          icon={<WechatIcon size={16} />}
+          page="messages"
           title={t("暂无新消息")}
           hint={
             anyEnabled

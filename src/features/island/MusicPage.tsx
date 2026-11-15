@@ -156,8 +156,7 @@ export function MusicPage({ mediaState }: Props) {
         </>
       ) : (
         <IslandEmpty
-          tone="music"
-          icon={<Music2 size={14} />}
+          page="music"
           title={t("没有正在播放的媒体")}
           hint={t("开始播放音乐后，这里会显示曲目信息和控制按钮。")}
         />

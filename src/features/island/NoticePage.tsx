@@ -22,8 +22,7 @@ export function NoticePage({
   if (!latest) {
     return (
       <IslandEmpty
-        tone="mail"
-        icon={<BellRing size={14} />}
+        page="notice"
         title={t("暂无通知")}
         hint={
           forwardingEnabled

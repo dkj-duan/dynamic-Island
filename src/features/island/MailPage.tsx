@@ -103,8 +103,7 @@ export function MailPage({
         </>
       ) : (
         <IslandEmpty
-          tone="mail"
-          icon={<Mail size={14} />}
+          page="mail"
           title={t("暂无新邮件提醒")}
           hint={t("在设置中添加邮箱后，新邮件会显示在这里。")}
         />

@@ -1,19 +1,16 @@
-import type { ReactNode } from "react";
-import {
-  BellRing,
-  Bluetooth,
-  Bot,
-  Droplet,
-  Headphones,
-  Mail,
-  MessagesSquare,
-  Music2,
-  PersonStanding,
-  PlugZap,
-  Sun,
-  Timer,
-  Volume2,
-} from "lucide-react";
+import bluetoothArt from "../../assets/island/bluetooth.png";
+import volumeArt from "../../assets/island/volume.png";
+import batteryArt from "../../assets/island/battery.png";
+import audioArt from "../../assets/island/audio-device.png";
+import brightnessArt from "../../assets/island/brightness.png";
+import awayChairArt from "../../assets/island/away-chair.png";
+import clockArt from "../../assets/island/clock.png";
+import musicArt from "../../assets/island/music.png";
+import mailArt from "../../assets/island/mail.png";
+import aiArt from "../../assets/island/ai-quota.png";
+import messagesArt from "../../assets/island/messages.png";
+import noticeArt from "../../assets/island/notice.png";
+import waterDropArt from "../../assets/water-drop.webp";
 import type { NotificationSource } from "../../domain/systemNotices";
 import type { IslandTab } from "./islandPages";
 import { QQIcon } from "./QQIcon";
@@ -33,37 +30,39 @@ export function NoticeIcon({
   if (kind === "notification" && source === "qq") {
     return <QQIcon size={15} />;
   }
-  const Icon =
-    kind === "volume"
-      ? Volume2
-      : kind === "power"
-        ? PlugZap
-        : kind === "brightness"
-          ? Sun
-          : kind === "audio"
-            ? Headphones
-            : kind === "notification"
-              ? BellRing
-              : Bluetooth;
-  return <Icon size={15} aria-hidden="true" />;
+  const art = {
+    volume: volumeArt,
+    power: batteryArt,
+    brightness: brightnessArt,
+    audio: audioArt,
+    notification: noticeArt,
+    bluetooth: bluetoothArt,
+  }[kind];
+  return (
+    <img
+      className="system-notice-art"
+      src={art}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+    />
+  );
 }
 
-/** Shared empty page state: tinted glyph, title and a bounded hint line. */
+/** Shared empty page state with the same artwork as the page switcher. */
 export function IslandEmpty({
-  tone,
-  icon,
+  page,
   title,
   hint,
 }: {
-  tone: "music" | "mail" | "ai";
-  icon: ReactNode;
+  page: "music" | "mail" | "ai" | "messages" | "notice";
   title: string;
   hint: string;
 }) {
   return (
-    <div className={`island-empty is-${tone}`}>
+    <div className="island-empty">
       <span className="island-empty-icon" aria-hidden="true">
-        {icon}
+        <img src={PAGE_ART[page]} alt="" draggable={false} />
       </span>
       <strong>{title}</strong>
       <span className="island-empty-hint">{hint}</span>
@@ -71,27 +70,30 @@ export function IslandEmpty({
   );
 }
 
+/** Pages whose tab carries the island's own art; the rest keep line glyphs. */
+const PAGE_ART: Record<IslandTab, string> = {
+  timer: clockArt,
+  music: musicArt,
+  water: waterDropArt,
+  sedentary: awayChairArt,
+  device: bluetoothArt,
+  mail: mailArt,
+  ai: aiArt,
+  messages: messagesArt,
+  notice: noticeArt,
+};
+
 /** Glyph for the bottom page switcher: one icon per island page. */
 export function IslandPageIcon({ page }: { page: IslandTab }) {
-  if (page === "messages")
-    return <MessagesSquare size={13} aria-hidden="true" />;
-  const Icon =
-    page === "timer"
-      ? Timer
-      : page === "music"
-        ? Music2
-        : page === "mail"
-          ? Mail
-          : page === "water"
-            ? Droplet
-            : page === "sedentary"
-              ? PersonStanding
-              : page === "notice"
-                ? BellRing
-                : page === "device"
-                  ? Headphones
-                  : Bot;
-  return <Icon size={13} aria-hidden="true" />;
+  return (
+    <img
+      className="pager-tab-img"
+      src={PAGE_ART[page]}
+      alt=""
+      draggable={false}
+      aria-hidden="true"
+    />
+  );
 }
 
 export function MediaWave({

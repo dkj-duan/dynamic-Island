@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import { Bot } from "lucide-react";
 import {
   aiProviderName,
   type QuotaItem,
@@ -35,8 +34,7 @@ export function QuotaPage({
     <div className="quota-view">
       {accounts.length === 0 ? (
         <IslandEmpty
-          tone="ai"
-          icon={<Bot size={14} />}
+          page="ai"
           title={t("尚未添加 AI 账户")}
           hint={t("在设置的 AI 额度页面添加。")}
         />
