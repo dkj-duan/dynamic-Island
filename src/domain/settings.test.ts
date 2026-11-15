@@ -273,25 +273,39 @@ describe("parseAppearance", () => {
       parseAppearance({ ...v26, expandedShape: "unknown" }),
     ).toThrow();
   });
-  it("reads idle-only styles from version 27 and preserves the capsule on upgrade", () => {
+  it("reads collapsed shells from v27, adds glass in v28 and preserves the capsule on upgrade", () => {
     const previous = { ...defaultAppearance, version: 26 };
     expect(parseAppearance(previous).idleStyle).toBe("capsule");
     for (const idleStyle of ["capsule", "card", "grouped", "minimal"]) {
       expect(
         parseAppearance({ ...previous, version: 27, idleStyle }).idleStyle,
       ).toBe(idleStyle);
+      expect(
+        parseAppearance({ ...previous, version: 28, idleStyle }).idleStyle,
+      ).toBe(idleStyle);
     }
-    const missingStyle = { ...previous, version: 27 } as Record<
+    expect(
+      parseAppearance({
+        ...previous,
+        version: 28,
+        idleStyle: "glass",
+      }).idleStyle,
+    ).toBe("glass");
+    // Version 27 predates the native-glass preset.
+    expect(() =>
+      parseAppearance({ ...previous, version: 27, idleStyle: "glass" }),
+    ).toThrow();
+    const missingStyle = { ...previous, version: 28 } as Record<
       string,
       unknown
     >;
     delete missingStyle.idleStyle;
     expect(() => parseAppearance(missingStyle)).toThrow();
     expect(() =>
-      parseAppearance({ ...previous, version: 27, idleStyle: "floating" }),
+      parseAppearance({ ...previous, version: 28, idleStyle: "floating" }),
     ).toThrow();
     expect(() =>
-      parseAppearance({ ...previous, version: 27, idleStyle: 1 }),
+      parseAppearance({ ...previous, version: 28, idleStyle: 1 }),
     ).toThrow();
   });
   it("migrates version 2 and validates the selected theme", () => {

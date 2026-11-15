@@ -20,6 +20,7 @@ const idleStyleLabels: Record<IdleStyle, string> = {
   card: "圆角卡片",
   grouped: "分组组件",
   minimal: "极简细条",
+  glass: "毛玻璃",
 };
 
 const accentLabels: Record<IslandAccent, string> = {
@@ -84,6 +85,13 @@ export function IslandStyleSection({
             );
           })}
         </div>
+        {appearance.idleStyle === "glass" && (
+          <span className="section-inline-note idle-glass-note">
+            {t(
+              "毛玻璃同时用于展开面板；半透明磨砂会透出桌面明暗，但不会在窗口外留下底色。",
+            )}
+          </span>
+        )}
       </Section>
 
       <Section

@@ -23,6 +23,9 @@ const en: Record<string, string> = {
   圆角卡片: "Rounded card",
   分组组件: "Grouped widgets",
   极简细条: "Minimal bar",
+  毛玻璃: "Frosted glass",
+  "毛玻璃同时用于展开面板；半透明磨砂会透出桌面明暗，但不会在窗口外留下底色。":
+    "Frosted glass also covers the expanded panel; the translucent frost picks up the desktop tone without tinting the window behind it.",
   "空闲、计时、音乐与提醒等收起状态统一使用所选轮廓；消息角标和展开面板保留各自的尺寸与操作。":
     "Idle, timer, music and reminder states share the selected collapsed outline; message marks and the expanded panel keep their own sizes and actions.",
   "悬停展开时，可操作的提醒需要点击；微信红点可直接点击，胶囊主体仍可悬停展开。":

@@ -24,7 +24,7 @@
 
 - `main`：设置窗口，启动居中，关闭即隐藏；单实例再次启动时显示该窗口。
 - `island`：440×320 CSS 视口的透明、无边框、置顶窗口，通过 URL `?window=island` 选择界面；空闲组件与微信/QQ 消息槽共享时面板可临时加宽到 400px。
-- 灵动岛 WebView 尺寸固定，展开/收起由 CSS 动画完成。收起后通过原生窗口区域（`set_island_panel_bounds`）限制绘制与命中范围，透明区域点击穿透；展开前恢复区域。
+- 灵动岛 WebView 尺寸固定，展开/收起由 CSS 动画完成。收起后通过原生窗口区域（`set_island_panel_bounds`）限制绘制与命中范围，透明区域点击穿透；展开前恢复区域。毛玻璃使用 WebView 内的半透明材质，不启用整窗系统 Acrylic：DWM 的亚克力只能染整个窗口（440×320），无法裁成胶囊或面板形状。
 - 高分辨率屏幕按逻辑宽度分级缩放 WebView（1.0–1.4），布局仍按 440×320 CSS 像素计算。
 - 托盘提供显示设置、输出设备子菜单、开机自启动与退出；设备列表变化时重建菜单。
 - 开机自启动使用 `tauri-plugin-autostart`，启动参数 `--autostart` 使应用只显示灵动岛、不弹设置窗口。
@@ -65,7 +65,7 @@
 
 - SQLite 位于可配置的数据目录，默认使用应用数据目录；位置索引写在应用配置目录的 `data-location.json`。
 - 数据库 `PRAGMA user_version` 当前为 5：`settings`（键值 JSON）、`mail_accounts`、`ai_accounts`、`daily_stats`（喝水、番茄、久坐）。
-- 设置结构带版本（外观当前为 v27），读取时校验版本与字段；v27 新增收起样式，空闲、计时、音乐与提醒共用外壳，旧配置默认保持经典胶囊；早期 v25 实验样式会还原为经典，未知或未来版本报错而不是覆盖。
+- 设置结构带版本（外观当前为 v28），读取时校验版本与字段；v27 新增收起样式，v28 增加毛玻璃预设，空闲、计时、音乐与提醒共用外壳，旧配置默认保持经典胶囊；早期 v25 实验样式会还原为经典，未知或未来版本报错而不是覆盖。
 - 切换数据目录使用 SQLite 备份、完整性检查与原子更新索引；不覆盖目标目录已有文件，旧目录保留。
 - 数据库连接与迁移失败时不静默重建，避免覆盖用户数据。
 
@@ -96,7 +96,7 @@
 
 Tauri 命令按模块注册，主要包括：
 
-- 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`set_fullscreen_avoid`、`apply_island_scale`、`start_island_drag`、`check_taskbar_mode`、`set_taskbar_mode`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
+- 窗口/托盘：`open_settings`、`show_settings_window`、`quit_app`、`set_island_expanded`、`set_island_panel_bounds`、`set_island_backdrop`、`set_fullscreen_avoid`、`apply_island_scale`、`start_island_drag`、`check_taskbar_mode`、`set_taskbar_mode`、`reset_island_position`、`set_window_theme`、`get_system_theme`。
 - 自启动：`get_autostart`、`set_autostart`、`is_autostart_launch`。
 - 快捷键与通知：`hotkeys::apply_hotkeys`、`notifications::get_notification_access`、`notifications::set_notification_forwarding`、`notifications::open_notification_settings`、`wechat::set_wechat_notifications`、`wechat::open_wechat`、`qq::set_qq_notifications`、`qq::open_qq`、`set_island_snap_top`。
 - 媒体：`get_media_state`、`get_media_artwork`、`control_media`、`seek_media`；歌词 `lyrics::get_lyrics`。

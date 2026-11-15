@@ -815,6 +815,7 @@ export function IslandWindow() {
       data-accent={appearance.islandAccent}
       data-idle-style={!expanded ? appearance.idleStyle : undefined}
       data-display={!expanded ? display : undefined}
+      data-glass={appearance.idleStyle === "glass" ? "on" : undefined}
       data-app-hidden={appHidden || undefined}
       data-page={expanded ? activeTab : undefined}
     >

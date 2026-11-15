@@ -51,7 +51,13 @@ export const expandedShapes = ["classic", "asymmetric"] as const;
 export type ExpandedShape = (typeof expandedShapes)[number];
 
 /** Visual treatments for the collapsed island while nothing needs attention. */
-export const idleStyles = ["capsule", "card", "grouped", "minimal"] as const;
+export const idleStyles = [
+  "capsule",
+  "card",
+  "grouped",
+  "minimal",
+  "glass",
+] as const;
 export type IdleStyle = (typeof idleStyles)[number];
 
 /** Ids older payloads may carry; they all fold to classic on read. */
@@ -328,7 +334,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 24 &&
       item.version !== 25 &&
       item.version !== 26 &&
-      item.version !== 27) ||
+      item.version !== 27 &&
+      item.version !== 28) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -422,15 +429,20 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     islandAccent = item.islandAccent as IslandAccent;
   }
-  // Version 27 adds independent idle-only shells. Older payloads keep the
-  // original capsule, so upgrading never changes the user's current layout.
+  // Version 27 adds independent collapsed shells; v28 adds the native
+  // frosted-glass preset. Older payloads keep the original capsule, so an
+  // upgrade never changes the user's current layout or OS requirements.
   let idleStyle: IdleStyle = defaultAppearance.idleStyle;
   if (item.version >= 27) {
+    const acceptedStyles: readonly IdleStyle[] =
+      item.version >= 28
+        ? idleStyles
+        : idleStyles.filter((style) => style !== "glass");
     if (
       typeof item.idleStyle !== "string" ||
-      !idleStyles.includes(item.idleStyle as IdleStyle)
+      !acceptedStyles.includes(item.idleStyle as IdleStyle)
     ) {
-      throw new Error("空闲岛样式无效");
+      throw new Error("收起样式无效");
     }
     idleStyle = item.idleStyle as IdleStyle;
   }

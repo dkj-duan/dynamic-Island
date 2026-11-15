@@ -484,7 +484,7 @@ export function useExpandCollapse(options: {
       window.clearTimeout(initial);
       window.removeEventListener("resize", schedule);
     };
-  }, [scale, taskbarMode]);
+  }, [scale, taskbarMode, expanded]);
   /** Marks a programmatic page switch so the synthetic mouseleave is ignored. */
   function notePageSwitch() {
     ignoreLeaveUntil.current = Date.now() + PAGE_SWITCH_LEAVE_GRACE_MS;

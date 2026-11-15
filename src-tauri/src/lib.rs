@@ -1232,10 +1232,8 @@ fn set_island_panel_bounds(
         use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
         let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
-        // The arrival pop scales the panel up by 6%; keep a margin so it is
-        // not clipped by the region during that beat. The margin also carries
-        // the CSS drop shadow (~16–30px of fade); clipping it would paint a
-        // hard rectangular frame around the rounded panel.
+        // The margin carries the CSS drop shadow and the accent halo; without
+        // it the rounded contour would be clipped by a hard rectangle.
         let pad = 24.0 * scale;
         let size = window.outer_size().map_err(|e| e.to_string())?;
         let left = (x * scale - pad).floor().clamp(0.0, size.width as f64) as i32;

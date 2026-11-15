@@ -253,14 +253,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_f64())
         .filter(|v| {
-            if matches!(version, Some(21..=27)) {
+            if matches!(version, Some(21..=28)) {
                 (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
             } else {
                 [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
             }
         });
     let idle_widgets_valid = match version {
-        Some(8..=27) => value
+        Some(8..=28) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -287,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=27))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=28))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -317,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=27) => value
+        Some(7..=28) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=27) => matches!(
+        Some(8..=28) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=27) => {
+        Some(10..=28) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -351,13 +351,24 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=27))
+    let shape_valid = !matches!(version, Some(12..=28))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval" | "flat")
         );
+    let idle_style_valid = match version {
+        Some(27) => matches!(
+            value.get("idleStyle").and_then(|v| v.as_str()),
+            Some("capsule" | "card" | "grouped" | "minimal")
+        ),
+        Some(28..) => matches!(
+            value.get("idleStyle").and_then(|v| v.as_str()),
+            Some("capsule" | "card" | "grouped" | "minimal" | "glass")
+        ),
+        _ => true,
+    };
     let hotkeys_valid = match version {
-        Some(13..=27) => {
+        Some(13..=28) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -369,7 +380,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=27) => {
+        Some(14..=28) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -430,11 +441,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                 value.get("islandAccent").and_then(|v| v.as_str()),
                 Some("white" | "amber" | "teal" | "violet" | "blue" | "rose")
             ))
-        || (version >= Some(27)
-            && !matches!(
-                value.get("idleStyle").and_then(|v| v.as_str()),
-                Some("capsule" | "card" | "grouped" | "minimal")
-            ))
+        || !idle_style_valid
         || !shape_valid
         || !hotkeys_valid
         || !notice_valid
@@ -2352,9 +2359,21 @@ mod tests {
             v27["idleStyle"] = serde_json::json!(style);
             assert!(save_appearance_value(&conn, &v27).is_ok());
         }
+        // Version 28 adds native frosted glass; v27 must reject it so an
+        // older build never receives a preset it cannot render.
+        v27["idleStyle"] = serde_json::json!("glass");
+        assert!(save_appearance_value(&conn, &v27).is_err());
+        v27["idleStyle"] = serde_json::json!("minimal");
+        let mut v28 = v27.clone();
+        v28["version"] = serde_json::json!(28);
+        assert!(save_appearance_value(&conn, &v28).is_ok());
+        for style in ["capsule", "card", "grouped", "minimal", "glass"] {
+            v28["idleStyle"] = serde_json::json!(style);
+            assert!(save_appearance_value(&conn, &v28).is_ok());
+        }
         for invalid in [serde_json::json!("floating"), serde_json::json!(1)] {
-            v27["idleStyle"] = invalid;
-            assert!(save_appearance_value(&conn, &v27).is_err());
+            v28["idleStyle"] = invalid;
+            assert!(save_appearance_value(&conn, &v28).is_err());
         }
         let saved: String = conn
             .query_row(
@@ -2364,6 +2383,6 @@ mod tests {
             )
             .unwrap();
         let saved = serde_json::from_str::<serde_json::Value>(&saved).unwrap();
-        assert_eq!(saved["idleStyle"], "minimal");
+        assert_eq!(saved["idleStyle"], "glass");
     }
 }
