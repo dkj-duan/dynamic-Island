@@ -17,6 +17,7 @@ import {
   SmileOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
+import { IslandStyleSection } from "./IslandStyleSettings";
 import { Section } from "./ui/Section";
 import {
   type AppearanceSettings,
@@ -121,6 +122,12 @@ export function AppearancePage({
       >
         <div className="preview-stage">{preview}</div>
       </Section>
+
+      <IslandStyleSection
+        appearance={appearance}
+        onAppearanceChange={onAppearanceChange}
+        canEdit={canEdit}
+      />
 
       <Section
         title={t("胶囊")}

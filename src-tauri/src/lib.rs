@@ -724,7 +724,30 @@ fn island_auto_scale() -> f64 {
     locked_scale(&ISLAND_AUTO_SCALE)
 }
 
-/// Sizes the island window and its webview zoom for a combined scale factor
+/// Carries the island's combined scale in WebView2's RasterizationScale so
+/// content rasterizes at the full physical rate. Display scale equals
+/// RasterizationScale × ZoomFactor, but only RasterizationScale feeds the
+/// rasterizer: carrying the scale in ZoomFactor rendered the capsule from a
+/// monitor-DPI raster scaled back up, which drew stair-stepped rounded
+/// edges while text stayed readable. Monitor-scale auto-detection stays off
+/// so WebView2 never overwrites the combined value with the bare monitor
+/// DPI; explicit re-apply paths own it instead.
+#[cfg(target_os = "windows")]
+fn set_island_webview_scale(window: &tauri::WebviewWindow, scale: f64) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller3;
+    use windows_core::Interface;
+    let _ = window.with_webview(move |webview| unsafe {
+        let controller = webview.controller();
+        let Ok(controller3) = controller.cast::<ICoreWebView2Controller3>() else {
+            return;
+        };
+        let _ = controller3.SetShouldDetectMonitorScaleChanges(false);
+        let _ = controller3.SetRasterizationScale(scale);
+        let _ = controller.SetZoomFactor(1.0);
+    });
+}
+
+/// Sizes the island window and its webview scale for a combined scale factor
 /// and records it for the native hit-region maths. The layout viewport stays
 /// 440×320 CSS px regardless of the scale; the extra width over the 340px
 /// panel is where the CSS drop shadow fades out instead of being clipped
@@ -737,6 +760,9 @@ fn apply_island_window_scale(window: &tauri::WebviewWindow, scale: f64) -> Resul
             (320.0 * dpr * scale).round() as u32,
         ))
         .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    set_island_webview_scale(window, dpr * scale);
+    #[cfg(not(target_os = "windows"))]
     window.set_zoom(scale).map_err(|e| e.to_string())?;
     *ISLAND_SCALE
         .lock()

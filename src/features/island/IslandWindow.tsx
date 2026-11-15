@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   Power,
   Settings2,
@@ -42,6 +48,7 @@ import { useIslandTimer } from "./useIslandTimer";
 import { useIslandWater } from "./useIslandWater";
 import { useIslandSedentary } from "./useIslandSedentary";
 import { useExpandCollapse } from "./useExpandCollapse";
+import { applyMotionTokens } from "./motion";
 import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
 import { SedentaryPage } from "./SedentaryPage";
@@ -277,6 +284,20 @@ export function IslandWindow() {
   // Fullscreen avoidance: the native watcher hides the window while a
   // fullscreen app owns the screen; reminders must not auto-expand then.
   const [fullscreenHidden, setFullscreenHidden] = useState(false);
+  // The island is a big transparent surface with looping mascot, cover and
+  // wave animations. While it is not on screen (browser tab or window hidden,
+  // fullscreen app in front) those loops only burn GPU time, so a data
+  // attribute lets island.css pause every animation.
+  const [documentHidden, setDocumentHidden] = useState(false);
+  useLayoutEffect(() => {
+    applyMotionTokens();
+  }, []);
+  useEffect(() => {
+    const onVisibility = () => setDocumentHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  const appHidden = documentHidden || fullscreenHidden;
   useEffect(() => {
     void invoke("set_fullscreen_avoid", {
       enabled: appearance.fullscreenAvoid,
@@ -784,6 +805,8 @@ export function IslandWindow() {
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
       data-placement={taskbarActive ? "taskbar" : "desktop"}
       data-shape={appearance.expandedShape}
+      data-accent={appearance.islandAccent}
+      data-app-hidden={appHidden || undefined}
       data-page={expanded ? activeTab : undefined}
     >
       <ReminderBeam

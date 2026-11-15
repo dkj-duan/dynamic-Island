@@ -25,6 +25,7 @@ describe("parseAppearance", () => {
       parseAppearance({ version: 1, scale: 1.1, showClock: false }),
     ).toEqual({
       expandedShape: "classic",
+      islandAccent: "white",
       theme: "system",
       scale: 1.1,
       showClock: false,
@@ -223,7 +224,7 @@ describe("parseAppearance", () => {
       parseAppearance({ ...old, autoCollapseSeconds: 0.5 }),
     ).toThrow();
   });
-  it("migrates old shapes and rejects invalid new shapes", () => {
+  it("folds legacy shapes into the two proven styles and validates the accent", () => {
     const old = {
       version: 11,
       theme: "dark",
@@ -239,14 +240,36 @@ describe("parseAppearance", () => {
       reminderAutoExpand: false,
     };
     expect(parseAppearance(old).expandedShape).toBe("classic");
-    expect(
-      parseAppearance({ ...old, version: 12, expandedShape: "soft" })
-        .expandedShape,
-    ).toBe("classic");
+    // The placeholder ids and the three presets version 26 briefly shipped
+    // all fold back to classic; unknown ids still fail loudly.
+    for (const legacy of ["soft", "oval", "flat"]) {
+      expect(
+        parseAppearance({ ...old, version: 12, expandedShape: legacy })
+          .expandedShape,
+      ).toBe("classic");
+    }
     expect(() =>
       parseAppearance({ ...old, version: 12, expandedShape: "invalid" }),
     ).toThrow();
     expect(() => parseAppearance({ ...old, version: 12 })).toThrow();
+    // Version 26 requires the accent tint; older payloads default to it.
+    expect(parseAppearance(old).islandAccent).toBe("white");
+    const v26 = {
+      ...defaultAppearance,
+      version: 26,
+      expandedShape: "asymmetric",
+    };
+    expect(parseAppearance(v26).expandedShape).toBe("asymmetric");
+    expect(parseAppearance(v26).islandAccent).toBe("white");
+    const missingAccent = { ...v26 } as Record<string, unknown>;
+    delete missingAccent.islandAccent;
+    expect(() => parseAppearance(missingAccent)).toThrow();
+    expect(() =>
+      parseAppearance({ ...v26, islandAccent: "rainbow" }),
+    ).toThrow();
+    expect(() =>
+      parseAppearance({ ...v26, expandedShape: "unknown" }),
+    ).toThrow();
   });
   it("migrates version 2 and validates the selected theme", () => {
     expect(

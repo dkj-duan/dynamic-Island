@@ -10,11 +10,7 @@ import {
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type {
-  AppearanceSettings,
-  ExpandedShape,
-  HotkeySetting,
-} from "../../domain/settings";
+import type { AppearanceSettings, HotkeySetting } from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
 import { t } from "../../services/i18n";
 
@@ -284,22 +280,6 @@ export function BehaviorSettings({
             options={[
               { value: "click", label: t("点击展开") },
               { value: "hover", label: t("悬停展开") },
-            ]}
-          />
-        </SettingRow>
-        <SettingRow title={t("展开样式")}>
-          <Segmented
-            value={appearance.expandedShape}
-            disabled={!canEdit}
-            onChange={(value) =>
-              onAppearanceChange({
-                ...appearance,
-                expandedShape: value as ExpandedShape,
-              })
-            }
-            options={[
-              { value: "classic", label: t("经典") },
-              { value: "asymmetric", label: t("灵动") },
             ]}
           />
         </SettingRow>

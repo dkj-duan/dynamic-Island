@@ -47,13 +47,23 @@ const legacyReminderStyles: readonly ReminderStyle[] = [
   "none",
 ];
 
-export const expandedShapes = [
-  "classic",
-  "soft",
-  "asymmetric",
-  "oval",
-] as const;
+export const expandedShapes = ["classic", "asymmetric"] as const;
 export type ExpandedShape = (typeof expandedShapes)[number];
+/** Ids older payloads may carry; they all fold to classic on read. */
+const legacyExpandedShapes = ["soft", "oval", "flat"] as const;
+
+/** Accent tints for island details (edge glow, page titles, active dots).
+ *  Curated ids rather than raw colors: each is tuned for the near-black
+ *  material, and both validators share the exact list. */
+export const islandAccents = [
+  "white",
+  "amber",
+  "teal",
+  "violet",
+  "blue",
+  "rose",
+] as const;
+export type IslandAccent = (typeof islandAccents)[number];
 
 /** A recorded global hotkey; `null` disables the action. */
 export type HotkeySetting = { combo: string; double: boolean };
@@ -138,6 +148,8 @@ export function parseNotificationSources(
 
 export interface AppearanceSettings {
   expandedShape: ExpandedShape;
+  /** Accent tint applied to island details; the material stays near-black. */
+  islandAccent: IslandAccent;
   theme: "system" | "light" | "dark";
   scale: number;
   showClock: boolean;
@@ -184,6 +196,7 @@ export interface AppearanceSettings {
 }
 export const defaultAppearance: AppearanceSettings = {
   expandedShape: "classic",
+  islandAccent: "white",
   theme: "system",
   scale: 1,
   showClock: true,
@@ -305,7 +318,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 22 &&
       item.version !== 23 &&
       item.version !== 24 &&
-      item.version !== 25) ||
+      item.version !== 25 &&
+      item.version !== 26) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -371,15 +385,34 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       throw new Error("提醒展开设置无效");
     reminderAutoExpand = item.reminderAutoExpand;
   }
-  // Version 25 was briefly used by the removed experimental style.
+  // Version 25 was briefly used by the removed experimental style. Version
+  // 26 shipped three extra material presets that did not land; they and the
+  // older placeholder ids all fold back to the two proven styles.
   const expandedShape =
     item.version === 25 && item.expandedShape === "anime"
       ? "classic"
       : item.version >= 12
         ? item.expandedShape
         : "classic";
-  if (!expandedShapes.includes(expandedShape as ExpandedShape))
+  if (
+    ![...expandedShapes, ...legacyExpandedShapes].includes(
+      expandedShape as ExpandedShape,
+    )
+  ) {
     throw new Error("展开样式无效");
+  }
+  // Version 26 adds the accent tint; older payloads keep the neutral default
+  // so upgrades change nothing until the user opts in.
+  let islandAccent: IslandAccent = defaultAppearance.islandAccent;
+  if (item.version >= 26) {
+    if (
+      typeof item.islandAccent !== "string" ||
+      !islandAccents.includes(item.islandAccent as IslandAccent)
+    ) {
+      throw new Error("岛强调色无效");
+    }
+    islandAccent = item.islandAccent as IslandAccent;
+  }
   let hotkeyFocus = defaultAppearance.hotkeyFocus;
   let hotkeyWater = defaultAppearance.hotkeyWater;
   let hotkeyIsland = defaultAppearance.hotkeyIsland;
@@ -481,10 +514,10 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     throw new Error("变化组件显示时长无效");
   }
   return {
-    expandedShape:
-      expandedShape === "oval" || expandedShape === "soft"
-        ? "classic"
-        : (expandedShape as ExpandedShape),
+    expandedShape: expandedShapes.includes(expandedShape as ExpandedShape)
+      ? (expandedShape as ExpandedShape)
+      : "classic",
+    islandAccent,
     theme,
     scale: item.scale,
     showClock: idleWidgets.includes("clock"),

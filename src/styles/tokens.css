@@ -32,6 +32,11 @@
   --motion-slow: 360ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Slight overshoot for width and corner morphs; never use it on height —
+     the island's native hit region settles after the frame and must not
+     chase an overshooting panel edge. Panel timings themselves are injected
+     at runtime by src/features/island/motion.ts. */
+  --ease-spring: cubic-bezier(0.3, 1.15, 0.4, 1);
 
   /* Island always sits on near-black glass. */
   --island-bg: #050505;
@@ -45,12 +50,46 @@
   --island-chip-border: #36363c;
   --island-accent: #e3e3e7;
   --island-accent-ink: #17171b;
+  /* Selected accent tint, carried per [data-accent] below; the neutral
+     default mirrors the historic shell. */
+  --island-accent-1: var(--island-accent);
+  /* Additive halo around capsule and panel; invisible on the default. */
+  --island-accent-glow: transparent;
   --island-ring-track: #292931;
   --island-ring-0: #a99af4;
   --island-ring-1: #70d1bf;
   --island-danger: #ffb0ad;
   /* Reserved for transient reminders: system notices and new-mail signals. */
   --island-alert: #eeb86a;
+}
+
+/* Island accent tints — details only (halo, page titles, active pager tab);
+   the base material stays near-black. Scoped to the [data-accent] carrier
+   so the island window and the settings preview share one table. Ids match
+   src/domain/settings.ts and the storage validator. */
+[data-accent="amber"] {
+  --island-accent-1: #f0b26b;
+  --island-accent-glow: rgb(240 178 107 / 0.16);
+}
+
+[data-accent="teal"] {
+  --island-accent-1: #7fd4c3;
+  --island-accent-glow: rgb(127 212 195 / 0.16);
+}
+
+[data-accent="violet"] {
+  --island-accent-1: #b3a2f8;
+  --island-accent-glow: rgb(179 162 248 / 0.17);
+}
+
+[data-accent="blue"] {
+  --island-accent-1: #8fc0f2;
+  --island-accent-glow: rgb(143 192 242 / 0.16);
+}
+
+[data-accent="rose"] {
+  --island-accent-1: #ef9bb4;
+  --island-accent-glow: rgb(239 155 180 / 0.16);
 }
 
 /* Settings theme surfaces — dark is default. */

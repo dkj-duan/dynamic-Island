@@ -2,8 +2,28 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { ExpandTrigger } from "../../domain/settings";
 import { t } from "../../services/i18n";
+import {
+  BOUNDS_EPSILON_PX,
+  BOUNDS_SETTLE_MS,
+  FRAME_WAIT_MS,
+  HOVER_DWELL_MS,
+  LEAVE_RECHECK_MS,
+  PAGE_SWITCH_LEAVE_GRACE_MS,
+  PANEL_COLLAPSE_TIMEOUT_MS,
+  PANEL_EXPAND_TIMEOUT_MS,
+  REMINDER_HOLD_BUFFER_MS,
+} from "./motion";
 
-function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
+/**
+ * Resolves when the panel's height morph finishes (or the motion duration
+ * plus settle buffer elapses — a busy webview can swallow `transitionend`).
+ * The timeout comes from the caller because expand and collapse use
+ * different durations; under reduced motion there is no morph at all.
+ */
+function waitForPanelTransition(
+  element: HTMLElement | null,
+  timeoutMs: number,
+): Promise<void> {
   if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
     return Promise.resolve();
   return new Promise((resolve) => {
@@ -15,7 +35,7 @@ function waitForPanelTransition(element: HTMLElement | null): Promise<void> {
     const onEnd = (event: TransitionEvent) => {
       if (event.target === element && event.propertyName === "height") finish();
     };
-    const timeout = window.setTimeout(finish, 450);
+    const timeout = window.setTimeout(finish, timeoutMs);
     element.addEventListener("transitionend", onEnd);
   });
 }
@@ -35,7 +55,7 @@ function waitForFrame(): Promise<void> {
       resolve();
     };
     window.requestAnimationFrame(() => window.requestAnimationFrame(done));
-    window.setTimeout(done, 120);
+    window.setTimeout(done, FRAME_WAIT_MS);
   });
 }
 
@@ -210,7 +230,7 @@ export function useExpandCollapse(options: {
       if (hoverBlocked.current) return;
       openReminderPage();
       void toggleExpanded();
-    }, 180);
+    }, HOVER_DWELL_MS);
   }
   function handlePanelLeave() {
     cancelHoverExpand();
@@ -254,7 +274,7 @@ export function useExpandCollapse(options: {
       if (engagedRef.current && !panel.current?.matches(":hover")) {
         scheduleCollapseRef.current?.();
       }
-    }, 450);
+    }, LEAVE_RECHECK_MS);
     return () => window.clearTimeout(id);
   }, [expanded, expandTrigger]);
 
@@ -272,7 +292,10 @@ export function useExpandCollapse(options: {
     try {
       if (expanded) {
         reminderHold.current = 0;
-        const animation = waitForPanelTransition(panel.current);
+        const animation = waitForPanelTransition(
+          panel.current,
+          PANEL_COLLAPSE_TIMEOUT_MS,
+        );
         setExpanded(false);
         await animation;
         await waitForFrame();
@@ -284,7 +307,10 @@ export function useExpandCollapse(options: {
         engagedRef.current = engaged && !passive;
         await invoke("set_island_expanded", { expanded: true, passive });
         await waitForFrame();
-        const animation = waitForPanelTransition(panel.current);
+        const animation = waitForPanelTransition(
+          panel.current,
+          PANEL_EXPAND_TIMEOUT_MS,
+        );
         setExpanded(true);
         await animation;
       }
@@ -355,8 +381,8 @@ export function useExpandCollapse(options: {
         reminderHold.current =
           Date.now() +
           (alertKind === "notification"
-            ? noticeDisplaySeconds * 1000 + 600
-            : reminderDisplaySeconds * 1000 + 600);
+            ? noticeDisplaySeconds * 1000 + REMINDER_HOLD_BUFFER_MS
+            : reminderDisplaySeconds * 1000 + REMINDER_HOLD_BUFFER_MS);
         scheduleCollapseRef.current();
       }
       return;
@@ -368,8 +394,8 @@ export function useExpandCollapse(options: {
     reminderHold.current =
       Date.now() +
       (alertKind === "notification"
-        ? noticeDisplaySeconds * 1000 + 600
-        : reminderDisplaySeconds * 1000 + 600);
+        ? noticeDisplaySeconds * 1000 + REMINDER_HOLD_BUFFER_MS
+        : reminderDisplaySeconds * 1000 + REMINDER_HOLD_BUFFER_MS);
     current.open(false);
     // Passive: the panel is a hint only, never a focus or pointer grab.
     void current.expand(true);
@@ -405,9 +431,31 @@ export function useExpandCollapse(options: {
     let frame = 0;
     let settle: number | undefined;
     let disposed = false;
+    let lastSent: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null = null;
     const send = (settled: boolean) => {
       if (disposed) return;
       const rect = element.getBoundingClientRect();
+      // During the morph the panel resizes every frame; skip the IPC when the
+      // rect has not moved since the last send. The settled send always goes
+      // through so the native region actually tightens.
+      const moved =
+        !lastSent ||
+        Math.abs(rect.x - lastSent.x) >= BOUNDS_EPSILON_PX ||
+        Math.abs(rect.y - lastSent.y) >= BOUNDS_EPSILON_PX ||
+        Math.abs(rect.width - lastSent.width) >= BOUNDS_EPSILON_PX ||
+        Math.abs(rect.height - lastSent.height) >= BOUNDS_EPSILON_PX;
+      if (!settled && !moved) return;
+      lastSent = {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
       void invoke("set_island_panel_bounds", {
         x: rect.x,
         y: rect.y,
@@ -421,7 +469,7 @@ export function useExpandCollapse(options: {
       frame = requestAnimationFrame(() => {
         send(false);
         window.clearTimeout(settle);
-        settle = window.setTimeout(() => send(true), 260);
+        settle = window.setTimeout(() => send(true), BOUNDS_SETTLE_MS);
       });
     };
     const observer = new ResizeObserver(schedule);
@@ -439,7 +487,7 @@ export function useExpandCollapse(options: {
   }, [scale, taskbarMode]);
   /** Marks a programmatic page switch so the synthetic mouseleave is ignored. */
   function notePageSwitch() {
-    ignoreLeaveUntil.current = Date.now() + 400;
+    ignoreLeaveUntil.current = Date.now() + PAGE_SWITCH_LEAVE_GRACE_MS;
   }
   /** The capsule's toggle button: a completed drag is not a click. */
   function handleToggleClick() {

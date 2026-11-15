@@ -36,7 +36,12 @@ export function IslandPreview({
   };
   return (
     // Zoom only the capsule, so the stage around it keeps a stable size.
-    <div style={{ zoom: appearance.scale }}>
+    // data-shape / data-accent let the preview capsule reflect the style.
+    <div
+      style={{ zoom: appearance.scale }}
+      data-shape={appearance.expandedShape}
+      data-accent={appearance.islandAccent}
+    >
       <IdleWidgets
         key={appearance.idleWidgets.join(",")}
         appearance={appearance}
