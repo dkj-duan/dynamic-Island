@@ -378,7 +378,7 @@ export function BehaviorSettings({
         <SettingRow
           title={t("吸附屏幕顶部")}
           description={t(
-            "拖动松手时靠近屏幕顶部会自动贴齐顶端；任务栏模式下不生效。",
+            "拖动松手或开启开关时，靠近屏幕顶部会自动贴齐顶端；任务栏模式下不生效。",
           )}
         >
           <Switch

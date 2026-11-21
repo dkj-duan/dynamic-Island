@@ -140,8 +140,8 @@ const en: Record<string, string> = {
   悬停展开: "Hover",
   任务栏模式: "Taskbar mode",
   吸附屏幕顶部: "Snap to screen top",
-  "拖动松手时靠近屏幕顶部会自动贴齐顶端；任务栏模式下不生效。":
-    "When a drag release lands near the screen top the capsule docks there; no effect in taskbar mode.",
+  "拖动松手或开启开关时，靠近屏幕顶部会自动贴齐顶端；任务栏模式下不生效。":
+    "The capsule docks flush to the screen top when a drag ends — or this switch turns on — near it; no effect in taskbar mode.",
   "将胶囊放在主屏幕底部任务栏左侧，面板向上展开；可拖动调整位置。":
     "Place the capsule on the left of the primary bottom taskbar, with the panel opening upwards. Drag to adjust its position.",
   "无法放置到任务栏，请检查任务栏位置和灵动岛大小。":

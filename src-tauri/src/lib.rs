@@ -900,18 +900,27 @@ fn remove_native_caption(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
-/// True when the point still lands on one of the connected monitors.
-fn is_visible_on_any_monitor(app: &tauri::AppHandle, x: i32, y: i32) -> bool {
+/// True when the window rect still overlaps one of the connected monitors.
+/// The docked-top position keeps its origin above the screen by the
+/// capsule's top margin, so the origin point alone cannot decide — compare
+/// rectangles, or a saved docked position is rejected on every launch and
+/// the island falls back to its default spot.
+fn is_visible_on_any_monitor(
+    app: &tauri::AppHandle,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> bool {
     let Ok(monitors) = app.available_monitors() else {
         return false;
     };
     monitors.iter().any(|monitor| {
         let origin = monitor.position();
         let size = monitor.size();
-        x >= origin.x
-            && y >= origin.y
-            && x < origin.x + size.width as i32
-            && y < origin.y + size.height as i32
+        let overlap_x = (x + width).min(origin.x + size.width as i32) - x.max(origin.x);
+        let overlap_y = (y + height).min(origin.y + size.height as i32) - y.max(origin.y);
+        overlap_x > 0 && overlap_y > 0
     })
 }
 
@@ -923,6 +932,56 @@ static POSITION_SAVER_RUNNING: std::sync::atomic::AtomicBool =
 static LAST_ISLAND_MOVE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Whether a drag release near the monitor top docks the capsule.
 static SNAP_TOP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// The docked window y for a position, when it sits within the snap zone of
+/// the monitor top. Drag releases only snap from below the top edge so a
+/// capsule dragged partly off-screen keeps its place; the toggle and
+/// default-placement paths use the wider zone, which also re-docks a
+/// position saved at another scale factor (its y is already negative).
+fn snap_top_target_y(position_y: i32, monitor_y: i32, scale: f64, from_drag: bool) -> Option<i32> {
+    // Docked flush means the capsule's top edge sits at the very top — the
+    // webview draws it 13 CSS px below the window top (`.island-panel`
+    // margin-top), so the window itself reaches 13 px above the screen.
+    let docked_y = monitor_y - (13.0 * scale).round() as i32;
+    let threshold = (36.0 * scale).round() as i32;
+    let top_gap = position_y - monitor_y;
+    let in_zone = if from_drag {
+        (0..=threshold).contains(&top_gap)
+    } else {
+        top_gap >= -threshold && top_gap <= threshold
+    };
+    if in_zone && position_y != docked_y {
+        Some(docked_y)
+    } else {
+        None
+    }
+}
+
+/// Moves the window to the docked-top position when its current spot is
+/// inside the snap zone, and returns the applied position. Shared by the
+/// drag-release save loop and every path that moves the island without a
+/// drag (snap toggle, position reset, leaving taskbar mode).
+fn top_snap_position(
+    window: &tauri::WebviewWindow,
+    position: PhysicalPosition<i32>,
+    from_drag: bool,
+) -> Option<(i32, i32)> {
+    use std::sync::atomic::Ordering;
+    if !SNAP_TOP.load(Ordering::SeqCst) || TASKBAR_MODE.load(Ordering::SeqCst) {
+        return None;
+    }
+    let monitor = window.current_monitor().ok().flatten()?;
+    let y = snap_top_target_y(
+        position.y,
+        monitor.position().y,
+        monitor.scale_factor(),
+        from_drag,
+    )?;
+    window
+        .set_position(PhysicalPosition::new(position.x, y))
+        .ok()?;
+    Some((position.x, y))
+}
 
 fn now_millis() -> u64 {
     std::time::SystemTime::now()
@@ -956,26 +1015,10 @@ fn schedule_position_save(app: &tauri::AppHandle) {
             let still_dragging =
                 now_millis().saturating_sub(LAST_ISLAND_MOVE.load(Ordering::SeqCst)) < 400;
             if !still_dragging
-                && SNAP_TOP.load(Ordering::SeqCst)
-                && !TASKBAR_MODE.load(Ordering::SeqCst)
-                && let Ok(Some(monitor)) = window.current_monitor()
+                && let Some((snap_x, snap_y)) = top_snap_position(&window, position, true)
             {
-                let scale = monitor.scale_factor();
-                let monitor_y = monitor.position().y;
-                let top_gap = position.y - monitor_y;
-                // Docked flush means the capsule's top edge sits at the very
-                // top — the webview draws it 13 CSS px below the window top
-                // (`.island-panel` margin-top), so the window itself reaches
-                // 13 px above the screen.
-                let docked_y = monitor_y - (13.0 * scale).round() as i32;
-                let threshold = (36.0 * scale).round() as i32;
-                // Within 36 logical px of the monitor top: dock the capsule
-                // flush at the top, keeping the dragged x.
-                if top_gap >= 0 && top_gap <= threshold && position.y != docked_y {
-                    let _ = window.set_position(PhysicalPosition::new(position.x, docked_y));
-                    let _ = storage::save_island_position(storage.inner(), position.x, docked_y);
-                    return;
-                }
+                let _ = storage::save_island_position(storage.inner(), snap_x, snap_y);
+                return;
             }
             let _ = storage::save_island_position(storage.inner(), position.x, position.y);
             if !still_dragging {
@@ -1136,6 +1179,11 @@ fn reset_island_position(
         island
             .set_position(PhysicalPosition::new(x, y))
             .map_err(|e| e.to_string())?;
+        // The default spot sits inside the snap zone; honour the enabled
+        // snap so reset matches what the next launch will restore.
+        if let Ok(position) = island.outer_position() {
+            let _ = top_snap_position(&island, position, false);
+        }
     }
     Ok(())
 }
@@ -1166,10 +1214,25 @@ fn taskbar_bounds(window: &tauri::WebviewWindow) -> Result<(i32, i32, i32, i32),
     Ok((rect.left, rect.top, rect.right, rect.bottom))
 }
 
-/// Toggles the drag-release snap to the current monitor's top edge.
+/// Toggles the drag-release snap to the current monitor's top edge. Turning
+/// it on docks the capsule right away when it already sits within the snap
+/// zone: the island restores its saved (or default) position before the
+/// webview applies this preference on startup, so after a boot near the top
+/// the capsule would otherwise wait for the first drag to dock.
 #[tauri::command]
-fn set_island_snap_top(enabled: bool) {
+fn set_island_snap_top(window: tauri::WebviewWindow, enabled: bool) {
     SNAP_TOP.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    if !enabled || window.label() != "island" {
+        return;
+    }
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    if let Some((snap_x, snap_y)) = top_snap_position(&window, position, false)
+        && let Some(storage) = window.app_handle().try_state::<storage::Storage>()
+    {
+        let _ = storage::save_island_position(storage.inner(), snap_x, snap_y);
+    }
 }
 
 #[tauri::command]
@@ -1233,6 +1296,10 @@ fn set_taskbar_mode(window: tauri::WebviewWindow, enabled: bool) -> Result<(), S
         window
             .set_position(PhysicalPosition::new(x, y))
             .map_err(|e| e.to_string())?;
+        // Back on the default spot, which sits inside the snap zone.
+        if let Ok(position) = window.outer_position() {
+            let _ = top_snap_position(&window, position, false);
+        }
     }
     Ok(())
 }
@@ -1870,15 +1937,23 @@ pub fn run() {
                 let user = storage::load_island_user_scale(storage.inner());
                 apply_island_window_scale(&window, auto * user)?;
                 let saved = storage::load_island_position(storage.inner());
+                let size = window.outer_size()?;
                 let restored = match saved {
-                    Some((x, y)) if is_visible_on_any_monitor(app.handle(), x, y) => {
+                    Some((x, y))
+                        if is_visible_on_any_monitor(
+                            app.handle(),
+                            x,
+                            y,
+                            size.width as i32,
+                            size.height as i32,
+                        ) =>
+                    {
                         window.set_position(PhysicalPosition::new(x, y))?;
                         true
                     }
                     _ => false,
                 };
                 if !restored && let Some(monitor) = window.primary_monitor()? {
-                    let size = window.outer_size()?;
                     let screen = monitor.size();
                     let origin = monitor.position();
                     let x = origin.x + (screen.width as i32 - size.width as i32) / 2;
@@ -1998,7 +2073,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{island_visual_scale, taskbar_window_y};
+    use super::{island_visual_scale, snap_top_target_y, taskbar_window_y};
 
     #[test]
     fn taskbar_window_centres_bottom_capsule_at_multiple_dpi_scales() {
@@ -2006,6 +2081,36 @@ mod tests {
         assert_eq!(taskbar_window_y(1044, 1080, 384, 1.2), 712);
         // An oversized capsule protrudes above the bar rather than below the screen.
         assert_eq!(taskbar_window_y(1032, 1080, 512, 1.6), 589);
+    }
+
+    #[test]
+    fn drag_release_snaps_only_from_below_the_top_edge() {
+        // The docked window y sits 13 px above the screen so the capsule's
+        // top margin lands flush; the snap zone covers 0–36 logical px.
+        assert_eq!(snap_top_target_y(8, 0, 1.0, true), Some(-13));
+        assert_eq!(snap_top_target_y(30, 0, 1.0, true), Some(-13));
+        assert_eq!(snap_top_target_y(36, 0, 1.0, true), Some(-13));
+        assert_eq!(snap_top_target_y(37, 0, 1.0, true), None);
+        // A release above the top edge keeps the dragged position.
+        assert_eq!(snap_top_target_y(-5, 0, 1.0, true), None);
+        // Already docked — no move.
+        assert_eq!(snap_top_target_y(-13, 0, 1.0, true), None);
+        // The dragged x is kept, only y is docked; offsets from a
+        // secondary monitor's top work the same way.
+        assert_eq!(snap_top_target_y(1060, 1030, 1.0, true), Some(1017));
+    }
+
+    #[test]
+    fn toggle_and_default_paths_re_dock_positions_saved_at_other_scales() {
+        // The default placement (8 logical px) is inside the snap zone.
+        assert_eq!(snap_top_target_y(8, 0, 1.5, false), Some(-20));
+        // A position docked at 100% (y = -13) re-docks after a switch to 150%.
+        assert_eq!(snap_top_target_y(-13, 0, 1.5, false), Some(-20));
+        // Already docked at the current scale — no move.
+        assert_eq!(snap_top_target_y(-20, 0, 1.5, false), None);
+        // Parked further down — or further above — than the zone: untouched.
+        assert_eq!(snap_top_target_y(60, 0, 1.5, false), None);
+        assert_eq!(snap_top_target_y(-60, 0, 1.5, false), None);
     }
 
     #[test]

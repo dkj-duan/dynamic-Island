@@ -74,6 +74,12 @@ function IdleArt({
 }
 
 const MAX_IDLE_WIDTH = 338;
+/**
+ * How much spare room justifies relaxing a compact level. Must exceed the
+ * width a single step reclaims (~20px: gaps, font and padding), so a level
+ * that genuinely prevents clipping never oscillates on and off.
+ */
+const FIT_RELAX_SLACK_PX = 40;
 const mascotPoses = {
   listening: mascotListening,
   water: mascotWater,
@@ -187,6 +193,17 @@ export function IdleWidgets({
     // tail once a value gets longer, so compact before that can happen.
     if (content + padding > widthCap + 0.5 && fitLevelRef.current < 2) {
       fitLevelRef.current += 1;
+      setFitLevel(fitLevelRef.current);
+    } else if (
+      fitLevelRef.current > 0 &&
+      content + padding <= widthCap - FIT_RELAX_SLACK_PX
+    ) {
+      // A compact level can also go stale: the very first boot measure trips
+      // while widgets are still appearing one by one, and change widgets or
+      // shorter values leave slack later. Compaction only exists to avoid
+      // clipping, so relax one step per pass when there is clearly room;
+      // without this the capsule stays squeezed until it is remounted.
+      fitLevelRef.current -= 1;
       setFitLevel(fitLevelRef.current);
     }
   }, [
