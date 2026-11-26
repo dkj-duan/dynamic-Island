@@ -1523,15 +1523,22 @@ fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) {
 /// application activates. Only repair ordering when the primary taskbar has
 /// actually moved above the island; never activate or focus either window.
 #[cfg(target_os = "windows")]
-fn taskbar_covers_island(window: &tauri::WebviewWindow) -> bool {
+fn taskbar_needs_repair(window: &tauri::WebviewWindow) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GW_HWNDPREV, GetWindow, IsWindowVisible,
+        FindWindowW, GW_HWNDPREV, GWL_EXSTYLE, GetWindow, GetWindowLongPtrW, IsWindowVisible,
+        WS_EX_TOPMOST,
     };
     let Ok(island) = window.hwnd() else {
         return false;
     };
     let class: Vec<u16> = "Shell_TrayWnd\0".encode_utf16().collect();
     unsafe {
+        if IsWindowVisible(island.0) == 0 {
+            return false;
+        }
+        if GetWindowLongPtrW(island.0, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST == 0 {
+            return true;
+        }
         let taskbar = FindWindowW(class.as_ptr(), std::ptr::null());
         if taskbar.is_null() || IsWindowVisible(taskbar) == 0 {
             return false;
@@ -1550,6 +1557,32 @@ fn taskbar_covers_island(window: &tauri::WebviewWindow) -> bool {
     false
 }
 
+/// Check taskbar ordering independently of slower fullscreen and monitor queries.
+#[cfg(target_os = "windows")]
+fn spawn_taskbar_order_watch(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            if !TASKBAR_MODE.load(std::sync::atomic::Ordering::SeqCst)
+                || ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst)
+                || (FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst)
+                    && FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst))
+            {
+                continue;
+            }
+            let Some(window) = app.get_webview_window("island") else {
+                continue;
+            };
+            if taskbar_needs_repair(&window)
+                && !(FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst)
+                    && foreground_covers_island_monitor(&window))
+            {
+                let _ = raise_island(&window);
+            }
+        }
+    });
+}
+
 /// Watches the foreground window and hides the island while a fullscreen app
 /// owns the screen. Polls cheaply; visibility only flips on real changes so
 /// the user's own show/hide actions are never fought over.
@@ -1563,13 +1596,6 @@ fn spawn_fullscreen_watch(app: tauri::AppHandle) {
             };
             let fullscreen = foreground_covers_island_monitor(&window);
             let avoid = FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst);
-            if TASKBAR_MODE.load(std::sync::atomic::Ordering::SeqCst)
-                && !(fullscreen && avoid)
-                && !ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst)
-                && taskbar_covers_island(&window)
-            {
-                let _ = raise_island(&window);
-            }
             if fullscreen == FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
                 continue;
             }
@@ -1836,6 +1862,7 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             if app.get_webview_window("island").is_some() {
                 spawn_fullscreen_watch(app.handle().clone());
+                spawn_taskbar_order_watch(app.handle().clone());
             }
             // Sample system and device status in the background and push
             // changes as events; the windows stop polling every second.
