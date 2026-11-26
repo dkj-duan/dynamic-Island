@@ -1031,40 +1031,6 @@ fn schedule_position_save(app: &tauri::AppHandle) {
     });
 }
 
-/// Paints the native caption to the same colour as the settings surface.
-#[cfg(target_os = "windows")]
-fn apply_caption_colors(window: &tauri::WebviewWindow, dark: bool) {
-    use windows_sys::Win32::{
-        Foundation::HWND,
-        Graphics::Dwm::{DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DwmSetWindowAttribute},
-    };
-    let Ok(hwnd) = window.hwnd() else {
-        return;
-    };
-    let handle = hwnd.0 as HWND;
-    // COLORREF is 0x00BBGGRR.
-    let (background, text) = if dark {
-        (0x0014_1414u32, 0x00F0_ECECu32)
-    } else {
-        (0x00FF_FFFFu32, 0x0022_1C1Bu32)
-    };
-    let size = std::mem::size_of::<u32>() as u32;
-    unsafe {
-        DwmSetWindowAttribute(
-            handle,
-            DWMWA_CAPTION_COLOR as u32,
-            &background as *const u32 as *const _,
-            size,
-        );
-        DwmSetWindowAttribute(
-            handle,
-            DWMWA_TEXT_COLOR as u32,
-            &text as *const u32 as *const _,
-            size,
-        );
-    }
-}
-
 /// Windows' own light/dark preference for apps, so "follow system" is real
 /// instead of trusting WebView2's media query.
 #[cfg(windows)]
@@ -1131,7 +1097,7 @@ fn get_system_theme() -> String {
     .to_string()
 }
 
-/// Follows the settings window chrome to the chosen light/dark theme.
+/// Sets the WebView host theme for the settings window.
 #[tauri::command]
 fn set_window_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
     if window.label() != "main" {
@@ -1143,17 +1109,7 @@ fn set_window_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), S
         "dark" => Some(tauri::Theme::Dark),
         _ => None,
     };
-    window.set_theme(tauri_theme).map_err(|e| e.to_string())?;
-    #[cfg(target_os = "windows")]
-    {
-        let dark = match requested {
-            "dark" => true,
-            "light" => false,
-            _ => matches!(window.theme(), Ok(tauri::Theme::Dark)),
-        };
-        apply_caption_colors(&window, dark);
-    }
-    Ok(())
+    window.set_theme(tauri_theme).map_err(|e| e.to_string())
 }
 
 /// Puts the island back above the primary monitor's centre (settings window only).

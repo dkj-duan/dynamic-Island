@@ -1,4 +1,4 @@
-import { Divider, Segmented, Space, Switch } from "antd";
+import { Segmented, Select, Space, Switch } from "antd";
 import {
   BellOutlined,
   CalendarOutlined,
@@ -16,14 +16,17 @@ import {
   WifiOutlined,
   SmileOutlined,
 } from "@ant-design/icons";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { IslandStyleSection } from "./IslandStyleSettings";
 import { Section } from "./ui/Section";
 import {
+  islandMascots,
   type AppearanceSettings,
   type IdleWidgetId,
+  type IslandMascotId,
   type PomodoroIdleView,
 } from "../../domain/settings";
+import { IslandMascot } from "../island/IslandMascot";
 import {
   IDLE_WIDGET_MODES,
   type IdleWidgetMode,
@@ -56,6 +59,11 @@ const pomodoroViewOptions: { value: PomodoroIdleView; label: string }[] = [
   { value: "focus", label: "专注分钟" },
   { value: "cycle", label: "本轮轮次" },
 ];
+
+const mascotLabels: Record<IslandMascotId, string> = {
+  classic: "经典伙伴",
+  golden: "奶蛙",
+};
 
 const islandSizeOptions = [
   { value: 0.8, label: "特小" },
@@ -91,6 +99,10 @@ export function AppearancePage({
   preview: ReactNode;
   canEdit: boolean;
 }) {
+  const [visibleSection, setVisibleSection] = useState<"style" | "widgets">(
+    "style",
+  );
+
   function toggleIdleWidget(id: IdleWidgetId) {
     const enabled = appearance.idleWidgets.includes(id);
     const widgets = enabled
@@ -100,13 +112,14 @@ export function AppearancePage({
   }
 
   return (
-    <div className="antd-stack appearance-page">
+    <div className="antd-stack appearance-page" data-section={visibleSection}>
       <Section
         title={t("桌面预览")}
         extra={
           <Space size={8}>
             <span className="section-inline-note">{t("灵动岛大小")}</span>
             <Segmented
+              size="small"
               value={appearance.scale}
               disabled={!canEdit}
               onChange={(value) =>
@@ -123,132 +136,180 @@ export function AppearancePage({
         <div className="preview-stage">{preview}</div>
       </Section>
 
-      <IslandStyleSection
-        appearance={appearance}
-        onAppearanceChange={onAppearanceChange}
-        canEdit={canEdit}
-      />
+      <div className="appearance-section-switch">
+        <Segmented
+          block
+          size="small"
+          aria-label={t("外观")}
+          value={visibleSection}
+          onChange={setVisibleSection}
+          options={[
+            { value: "style", label: t("灵动岛样式") },
+            { value: "widgets", label: t("空闲组件") },
+          ]}
+        />
+      </div>
+      <div className="appearance-style-panel">
+        <IslandStyleSection
+          appearance={appearance}
+          onAppearanceChange={onAppearanceChange}
+          canEdit={canEdit}
+        />
+      </div>
 
       <Section
+        className="appearance-widgets-panel"
         title={t("空闲组件")}
         extra={
-          <span className="section-inline-note">
-            {appearance.idleWidgets.length} / {idleWidgetOptions.length}
-          </span>
+          <Space size={8}>
+            <span className="section-inline-note">{t("伙伴形象")}</span>
+            <Segmented
+              size="small"
+              aria-label={t("伙伴形象")}
+              value={appearance.islandMascot}
+              disabled={!canEdit}
+              onChange={(islandMascot) =>
+                onAppearanceChange({ ...appearance, islandMascot })
+              }
+              options={islandMascots.map((value) => ({
+                value,
+                label: (
+                  <span className="mascot-option">
+                    <IslandMascot mascot={value} thumbnail />
+                    {t(mascotLabels[value])}
+                  </span>
+                ),
+              }))}
+            />
+            <span className="section-inline-note">
+              {appearance.idleWidgets.length} / {idleWidgetOptions.length}
+            </span>
+          </Space>
         }
       >
-        {/* Widgets grouped by how they earn their slot: click a chip to put
+        <div className="appearance-idle-grid">
+          {/* Widgets grouped by how they earn their slot: click a chip to put
             it on the island, click again to take it off. Order is adjusted
             by dragging inside the desktop preview above. */}
-        <div className="appearance-widget-groups">
-          {idleWidgetGroups.map((group) => (
-            <div key={group.key} className="antd-widget-group">
-              <div className="antd-widget-group-label">
-                {t(group.label)}
-                <span className="section-inline-note"> {t(group.hint)}</span>
+          <div className="appearance-widget-groups">
+            {idleWidgetGroups.map((group) => (
+              <div key={group.key} className="antd-widget-group">
+                <div className="antd-widget-group-label">
+                  {t(group.label)}
+                  <span className="section-inline-note"> {t(group.hint)}</span>
+                </div>
+                <div className="antd-widget-chips is-unified">
+                  {idleWidgetOptions
+                    .filter(
+                      (option) => IDLE_WIDGET_MODES[option.id] === group.key,
+                    )
+                    .map((option) => {
+                      const on = appearance.idleWidgets.includes(option.id);
+                      return (
+                        <div
+                          role="button"
+                          tabIndex={canEdit ? 0 : -1}
+                          key={option.id}
+                          className={`antd-widget-chip is-widget-toggle ${
+                            on ? "is-on" : "is-off"
+                          }`}
+                          aria-pressed={on}
+                          title={
+                            on
+                              ? `${t("移除")} ${t(option.label)}`
+                              : `${t("添加")} ${t(option.label)}`
+                          }
+                          onClick={() => {
+                            if (!canEdit) return;
+                            toggleIdleWidget(option.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ")
+                              return;
+                            event.preventDefault();
+                            if (!canEdit) return;
+                            toggleIdleWidget(option.id);
+                          }}
+                        >
+                          <span className="antd-widget-icon" aria-hidden="true">
+                            {option.icon}
+                          </span>
+                          <span className="antd-widget-label">
+                            {t(option.label)}
+                          </span>
+                          {on ? null : (
+                            <PlusOutlined className="antd-chip-add" />
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-              <div className="antd-widget-chips is-unified">
-                {idleWidgetOptions
-                  .filter(
-                    (option) => IDLE_WIDGET_MODES[option.id] === group.key,
-                  )
-                  .map((option) => {
-                    const on = appearance.idleWidgets.includes(option.id);
-                    return (
-                      <div
-                        role="button"
-                        tabIndex={canEdit ? 0 : -1}
-                        key={option.id}
-                        className={`antd-widget-chip is-widget-toggle ${
-                          on ? "is-on" : "is-off"
-                        }`}
-                        aria-pressed={on}
-                        title={
-                          on
-                            ? `${t("移除")} ${t(option.label)}`
-                            : `${t("添加")} ${t(option.label)}`
-                        }
-                        onClick={() => {
-                          if (!canEdit) return;
-                          toggleIdleWidget(option.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter" && event.key !== " ")
-                            return;
-                          event.preventDefault();
-                          if (!canEdit) return;
-                          toggleIdleWidget(option.id);
-                        }}
-                      >
-                        <span className="antd-widget-icon" aria-hidden="true">
-                          {option.icon}
-                        </span>
-                        <span className="antd-widget-label">
-                          {t(option.label)}
-                        </span>
-                        {on ? null : <PlusOutlined className="antd-chip-add" />}
-                      </div>
-                    );
-                  })}
+            ))}
+          </div>
+
+          <div className="appearance-idle-options">
+            <div className="antd-setting-row">
+              <div className="antd-setting-copy">
+                <div className="antd-setting-title">
+                  {t("变化组件显示时长")}
+                </div>
               </div>
+              <Select
+                size="small"
+                className="compact-duration-select"
+                aria-label={t("变化组件显示时长")}
+                value={appearance.idleChangeDisplayMinutes}
+                disabled={!canEdit}
+                onChange={(value) =>
+                  onAppearanceChange({
+                    ...appearance,
+                    idleChangeDisplayMinutes: value as number,
+                  })
+                }
+                options={idleChangeMinutesOptions.map((option) => ({
+                  value: option.value,
+                  label: t(option.label),
+                }))}
+              />
             </div>
-          ))}
-        </div>
 
-        <Divider style={{ margin: "6px 0 4px" }} />
-        <div className="antd-setting-row">
-          <div className="antd-setting-copy">
-            <div className="antd-setting-title">{t("变化组件显示时长")}</div>
-          </div>
-          <Segmented
-            value={appearance.idleChangeDisplayMinutes}
-            disabled={!canEdit}
-            onChange={(value) =>
-              onAppearanceChange({
-                ...appearance,
-                idleChangeDisplayMinutes: value as number,
-              })
-            }
-            options={idleChangeMinutesOptions.map((option) => ({
-              value: option.value,
-              label: t(option.label),
-            }))}
-          />
-        </div>
+            <div className="antd-setting-row">
+              <div className="antd-setting-copy">
+                <div className="antd-setting-title">{t("番茄组件显示")}</div>
+              </div>
+              <Select
+                size="small"
+                className="compact-duration-select"
+                aria-label={t("番茄组件显示")}
+                value={appearance.pomodoroView}
+                disabled={!canEdit}
+                onChange={(value) =>
+                  onAppearanceChange({
+                    ...appearance,
+                    pomodoroView: value as PomodoroIdleView,
+                  })
+                }
+                options={pomodoroViewOptions.map((option) => ({
+                  value: option.value,
+                  label: t(option.label),
+                }))}
+              />
+            </div>
 
-        <Divider style={{ margin: "6px 0 4px" }} />
-        <div className="antd-setting-row">
-          <div className="antd-setting-copy">
-            <div className="antd-setting-title">{t("番茄组件显示")}</div>
+            <div className="antd-setting-row">
+              <div className="antd-setting-copy">
+                <div className="antd-setting-title">{t("岛上显示歌词")}</div>
+              </div>
+              <Switch
+                checked={appearance.islandLyrics}
+                disabled={!canEdit}
+                onChange={(checked) =>
+                  onAppearanceChange({ ...appearance, islandLyrics: checked })
+                }
+              />
+            </div>
           </div>
-          <Segmented
-            value={appearance.pomodoroView}
-            disabled={!canEdit}
-            onChange={(value) =>
-              onAppearanceChange({
-                ...appearance,
-                pomodoroView: value as PomodoroIdleView,
-              })
-            }
-            options={pomodoroViewOptions.map((option) => ({
-              value: option.value,
-              label: t(option.label),
-            }))}
-          />
-        </div>
-
-        <Divider style={{ margin: "6px 0 4px" }} />
-        <div className="antd-setting-row">
-          <div className="antd-setting-copy">
-            <div className="antd-setting-title">{t("岛上显示歌词")}</div>
-          </div>
-          <Switch
-            checked={appearance.islandLyrics}
-            disabled={!canEdit}
-            onChange={(checked) =>
-              onAppearanceChange({ ...appearance, islandLyrics: checked })
-            }
-          />
         </div>
       </Section>
     </div>

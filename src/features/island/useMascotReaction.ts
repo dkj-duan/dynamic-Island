@@ -9,8 +9,11 @@ import {
 export function useMascotReaction(
   signals: MascotSignals,
   visible: boolean,
+  visibleDurationMs: number,
 ): MascotReaction | null {
-  const [reaction, setReaction] = useState<MascotReaction | null>(null);
+  const [reaction, setReaction] = useState<{ kind: MascotReaction } | null>(
+    null,
+  );
   const previous = useRef<MascotSignals | null>(null);
   const {
     waterMl,
@@ -36,7 +39,7 @@ export function useMascotReaction(
     previous.current = current;
     if (!next) return;
     const start = window.setTimeout(() => {
-      setReaction(next);
+      setReaction({ kind: next });
     }, 0);
     return () => window.clearTimeout(start);
   }, [
@@ -52,9 +55,9 @@ export function useMascotReaction(
     if (!reaction) return;
     const expiry = window.setTimeout(
       () => setReaction(null),
-      visible ? 8_000 : 60_000,
+      visible ? visibleDurationMs : 60_000,
     );
     return () => window.clearTimeout(expiry);
-  }, [reaction, visible]);
-  return reaction;
+  }, [reaction, visible, visibleDurationMs]);
+  return reaction?.kind ?? null;
 }

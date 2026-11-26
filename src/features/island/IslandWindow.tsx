@@ -24,6 +24,7 @@ import { defaultAppearance, parseAppearance } from "../../domain/settings";
 import { loadAppearance } from "../../services/settingsRepository";
 import { isLargeDisplay, watchDisplayTier } from "../../services/display";
 import type { IdleData } from "./idleWidgetData";
+import { islandColorStyle } from "./islandColors";
 import { useIdleChanges, type IdleChangeKeys } from "./useIdleChanges";
 import { useMascotReaction } from "./useMascotReaction";
 import { CapsuleContent, type MediaBadge } from "./CapsuleContent";
@@ -669,14 +670,17 @@ export function IslandWindow() {
   };
   const mascotReaction = useMascotReaction(
     {
-      waterMl: todayStat?.waterMl ?? null,
+      // A loaded day with no record is a zero baseline, including the first
+      // drink logged from the settings window.
+      waterMl: dailyStats.ready ? todayWater : null,
       waterActions: waterAdded,
-      pomodoros: todayStat?.pomodoros ?? null,
+      pomodoros: dailyStats.ready ? (todayStat?.pomodoros ?? 0) : null,
       focusFinished: timer.status === "finished" && timerMode === "focus",
       countdownReached: idleCountdown?.reached ?? null,
       sedentaryOver: sedentaryWidget?.over ?? null,
     },
-    display === "idle" && !expanded,
+    !expanded && !appHidden && (display === "idle" || display === "media"),
+    appearance.islandMascot === "golden" ? 4_000 : 8_000,
   );
   // Change-tier idle widgets speak briefly after their value moves. Volume
   // keys follow every adjustment; battery speaks on plug/unplug and when the
@@ -810,12 +814,13 @@ export function IslandWindow() {
   return (
     <div
       className={`desktop-island ${expanded ? "is-expanded" : ""} ${timer.status === "finished" ? "timer-finished" : ""}`}
+      style={islandColorStyle(appearance)}
       data-placement={taskbarActive ? "taskbar" : "desktop"}
       data-shape={appearance.expandedShape}
       data-accent={appearance.islandAccent}
       data-idle-style={!expanded ? appearance.idleStyle : undefined}
       data-display={!expanded ? display : undefined}
-      data-glass={appearance.idleStyle === "glass" ? "on" : undefined}
+      data-glass={appearance.islandMaterial === "glass" ? "on" : undefined}
       data-app-hidden={appHidden || undefined}
       data-page={expanded ? activeTab : undefined}
     >

@@ -253,14 +253,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_f64())
         .filter(|v| {
-            if matches!(version, Some(21..=28)) {
+            if matches!(version, Some(21..=31)) {
                 (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
             } else {
                 [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
             }
         });
     let idle_widgets_valid = match version {
-        Some(8..=28) => value
+        Some(8..=31) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -287,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=28))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=31))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -317,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=28) => value
+        Some(7..=31) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=28) => matches!(
+        Some(8..=31) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=28) => {
+        Some(10..=31) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -351,24 +351,24 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=28))
+    let shape_valid = !matches!(version, Some(12..=31))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval" | "flat")
         );
     let idle_style_valid = match version {
-        Some(27) => matches!(
+        Some(27 | 31) => matches!(
             value.get("idleStyle").and_then(|v| v.as_str()),
             Some("capsule" | "card" | "grouped" | "minimal")
         ),
-        Some(28..) => matches!(
+        Some(28..=30) => matches!(
             value.get("idleStyle").and_then(|v| v.as_str()),
             Some("capsule" | "card" | "grouped" | "minimal" | "glass")
         ),
         _ => true,
     };
     let hotkeys_valid = match version {
-        Some(13..=28) => {
+        Some(13..=31) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -380,7 +380,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=28) => {
+        Some(14..=31) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -415,6 +415,16 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
+    let color_valid = |key| {
+        value.get(key).is_some_and(|color| {
+            color.is_null()
+                || color.as_str().is_some_and(|hex| {
+                    hex.len() == 7
+                        && hex.starts_with('#')
+                        && hex.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+                })
+        })
+    };
     if (version == Some(22)
         && (value
             .get("wechatNoticeExpand")
@@ -440,6 +450,18 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
             && !matches!(
                 value.get("islandAccent").and_then(|v| v.as_str()),
                 Some("white" | "amber" | "teal" | "violet" | "blue" | "rose")
+            ))
+        || (version >= Some(29)
+            && !(color_valid("islandBackgroundColor") && color_valid("islandTextColor")))
+        || (version >= Some(30)
+            && !matches!(
+                value.get("islandMascot").and_then(|v| v.as_str()),
+                Some("classic" | "golden")
+            ))
+        || (version == Some(31)
+            && !matches!(
+                value.get("islandMaterial").and_then(|v| v.as_str()),
+                Some("solid" | "glass")
             ))
         || !idle_style_valid
         || !shape_valid
@@ -2384,5 +2406,88 @@ mod tests {
             .unwrap();
         let saved = serde_json::from_str::<serde_json::Value>(&saved).unwrap();
         assert_eq!(saved["idleStyle"], "glass");
+
+        let mut v29 = saved.clone();
+        v29["version"] = serde_json::json!(29);
+        assert!(save_appearance_value(&conn, &v29).is_err());
+        v29["islandBackgroundColor"] = serde_json::json!("#A0c2F4");
+        v29["islandTextColor"] = serde_json::Value::Null;
+        assert!(save_appearance_value(&conn, &v29).is_ok());
+        for key in ["islandBackgroundColor", "islandTextColor"] {
+            for invalid in [
+                serde_json::json!("#123"),
+                serde_json::json!("#12345678"),
+                serde_json::json!("#ABCDEF\n"),
+                serde_json::json!("red"),
+                serde_json::json!(123),
+            ] {
+                let mut malformed = v29.clone();
+                malformed[key] = invalid;
+                assert!(save_appearance_value(&conn, &malformed).is_err());
+            }
+        }
+        let stored: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
+            v29
+        );
+        let mut v30 = v29.clone();
+        v30["version"] = serde_json::json!(30);
+        assert!(save_appearance_value(&conn, &v30).is_err());
+        v30["islandMascot"] = serde_json::json!("classic");
+        assert!(save_appearance_value(&conn, &v30).is_ok());
+        v30["islandMascot"] = serde_json::json!("golden");
+        assert!(save_appearance_value(&conn, &v30).is_ok());
+        for invalid in [serde_json::Value::Null, serde_json::json!("unknown")] {
+            let mut malformed = v30.clone();
+            malformed["islandMascot"] = invalid;
+            assert!(save_appearance_value(&conn, &malformed).is_err());
+        }
+        let stored: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
+            v30
+        );
+        let mut v31 = v30.clone();
+        v31["version"] = serde_json::json!(31);
+        assert!(save_appearance_value(&conn, &v31).is_err());
+        v31["idleStyle"] = serde_json::json!("card");
+        assert!(save_appearance_value(&conn, &v31).is_err());
+        for style in ["capsule", "card", "grouped", "minimal"] {
+            v31["idleStyle"] = serde_json::json!(style);
+            for material in ["solid", "glass"] {
+                v31["islandMaterial"] = serde_json::json!(material);
+                assert!(save_appearance_value(&conn, &v31).is_ok());
+            }
+        }
+        let mut malformed = v31.clone();
+        malformed["idleStyle"] = serde_json::json!("glass");
+        assert!(save_appearance_value(&conn, &malformed).is_err());
+        malformed = v31.clone();
+        malformed["islandMaterial"] = serde_json::json!("unknown");
+        assert!(save_appearance_value(&conn, &malformed).is_err());
+        let stored: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
+            v31
+        );
     }
 }

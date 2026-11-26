@@ -12,6 +12,7 @@
 }
 
 .stand-ring-island {
+  --stand-track: var(--island-line-strong);
   width: 58px;
   height: 58px;
 }
@@ -196,7 +197,7 @@
 }
 
 .stand-copy strong {
-  color: #eaf6ff;
+  color: var(--island-custom-text, #eaf6ff);
   font-size: 22px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -204,7 +205,7 @@
 }
 
 .stand-copy strong span {
-  color: #b4c0cc;
+  color: var(--island-custom-text, #b4c0cc);
   font-size: 13px;
   font-weight: 500;
 }
@@ -213,7 +214,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #b4c0cc;
+  color: var(--island-custom-text, #b4c0cc);
   font-size: 12px;
 }
 
@@ -252,7 +253,7 @@
 }
 
 .island-panel.is-sedentary-reminder {
-  border-color: rgb(239 125 104 / 0.55);
+  border-color: rgb(239 125 104 / 0.35);
 }
 
 .island-panel[data-alert="sedentary"] {
@@ -261,15 +262,15 @@
 
 /* —— Idle widget: minutes since the last break —— */
 .idle-widget-sedentary span {
-  color: #79d6a3;
+  color: var(--island-custom-text, #79d6a3);
 }
 
 .idle-widget-sedentary.is-near span {
-  color: #f0b26b;
+  color: var(--island-custom-text, #f0b26b);
 }
 
 .idle-widget-sedentary.is-over span {
-  color: #ef7d68;
+  color: var(--island-custom-text, #ef7d68);
 }
 
 .idle-widget-sedentary.is-over img {
@@ -284,11 +285,11 @@
 
 .stand-actions button {
   flex: 1;
-  padding: 7px 0;
-  border: none;
+  padding: 6px 0;
+  border: 1px solid var(--island-line);
   border-radius: 9px;
-  background: rgb(255 255 255 / 0.1);
-  color: #eaf6ff;
+  background: var(--island-line);
+  color: var(--island-custom-text, #eaf6ff);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
@@ -296,15 +297,31 @@
 }
 
 .stand-actions button:hover {
-  background: rgb(255 255 255 / 0.16);
+  background: var(--island-line-strong);
 }
 
 .stand-actions .stand-add {
-  background: rgb(111 211 154 / 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-color: transparent;
+  background: #216846;
+  color: #fff;
+  font-weight: 600;
 }
 
 .stand-actions .stand-add:hover {
-  background: rgb(111 211 154 / 0.3);
+  background: #297550;
+}
+
+.stand-actions .stand-add:active {
+  background: #195339;
+}
+
+.stand-actions .stand-add:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
 }
 
 .stand-flash {

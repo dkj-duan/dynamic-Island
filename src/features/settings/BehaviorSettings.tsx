@@ -2,6 +2,7 @@ import {
   App,
   Button,
   InputNumber,
+  Select,
   Segmented,
   Space,
   Switch,
@@ -12,6 +13,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { AppearanceSettings, HotkeySetting } from "../../domain/settings";
 import { Section, SettingRow } from "./ui/Section";
+import { IslandPreview } from "../island/IslandPreview";
 import { t } from "../../services/i18n";
 
 /** Maps a captured key to the normalized form Rust parses, or null to wait. */
@@ -135,10 +137,7 @@ function HotkeyRow({
     };
   }, []);
   return (
-    <SettingRow
-      title={title}
-      description={setting ? formatHotkey(setting) : t("已关闭")}
-    >
+    <SettingRow title={title}>
       <Space size={8}>
         {recording ? (
           <Button
@@ -155,11 +154,10 @@ function HotkeyRow({
         ) : (
           <Button
             size="small"
-            style={{ minWidth: 132 }}
             disabled={disabled || !setting}
             onClick={() => setRecording(true)}
           >
-            {setting ? formatHotkey(setting) : t("录制")}
+            {setting ? formatHotkey(setting) : t("已关闭")}
           </Button>
         )}
         <Switch
@@ -265,7 +263,10 @@ export function BehaviorSettings({
     }
   }
   return (
-    <div className="antd-stack settings-adaptive-grid behavior-layout">
+    <div
+      className="antd-stack behavior-layout"
+      data-custom-collapse={showCustomCollapse || undefined}
+    >
       <Section title={t("胶囊交互")}>
         <SettingRow title={t("展开方式")}>
           <Segmented
@@ -294,7 +295,9 @@ export function BehaviorSettings({
         </SettingRow>
         <SettingRow title={t("鼠标离开后自动收起")}>
           <Space wrap size="small">
-            <Segmented
+            <Select
+              aria-label={t("鼠标离开后自动收起")}
+              style={{ width: 100 }}
               value={
                 showCustomCollapse ? "custom" : appearance.autoCollapseSeconds
               }
@@ -457,6 +460,19 @@ export function BehaviorSettings({
             onChange={(checked) => void toggleAutostart(checked)}
           />
         </SettingRow>
+      </Section>
+      <Section
+        title={t("桌面预览")}
+        className="behavior-preview"
+        extra={
+          <span className="section-inline-note">
+            {t(appearance.expandTrigger === "hover" ? "悬停展开" : "点击展开")}
+          </span>
+        }
+      >
+        <div className="preview-stage">
+          <IslandPreview appearance={appearance} />
+        </div>
       </Section>
     </div>
   );

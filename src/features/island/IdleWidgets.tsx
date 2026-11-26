@@ -35,11 +35,7 @@ import waterTimerIcon from "../../assets/island/water-timer.png";
 import sedentaryChair from "../../assets/island/away-chair.png";
 import waterDrop from "../../assets/water-drop.webp";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
-import mascotIdle from "../../assets/mascot/idle.png";
-import mascotListening from "../../assets/mascot/listening.png";
-import mascotWater from "../../assets/mascot/water.png";
-import mascotCelebrate from "../../assets/mascot/celebrate.png";
-import mascotAttention from "../../assets/mascot/attention.png";
+import { IslandMascot } from "./IslandMascot";
 import type { MascotReaction } from "../../domain/mascotReaction";
 
 function CompactClock() {
@@ -80,13 +76,6 @@ const MAX_IDLE_WIDTH = 338;
  * that genuinely prevents clipping never oscillates on and off.
  */
 const FIT_RELAX_SLACK_PX = 40;
-const mascotPoses = {
-  listening: mascotListening,
-  water: mascotWater,
-  celebrate: mascotCelebrate,
-  attention: mascotAttention,
-};
-
 const demoMusic = [
   { title: "Midnight Drive", artist: "Nova Lane" },
   { title: "晚风漫游", artist: "Luna" },
@@ -504,20 +493,10 @@ export function IdleWidgets({
                 </>
               )}
               {id === "mascot" && (
-                <span
-                  className={`idle-mascot ${mascotReaction ? `is-${mascotReaction}` : data.music ? "is-listening" : ""}`}
-                  aria-hidden="true"
-                >
-                  <img src={mascotIdle} alt="" draggable={false} />
-                  {mascotPose && (
-                    <img
-                      className="idle-mascot-pose"
-                      src={mascotPoses[mascotPose]}
-                      alt=""
-                      draggable={false}
-                    />
-                  )}
-                </span>
+                <IslandMascot
+                  mascot={appearance.islandMascot}
+                  pose={mascotPose}
+                />
               )}
               {id === "music" && (
                 <>

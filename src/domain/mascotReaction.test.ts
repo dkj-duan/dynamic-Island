@@ -39,6 +39,16 @@ describe("mascot reactions", () => {
     ).toBeNull();
   });
 
+  it("reacts to the first recorded drink and pomodoro after a zero baseline", () => {
+    const start = { ...base, waterMl: 0, pomodoros: 0 };
+    expect(mascotReactionForChange(start, { ...start, waterMl: 250 })).toBe(
+      "water",
+    );
+    expect(mascotReactionForChange(start, { ...start, pomodoros: 1 })).toBe(
+      "celebrate",
+    );
+  });
+
   it("prioritizes reminders over simultaneous progress", () => {
     expect(
       mascotReactionForChange(base, {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { defaultAppearance, parseAppearance } from "./settings";
+import {
+  automaticIslandText,
+  defaultAppearance,
+  parseAppearance,
+} from "./settings";
 
 describe("parseAppearance", () => {
   it("restores the removed experimental style without losing other settings", () => {
@@ -26,6 +30,9 @@ describe("parseAppearance", () => {
     ).toEqual({
       expandedShape: "classic",
       islandAccent: "white",
+      islandBackgroundColor: null,
+      islandTextColor: null,
+      islandMascot: "classic",
       theme: "system",
       scale: 1.1,
       showClock: false,
@@ -34,6 +41,7 @@ describe("parseAppearance", () => {
       language: "zh-CN",
       idleWidgets: ["quota"],
       idleStyle: "capsule",
+      islandMaterial: "solid",
       idleChangeDisplayMinutes: 3,
       pomodoroView: "count",
       islandLyrics: false,
@@ -273,7 +281,7 @@ describe("parseAppearance", () => {
       parseAppearance({ ...v26, expandedShape: "unknown" }),
     ).toThrow();
   });
-  it("reads collapsed shells from v27, adds glass in v28 and preserves the capsule on upgrade", () => {
+  it("keeps stored collapsed shapes and migrates the old glass preset", () => {
     const previous = { ...defaultAppearance, version: 26 };
     expect(parseAppearance(previous).idleStyle).toBe("capsule");
     for (const idleStyle of ["capsule", "card", "grouped", "minimal"]) {
@@ -284,13 +292,14 @@ describe("parseAppearance", () => {
         parseAppearance({ ...previous, version: 28, idleStyle }).idleStyle,
       ).toBe(idleStyle);
     }
-    expect(
-      parseAppearance({
-        ...previous,
-        version: 28,
-        idleStyle: "glass",
-      }).idleStyle,
-    ).toBe("glass");
+    for (const version of [28, 29, 30]) {
+      expect(
+        parseAppearance({ ...previous, version, idleStyle: "glass" }),
+      ).toMatchObject({ idleStyle: "capsule", islandMaterial: "glass" });
+      expect(
+        parseAppearance({ ...previous, version, idleStyle: "card" }),
+      ).toMatchObject({ idleStyle: "card", islandMaterial: "solid" });
+    }
     // Version 27 predates the native-glass preset.
     expect(() =>
       parseAppearance({ ...previous, version: 27, idleStyle: "glass" }),
@@ -307,6 +316,76 @@ describe("parseAppearance", () => {
     expect(() =>
       parseAppearance({ ...previous, version: 28, idleStyle: 1 }),
     ).toThrow();
+  });
+  it("validates independent material and collapsed shape choices in v31", () => {
+    const current = { ...defaultAppearance, version: 31 };
+    for (const idleStyle of ["capsule", "card", "grouped", "minimal"]) {
+      for (const islandMaterial of ["solid", "glass"]) {
+        expect(
+          parseAppearance({ ...current, idleStyle, islandMaterial }),
+        ).toMatchObject({ idleStyle, islandMaterial });
+      }
+    }
+    expect(() => parseAppearance({ ...current, idleStyle: "glass" })).toThrow();
+    for (const islandMaterial of [undefined, null, "unknown", true]) {
+      expect(() => parseAppearance({ ...current, islandMaterial })).toThrow();
+    }
+  });
+  it("preserves old appearance settings and validates v29 colors independently", () => {
+    const old = { ...defaultAppearance, version: 28, islandAccent: "teal" };
+    expect(parseAppearance(old)).toMatchObject({
+      islandAccent: "teal",
+      islandBackgroundColor: null,
+      islandTextColor: null,
+    });
+    const current = { ...old, version: 29 };
+    expect(
+      parseAppearance({ ...current, islandBackgroundColor: "#AABBCC" }),
+    ).toMatchObject({
+      islandBackgroundColor: "#aabbcc",
+      islandTextColor: null,
+    });
+    expect(
+      parseAppearance({ ...current, islandTextColor: "#123456" }),
+    ).toMatchObject({
+      islandBackgroundColor: null,
+      islandTextColor: "#123456",
+    });
+    for (const key of ["islandBackgroundColor", "islandTextColor"]) {
+      for (const invalid of [
+        undefined,
+        "#123",
+        "#00000080",
+        "#ABCDEF\n",
+        "red",
+        123,
+      ]) {
+        expect(() => parseAppearance({ ...current, [key]: invalid })).toThrow();
+      }
+    }
+  });
+  it("preserves the legacy companion and validates the new selection", () => {
+    const previous = {
+      ...defaultAppearance,
+      version: 29,
+      islandMascot: undefined,
+    };
+    expect(parseAppearance(previous).islandMascot).toBe("classic");
+    const current = { ...previous, version: 30 };
+    for (const islandMascot of ["classic", "golden"]) {
+      expect(parseAppearance({ ...current, islandMascot }).islandMascot).toBe(
+        islandMascot,
+      );
+    }
+    for (const islandMascot of [undefined, null, "unknown", 1]) {
+      expect(() => parseAppearance({ ...current, islandMascot })).toThrow();
+    }
+  });
+  it("chooses contrasting default text for the selected background", () => {
+    expect(automaticIslandText(null)).toBe("#f3f3f5");
+    expect(automaticIslandText("#201f47")).toBe("#ffffff");
+    expect(automaticIslandText("#7fd4c3")).toBe("#000000");
+    expect(automaticIslandText("#808080")).toBe("#000000");
   });
   it("migrates version 2 and validates the selected theme", () => {
     expect(

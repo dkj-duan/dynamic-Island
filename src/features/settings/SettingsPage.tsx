@@ -41,13 +41,13 @@ import { PomodoroSettings } from "./PomodoroSettings";
 import { WaterSettings } from "./WaterSettings";
 import { SedentarySettings } from "./SedentarySettings";
 import { SettingsTheme } from "./SettingsTheme";
+import { SettingsTitleBar } from "./SettingsTitleBar";
 import { t } from "../../services/i18n";
 import {
   resolveTheme,
   watchSystemTheme,
   type ResolvedTheme,
 } from "../../services/systemTheme";
-import appIcon from "../../assets/app-icon.png";
 
 type Page =
   | "appearance"
@@ -184,155 +184,155 @@ export function SettingsPage({
 
   const meta = pageMeta[page];
   const hasError = status.error;
+  const compactPage =
+    page === "appearance" || page === "behavior" || page === "reminder";
 
   return (
     <SettingsTheme dark={dark} language={appearance.language}>
       <Layout className="antd-settings" data-theme={dark ? "dark" : "light"}>
-        <Layout.Sider
-          width={228}
-          className="antd-sider"
-          theme={dark ? "dark" : "light"}
-        >
-          <div className="antd-brand">
-            <img src={appIcon} alt="" />
-            <div>
-              <strong>{t("灵动岛")}</strong>
-              <span>{t("设置")}</span>
-            </div>
-          </div>
-          <Menu
+        <SettingsTitleBar />
+        <Layout hasSider className="settings-workspace">
+          <Layout.Sider
+            width="clamp(176px, 25vw, 228px)"
+            className="antd-sider"
             theme={dark ? "dark" : "light"}
-            mode="inline"
-            selectedKeys={[page]}
-            items={menuItems}
-            onClick={({ key }) => setPage(key as Page)}
-            className="antd-menu"
-          />
-          <div className="antd-quick-settings">
-            <Segmented
-              block
-              size="small"
-              value={appearance.theme}
-              onChange={(value) =>
-                onAppearanceChange({
-                  ...appearance,
-                  theme: value as AppearanceSettings["theme"],
-                })
-              }
-              options={[
-                {
-                  value: "system",
-                  label: (
-                    <Tooltip title={t("跟随系统")}>
-                      <DesktopOutlined />
-                    </Tooltip>
-                  ),
-                },
-                {
-                  value: "light",
-                  label: (
-                    <Tooltip title={t("浅色")}>
-                      <SunOutlined />
-                    </Tooltip>
-                  ),
-                },
-                {
-                  value: "dark",
-                  label: (
-                    <Tooltip title={t("深色")}>
-                      <MoonOutlined />
-                    </Tooltip>
-                  ),
-                },
-              ]}
+          >
+            <Menu
+              theme={dark ? "dark" : "light"}
+              mode="inline"
+              selectedKeys={[page]}
+              items={menuItems}
+              onClick={({ key }) => setPage(key as Page)}
+              className="antd-menu"
             />
-            <Tooltip
-              title={
-                appearance.language === "zh-CN"
-                  ? "Switch to English"
-                  : "切换到中文"
-              }
-            >
-              <Button
+            <div className="antd-quick-settings">
+              <Segmented
+                block
                 size="small"
-                icon={<TranslationOutlined />}
-                aria-label={t("界面语言")}
-                onClick={() =>
+                value={appearance.theme}
+                onChange={(value) =>
                   onAppearanceChange({
                     ...appearance,
-                    language:
-                      appearance.language === "zh-CN" ? "en-US" : "zh-CN",
+                    theme: value as AppearanceSettings["theme"],
                   })
                 }
+                options={[
+                  {
+                    value: "system",
+                    label: (
+                      <Tooltip title={t("跟随系统")}>
+                        <DesktopOutlined />
+                      </Tooltip>
+                    ),
+                  },
+                  {
+                    value: "light",
+                    label: (
+                      <Tooltip title={t("浅色")}>
+                        <SunOutlined />
+                      </Tooltip>
+                    ),
+                  },
+                  {
+                    value: "dark",
+                    label: (
+                      <Tooltip title={t("深色")}>
+                        <MoonOutlined />
+                      </Tooltip>
+                    ),
+                  },
+                ]}
               />
-            </Tooltip>
-          </div>
-          <div className="antd-status">
-            <Badge
-              status={hasError ? "error" : "processing"}
-              text={status.text}
-              style={{ width: "100%" }}
-            />
-          </div>
-        </Layout.Sider>
-
-        <Layout.Content className="antd-content">
-          <div className="antd-page">
-            <Typography.Title level={3} className="antd-page-title">
-              {t(meta.title)}
-            </Typography.Title>
-            <div
-              key={page}
-              className={`antd-page-body ${page === "behavior" ? "settings-responsive-container" : ""}`}
-            >
-              {page === "appearance" && (
-                <AppearancePage
-                  appearance={appearance}
-                  onAppearanceChange={onAppearanceChange}
-                  preview={preview}
-                  canEdit={canEdit}
+              <Tooltip
+                title={
+                  appearance.language === "zh-CN"
+                    ? "Switch to English"
+                    : "切换到中文"
+                }
+              >
+                <Button
+                  size="small"
+                  icon={<TranslationOutlined />}
+                  aria-label={t("界面语言")}
+                  onClick={() =>
+                    onAppearanceChange({
+                      ...appearance,
+                      language:
+                        appearance.language === "zh-CN" ? "en-US" : "zh-CN",
+                    })
+                  }
                 />
-              )}
-              {page === "behavior" && (
-                <BehaviorSettings
-                  appearance={appearance}
-                  onAppearanceChange={onAppearanceChange}
-                  canEdit={canEdit}
-                />
-              )}
-              {page === "reminder" && (
-                <ReminderSettings
-                  appearance={appearance}
-                  onAppearanceChange={onAppearanceChange}
-                  canEdit={canEdit}
-                />
-              )}
-              {page === "pomodoro" && <PomodoroSettings />}
-              {page === "status" && <StatusSettings />}
-              {page === "water" && <WaterSettings />}
-              {page === "sedentary" && <SedentarySettings />}
-              {page === "countdown" && <CountdownSettings />}
-              {page === "storage" && (
-                <StorageSettings
-                  canSwitch={canSwitchStorage}
-                  onChanged={onStorageChanged}
-                />
-              )}
-              {page === "mail" && <MailSettings />}
-              {page === "messages" && (
-                <MessagesSettings
-                  appearance={appearance}
-                  onAppearanceChange={onAppearanceChange}
-                  canEdit={canEdit}
-                />
-              )}
-              {page === "ai" && <AiSettings />}
-              {page === "about" && (
-                <AboutSettings onStorage={() => setPage("storage")} />
-              )}
+              </Tooltip>
             </div>
-          </div>
-        </Layout.Content>
+            <div className="antd-status">
+              <Badge
+                status={hasError ? "error" : "processing"}
+                text={status.text}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </Layout.Sider>
+
+          <Layout.Content className="antd-content">
+            <div
+              className={`antd-page${compactPage ? " antd-page-compact" : ""}`}
+            >
+              <Typography.Title level={3} className="antd-page-title">
+                {t(meta.title)}
+              </Typography.Title>
+              <div
+                key={page}
+                className={`antd-page-body${compactPage ? " settings-responsive-container" : ""}`}
+              >
+                {page === "appearance" && (
+                  <AppearancePage
+                    appearance={appearance}
+                    onAppearanceChange={onAppearanceChange}
+                    preview={preview}
+                    canEdit={canEdit}
+                  />
+                )}
+                {page === "behavior" && (
+                  <BehaviorSettings
+                    appearance={appearance}
+                    onAppearanceChange={onAppearanceChange}
+                    canEdit={canEdit}
+                  />
+                )}
+                {page === "reminder" && (
+                  <ReminderSettings
+                    appearance={appearance}
+                    onAppearanceChange={onAppearanceChange}
+                    canEdit={canEdit}
+                  />
+                )}
+                {page === "pomodoro" && <PomodoroSettings />}
+                {page === "status" && <StatusSettings />}
+                {page === "water" && <WaterSettings />}
+                {page === "sedentary" && <SedentarySettings />}
+                {page === "countdown" && <CountdownSettings />}
+                {page === "storage" && (
+                  <StorageSettings
+                    canSwitch={canSwitchStorage}
+                    onChanged={onStorageChanged}
+                  />
+                )}
+                {page === "mail" && <MailSettings />}
+                {page === "messages" && (
+                  <MessagesSettings
+                    appearance={appearance}
+                    onAppearanceChange={onAppearanceChange}
+                    canEdit={canEdit}
+                  />
+                )}
+                {page === "ai" && <AiSettings />}
+                {page === "about" && (
+                  <AboutSettings onStorage={() => setPage("storage")} />
+                )}
+              </div>
+            </div>
+          </Layout.Content>
+        </Layout>
       </Layout>
     </SettingsTheme>
   );

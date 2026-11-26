@@ -1,3 +1,4 @@
+import { PersonStanding } from "lucide-react";
 import type { SedentarySettings, SedentaryTone } from "../../domain/sedentary";
 import { t } from "../../services/i18n";
 import { StandRing } from "../sedentary/StandRing";
@@ -53,7 +54,7 @@ export function SedentaryPage({
               style={{ background: toneColor }}
               aria-hidden="true"
             />
-            <span style={{ color: toneColor }}>
+            <span>
               {t("已坐")} {sittingMin} {t("分钟")}
             </span>
             <span>
@@ -67,16 +68,18 @@ export function SedentaryPage({
       </div>
       <div className="stand-actions">
         <button
+          type="button"
           className="stand-add"
           onClick={() => {
             setStandError("");
             void standNow();
           }}
         >
+          <PersonStanding size={15} aria-hidden="true" />
           {t("起身一下")}
         </button>
         {onSnooze && (
-          <button title={t("10 分钟后再提醒")} onClick={onSnooze}>
+          <button type="button" title={t("10 分钟后再提醒")} onClick={onSnooze}>
             {t("稍后")}
           </button>
         )}

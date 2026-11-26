@@ -18,11 +18,7 @@ import { formatMediaTime } from "./islandFormat";
 import pomodoroClock from "../../assets/pomodoro-clock.png";
 import waterDrop from "../../assets/water-drop.webp";
 import sedentaryChair from "../../assets/island/away-chair.png";
-import mascotIdle from "../../assets/mascot/idle.png";
-import mascotListening from "../../assets/mascot/listening.png";
-import mascotWater from "../../assets/mascot/water.png";
-import mascotCelebrate from "../../assets/mascot/celebrate.png";
-import mascotAttention from "../../assets/mascot/attention.png";
+import { IslandMascot } from "./IslandMascot";
 
 /** The media capsule has one spare slot; these are the candidates. */
 export type MediaBadge = "pomodoro" | "water" | "quota";
@@ -343,13 +339,6 @@ const MEDIA_CAPSULE_MAX = 354;
 /** A tiny current line should not collapse the capsule to a sliver. */
 const MEDIA_COPY_MIN = 120;
 
-const mascotPoses = {
-  listening: mascotListening,
-  water: mascotWater,
-  celebrate: mascotCelebrate,
-  attention: mascotAttention,
-};
-
 type MediaCapsuleProps = {
   appearance: AppearanceSettings;
   media: MediaState;
@@ -518,20 +507,7 @@ function MediaCapsule({
           )}
         </span>
       </span>
-      <span
-        className={`idle-mascot media-mascot ${pose ? `is-${pose}` : ""}`}
-        aria-hidden="true"
-      >
-        <img src={mascotIdle} alt="" draggable={false} />
-        {pose && (
-          <img
-            className="idle-mascot-pose"
-            src={mascotPoses[pose]}
-            alt=""
-            draggable={false}
-          />
-        )}
-      </span>
+      <IslandMascot mascot={appearance.islandMascot} pose={pose} media />
     </span>
   );
 }

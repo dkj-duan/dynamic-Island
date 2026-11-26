@@ -7,6 +7,7 @@ import { loadDailyStats } from "../../services/waterRepository";
 
 export function useDailyStats(limit = 30) {
   const [stats, setStats] = useState<DailyStat[]>([]);
+  const [ready, setReady] = useState(false);
   const [today, setToday] = useState(() => localDay(Date.now()));
   useEffect(() => {
     let active = true;
@@ -15,6 +16,7 @@ export function useDailyStats(limit = 30) {
       if (!active) return;
       setToday(localDay(Date.now()));
       setStats(next);
+      setReady(true);
     };
     void load();
     let unlisten: (() => void) | undefined;
@@ -40,5 +42,5 @@ export function useDailyStats(limit = 30) {
       unlisten?.();
     };
   }, [limit]);
-  return { stats, today };
+  return { stats, today, ready };
 }

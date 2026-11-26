@@ -51,14 +51,11 @@ export const expandedShapes = ["classic", "asymmetric"] as const;
 export type ExpandedShape = (typeof expandedShapes)[number];
 
 /** Visual treatments for the collapsed island while nothing needs attention. */
-export const idleStyles = [
-  "capsule",
-  "card",
-  "grouped",
-  "minimal",
-  "glass",
-] as const;
+export const idleStyles = ["capsule", "card", "grouped", "minimal"] as const;
 export type IdleStyle = (typeof idleStyles)[number];
+
+export const islandMaterials = ["solid", "glass"] as const;
+export type IslandMaterial = (typeof islandMaterials)[number];
 
 /** Ids older payloads may carry; they all fold to classic on read. */
 const legacyExpandedShapes = ["soft", "oval", "flat"] as const;
@@ -75,6 +72,37 @@ export const islandAccents = [
   "rose",
 ] as const;
 export type IslandAccent = (typeof islandAccents)[number];
+
+export const islandMascots = ["classic", "golden"] as const;
+export type IslandMascotId = (typeof islandMascots)[number];
+
+export const defaultIslandBackground = "#08090c";
+export const defaultIslandText = "#f3f3f5";
+
+export function automaticIslandText(background: string | null): string {
+  if (!background) return defaultIslandText;
+  const linear = [1, 3, 5].map((offset) => {
+    const channel = parseInt(background.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance =
+    linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+  return luminance > 0.179 ? "#000000" : "#ffffff";
+}
+
+function parseIslandColor(value: unknown): string | null {
+  if (value === null) return null;
+  if (
+    typeof value !== "string" ||
+    !/^#[0-9a-f]{6}$/i.test(value) ||
+    value.length !== 7
+  ) {
+    throw new Error("灵动岛颜色无效");
+  }
+  return value.toLowerCase();
+}
 
 /** A recorded global hotkey; `null` disables the action. */
 export type HotkeySetting = { combo: string; double: boolean };
@@ -159,8 +187,11 @@ export function parseNotificationSources(
 
 export interface AppearanceSettings {
   expandedShape: ExpandedShape;
-  /** Accent tint applied to island details; the material stays near-black. */
+  /** Accent tint retained for existing appearance profiles. */
   islandAccent: IslandAccent;
+  islandBackgroundColor: string | null;
+  islandTextColor: string | null;
+  islandMascot: IslandMascotId;
   theme: "system" | "light" | "dark";
   scale: number;
   showClock: boolean;
@@ -173,6 +204,7 @@ export interface AppearanceSettings {
   idleWidgets: IdleWidgetId[];
   /** Shell and composition used only by the collapsed idle display. */
   idleStyle: IdleStyle;
+  islandMaterial: IslandMaterial;
   /** How long a change-tier idle widget stays on after its value moved. */
   idleChangeDisplayMinutes: number;
   /** What the pomodoro idle widget reports. */
@@ -210,6 +242,9 @@ export interface AppearanceSettings {
 export const defaultAppearance: AppearanceSettings = {
   expandedShape: "classic",
   islandAccent: "white",
+  islandBackgroundColor: null,
+  islandTextColor: null,
+  islandMascot: "classic",
   theme: "system",
   scale: 1,
   showClock: true,
@@ -218,6 +253,7 @@ export const defaultAppearance: AppearanceSettings = {
   language: defaultLanguage,
   idleWidgets: ["clock", "quota"],
   idleStyle: "capsule",
+  islandMaterial: "solid",
   idleChangeDisplayMinutes: 3,
   pomodoroView: "count",
   islandLyrics: false,
@@ -335,7 +371,10 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 25 &&
       item.version !== 26 &&
       item.version !== 27 &&
-      item.version !== 28) ||
+      item.version !== 28 &&
+      item.version !== 29 &&
+      item.version !== 30 &&
+      item.version !== 31) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -429,22 +468,23 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     islandAccent = item.islandAccent as IslandAccent;
   }
-  // Version 27 adds independent collapsed shells; v28 adds the native
-  // frosted-glass preset. Older payloads keep the original capsule, so an
-  // upgrade never changes the user's current layout or OS requirements.
+  // v28–30 encoded glass as a capsule preset. Keep its finish when migrating
+  // to the separate material and use the closest available collapsed shape.
+  const legacyGlass =
+    item.version >= 28 && item.version <= 30 && item.idleStyle === "glass";
   let idleStyle: IdleStyle = defaultAppearance.idleStyle;
-  if (item.version >= 27) {
-    const acceptedStyles: readonly IdleStyle[] =
-      item.version >= 28
-        ? idleStyles
-        : idleStyles.filter((style) => style !== "glass");
-    if (
-      typeof item.idleStyle !== "string" ||
-      !acceptedStyles.includes(item.idleStyle as IdleStyle)
-    ) {
+  if (item.version >= 27 && !legacyGlass) {
+    if (!idleStyles.includes(item.idleStyle as IdleStyle)) {
       throw new Error("收起样式无效");
     }
     idleStyle = item.idleStyle as IdleStyle;
+  }
+  let islandMaterial: IslandMaterial = legacyGlass ? "glass" : "solid";
+  if (item.version >= 31) {
+    if (!islandMaterials.includes(item.islandMaterial as IslandMaterial)) {
+      throw new Error("灵动岛材质无效");
+    }
+    islandMaterial = item.islandMaterial as IslandMaterial;
   }
   let hotkeyFocus = defaultAppearance.hotkeyFocus;
   let hotkeyWater = defaultAppearance.hotkeyWater;
@@ -546,11 +586,23 @@ export function parseAppearance(value: unknown): AppearanceSettings {
   ) {
     throw new Error("变化组件显示时长无效");
   }
+  let islandMascot = defaultAppearance.islandMascot;
+  if (item.version >= 30) {
+    if (!islandMascots.includes(item.islandMascot as IslandMascotId)) {
+      throw new Error("小岛伙伴无效");
+    }
+    islandMascot = item.islandMascot as IslandMascotId;
+  }
   return {
     expandedShape: expandedShapes.includes(expandedShape as ExpandedShape)
       ? (expandedShape as ExpandedShape)
       : "classic",
     islandAccent,
+    islandBackgroundColor:
+      item.version >= 29 ? parseIslandColor(item.islandBackgroundColor) : null,
+    islandTextColor:
+      item.version >= 29 ? parseIslandColor(item.islandTextColor) : null,
+    islandMascot,
     theme,
     scale: item.scale,
     showClock: idleWidgets.includes("clock"),
@@ -559,6 +611,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     language,
     idleWidgets,
     idleStyle,
+    islandMaterial,
     idleChangeDisplayMinutes,
     pomodoroView,
     islandLyrics,
