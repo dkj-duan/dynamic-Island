@@ -24,6 +24,7 @@ import {
   type AppearanceSettings,
   type IdleWidgetId,
   type IslandMascotId,
+  type IslandMascotPlacement,
   type PomodoroIdleView,
 } from "../../domain/settings";
 import { IslandMascot } from "../island/IslandMascot";
@@ -249,6 +250,36 @@ export function AppearancePage({
           </div>
 
           <div className="appearance-idle-options">
+            <div className="antd-setting-row">
+              <div className="antd-setting-copy">
+                <div className="antd-setting-title">{t("伙伴位置")}</div>
+              </div>
+              <Select<IslandMascotPlacement>
+                size="small"
+                aria-label={t("伙伴位置")}
+                popupMatchSelectWidth={false}
+                className="companion-position-select"
+                value={appearance.islandMascotPlacement}
+                disabled={!canEdit}
+                options={[
+                  { value: "inline", label: t("岛内") },
+                  { value: "peek", label: t("岛后探头 · 靠左") },
+                  { value: "peek-center", label: t("岛后探头 · 居中") },
+                  { value: "peek-right", label: t("岛后探头 · 靠右") },
+                ]}
+                onChange={(islandMascotPlacement) =>
+                  onAppearanceChange({
+                    ...appearance,
+                    islandMascotPlacement,
+                    idleWidgets:
+                      islandMascotPlacement !== "inline" &&
+                      !appearance.idleWidgets.includes("mascot")
+                        ? [...appearance.idleWidgets, "mascot"]
+                        : appearance.idleWidgets,
+                  })
+                }
+              />
+            </div>
             <div className="antd-setting-row">
               <div className="antd-setting-copy">
                 <div className="antd-setting-title">

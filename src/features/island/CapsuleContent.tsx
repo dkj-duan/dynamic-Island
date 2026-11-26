@@ -507,7 +507,9 @@ function MediaCapsule({
           )}
         </span>
       </span>
-      <IslandMascot mascot={appearance.islandMascot} pose={pose} media />
+      {appearance.islandMascotPlacement === "inline" && (
+        <IslandMascot mascot={appearance.islandMascot} pose={pose} media />
+      )}
     </span>
   );
 }

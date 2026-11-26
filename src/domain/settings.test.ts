@@ -33,6 +33,7 @@ describe("parseAppearance", () => {
       islandBackgroundColor: null,
       islandTextColor: null,
       islandMascot: "classic",
+      islandMascotPlacement: "inline",
       theme: "system",
       scale: 1.1,
       showClock: false,
@@ -329,6 +330,33 @@ describe("parseAppearance", () => {
     expect(() => parseAppearance({ ...current, idleStyle: "glass" })).toThrow();
     for (const islandMaterial of [undefined, null, "unknown", true]) {
       expect(() => parseAppearance({ ...current, islandMaterial })).toThrow();
+    }
+  });
+  it("migrates v31 with the companion inside and validates v32 placement", () => {
+    const saved = {
+      ...defaultAppearance,
+      islandMaterial: "glass",
+      islandMascot: "golden",
+    };
+    expect(
+      parseAppearance({
+        ...saved,
+        version: 31,
+        islandMascotPlacement: undefined,
+      }),
+    ).toMatchObject({
+      islandMascotPlacement: "inline",
+      islandMaterial: "glass",
+      islandMascot: "golden",
+    });
+    expect(
+      parseAppearance({ ...saved, version: 32, islandMascotPlacement: "peek" })
+        .islandMascotPlacement,
+    ).toBe("peek");
+    for (const islandMascotPlacement of [undefined, null, "floating"]) {
+      expect(() =>
+        parseAppearance({ ...saved, version: 32, islandMascotPlacement }),
+      ).toThrow();
     }
   });
   it("preserves old appearance settings and validates v29 colors independently", () => {

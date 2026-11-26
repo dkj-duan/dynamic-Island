@@ -49,6 +49,7 @@ import { useIslandTimer } from "./useIslandTimer";
 import { useIslandWater } from "./useIslandWater";
 import { useIslandSedentary } from "./useIslandSedentary";
 import { useExpandCollapse } from "./useExpandCollapse";
+import { useIslandPeek } from "./useIslandPeek";
 import { applyMotionTokens } from "./motion";
 import { ReminderBeam } from "./ReminderBeam";
 import { WaterPage } from "./WaterPage";
@@ -328,6 +329,9 @@ export function IslandWindow() {
       unlisten?.();
     };
   }, []);
+  const peekEnabled =
+    appearance.islandMascotPlacement !== "inline" &&
+    appearance.idleWidgets.includes("mascot");
   const {
     expanded,
     panel,
@@ -353,6 +357,7 @@ export function IslandWindow() {
     fullscreenSuppressed: fullscreenHidden,
     scale: appearance.scale,
     taskbarMode: taskbarActive,
+    peekEnabled,
     openReminderPage,
     onError: (message) => setError(message),
     alertToken,
@@ -679,8 +684,17 @@ export function IslandWindow() {
       countdownReached: idleCountdown?.reached ?? null,
       sedentaryOver: sedentaryWidget?.over ?? null,
     },
-    !expanded && !appHidden && (display === "idle" || display === "media"),
+    !expanded &&
+      !appHidden &&
+      (peekEnabled || display === "idle" || display === "media"),
     appearance.islandMascot === "golden" ? 4_000 : 8_000,
+  );
+  useIslandPeek(
+    panel,
+    peekEnabled && !expanded && !appHidden,
+    appearance.islandMascot,
+    mascotReaction ?? (media?.playing ? "listening" : "idle"),
+    appearance.islandMascotPlacement,
   );
   // Change-tier idle widgets speak briefly after their value moves. Volume
   // keys follow every adjustment; battery speaks on plug/unplug and when the
@@ -821,6 +835,7 @@ export function IslandWindow() {
       data-idle-style={!expanded ? appearance.idleStyle : undefined}
       data-display={!expanded ? display : undefined}
       data-glass={appearance.islandMaterial === "glass" ? "on" : undefined}
+      data-peek={peekEnabled && !expanded ? "on" : undefined}
       data-app-hidden={appHidden || undefined}
       data-page={expanded ? activeTab : undefined}
     >

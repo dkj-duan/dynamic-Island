@@ -36,6 +36,23 @@
         "shadow": false,
         "visible": false,
         "focus": false
+      },
+      {
+        "label": "peek",
+        "create": false,
+        "title": "Island Companion",
+        "url": "index.html?window=peek",
+        "width": 54,
+        "height": 30,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false,
+        "focus": false,
+        "focusable": false
       }
     ],
     "security": {

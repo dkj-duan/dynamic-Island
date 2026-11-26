@@ -17,6 +17,11 @@ const en: Record<string, string> = {
   灵动岛: "Dynamic Island",
   小岛伙伴: "Island companion",
   伙伴形象: "Companion appearance",
+  伙伴位置: "Companion position",
+  岛内: "Inside",
+  "岛后探头 · 靠左": "Peek · Left",
+  "岛后探头 · 居中": "Peek · Center",
+  "岛后探头 · 靠右": "Peek · Right",
   经典伙伴: "Classic",
   奶蛙: "Milk Frog",
   "在常驻组件中添加小岛伙伴，即可在空闲时显示。":

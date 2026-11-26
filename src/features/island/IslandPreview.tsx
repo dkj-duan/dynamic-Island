@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { QuotaItem } from "../../domain/aiQuota";
 import type { AppearanceSettings, IdleWidgetId } from "../../domain/settings";
 import { IdleWidgets } from "./IdleWidgets";
+import { PeekMascot } from "./PeekMascot";
 import { islandColorStyle } from "./islandColors";
 import type { IdleData } from "./idleWidgetData";
 
@@ -22,6 +23,15 @@ export function IslandPreview({
 }) {
   const capsuleRef = useRef<HTMLDivElement>(null);
   const [scaleCap, setScaleCap] = useState(Infinity);
+  const peekEnabled =
+    appearance.islandMascotPlacement !== "inline" &&
+    appearance.idleWidgets.includes("mascot");
+  const peekSide =
+    peekEnabled && appearance.snapToTop && !appearance.taskbarMode
+      ? appearance.islandMascotPlacement === "peek-right"
+        ? "right"
+        : "left"
+      : undefined;
   useLayoutEffect(() => {
     const capsule = capsuleRef.current;
     const stage = capsule?.parentElement;
@@ -46,7 +56,7 @@ export function IslandPreview({
     observer.observe(capsule);
     fit();
     return () => observer.disconnect();
-  }, []);
+  }, [peekEnabled, peekSide]);
 
   // Sample values keep newly enabled widgets visible in the preview; the real
   // island only renders live data.
@@ -78,7 +88,23 @@ export function IslandPreview({
       data-accent={appearance.islandAccent}
       data-idle-style={appearance.idleStyle}
       data-glass={appearance.islandMaterial === "glass" ? "on" : undefined}
+      data-peek={peekEnabled || undefined}
+      data-peek-side={peekSide}
+      data-peek-mascot={peekSide ? appearance.islandMascot : undefined}
     >
+      {peekEnabled && (
+        <div
+          className="island-preview-peek"
+          data-position={appearance.islandMascotPlacement}
+          data-side={peekSide}
+        >
+          <PeekMascot
+            mascot={appearance.islandMascot}
+            pose="idle"
+            side={peekSide}
+          />
+        </div>
+      )}
       <IdleWidgets
         key={`${appearance.idleStyle}:${appearance.idleWidgets.join(",")}`}
         appearance={appearance}

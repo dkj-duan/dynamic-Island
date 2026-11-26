@@ -75,6 +75,8 @@ export type IslandAccent = (typeof islandAccents)[number];
 
 export const islandMascots = ["classic", "golden"] as const;
 export type IslandMascotId = (typeof islandMascots)[number];
+export type IslandMascotPlacement =
+  "inline" | "peek" | "peek-center" | "peek-right";
 
 export const defaultIslandBackground = "#08090c";
 export const defaultIslandText = "#f3f3f5";
@@ -192,6 +194,7 @@ export interface AppearanceSettings {
   islandBackgroundColor: string | null;
   islandTextColor: string | null;
   islandMascot: IslandMascotId;
+  islandMascotPlacement: IslandMascotPlacement;
   theme: "system" | "light" | "dark";
   scale: number;
   showClock: boolean;
@@ -245,6 +248,7 @@ export const defaultAppearance: AppearanceSettings = {
   islandBackgroundColor: null,
   islandTextColor: null,
   islandMascot: "classic",
+  islandMascotPlacement: "inline",
   theme: "system",
   scale: 1,
   showClock: true,
@@ -374,7 +378,8 @@ export function parseAppearance(value: unknown): AppearanceSettings {
       item.version !== 28 &&
       item.version !== 29 &&
       item.version !== 30 &&
-      item.version !== 31) ||
+      item.version !== 31 &&
+      item.version !== 32) ||
     typeof item.scale !== "number" ||
     !Number.isFinite(item.scale) ||
     item.scale < 0.8 ||
@@ -593,6 +598,16 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     }
     islandMascot = item.islandMascot as IslandMascotId;
   }
+  const islandMascotPlacement =
+    item.version >= 32 ? item.islandMascotPlacement : "inline";
+  if (
+    islandMascotPlacement !== "inline" &&
+    islandMascotPlacement !== "peek" &&
+    islandMascotPlacement !== "peek-center" &&
+    islandMascotPlacement !== "peek-right"
+  ) {
+    throw new Error("小岛伙伴位置无效");
+  }
   return {
     expandedShape: expandedShapes.includes(expandedShape as ExpandedShape)
       ? (expandedShape as ExpandedShape)
@@ -603,6 +618,7 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     islandTextColor:
       item.version >= 29 ? parseIslandColor(item.islandTextColor) : null,
     islandMascot,
+    islandMascotPlacement,
     theme,
     scale: item.scale,
     showClock: idleWidgets.includes("clock"),

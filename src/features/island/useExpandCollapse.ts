@@ -82,6 +82,7 @@ export function useExpandCollapse(options: {
   /** Native window scale; the hit region tracks layout at the current zoom. */
   scale: number;
   taskbarMode: boolean;
+  peekEnabled: boolean;
   /** Destination page when the panel opens from a reminder. */
   openReminderPage: (acknowledge?: boolean) => void;
   /** Reports native window failures for the island banner. */
@@ -103,6 +104,7 @@ export function useExpandCollapse(options: {
     fullscreenSuppressed,
     scale,
     taskbarMode,
+    peekEnabled,
     openReminderPage,
     onError,
     alertToken,
@@ -462,6 +464,7 @@ export function useExpandCollapse(options: {
         width: rect.width,
         height: rect.height,
         settled,
+        peek: peekEnabled && !expanded,
       }).catch(() => undefined);
     };
     const schedule = () => {
@@ -484,7 +487,7 @@ export function useExpandCollapse(options: {
       window.clearTimeout(initial);
       window.removeEventListener("resize", schedule);
     };
-  }, [scale, taskbarMode, expanded]);
+  }, [scale, taskbarMode, expanded, peekEnabled]);
   /** Marks a programmatic page switch so the synthetic mouseleave is ignored. */
   function notePageSwitch() {
     ignoreLeaveUntil.current = Date.now() + PAGE_SWITCH_LEAVE_GRACE_MS;

@@ -253,14 +253,14 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         .get("autoCollapseSeconds")
         .and_then(|v| v.as_f64())
         .filter(|v| {
-            if matches!(version, Some(21..=31)) {
+            if matches!(version, Some(21..=32)) {
                 (0.0..=60.0).contains(v) && (v * 10.0 - (v * 10.0).round()).abs() < 1e-8
             } else {
                 [0.0, 1.0, 3.0, 5.0, 10.0, 15.0].contains(v)
             }
         });
     let idle_widgets_valid = match version {
-        Some(8..=31) => value
+        Some(8..=32) => value
             .get("idleWidgets")
             .and_then(|v| v.as_array())
             .is_some_and(|items| {
@@ -287,7 +287,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                                     | "waterTimer"
                                     | "countdown"
                                     | "sedentary"
-                            ) || (id == "mascot" && matches!(version, Some(11..=31))))
+                            ) || (id == "mascot" && matches!(version, Some(11..=32))))
                                 && !seen.contains(&id) =>
                         {
                             seen.push(id);
@@ -317,21 +317,21 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => false,
     };
     let lyrics_valid = match version {
-        Some(7..=31) => value
+        Some(7..=32) => value
             .get("islandLyrics")
             .and_then(|v| v.as_bool())
             .is_some(),
         _ => true,
     };
     let pomodoro_view_valid = match version {
-        Some(8..=31) => matches!(
+        Some(8..=32) => matches!(
             value.get("pomodoroView").and_then(|v| v.as_str()),
             Some("count" | "focus" | "cycle")
         ),
         _ => true,
     };
     let reminder_valid = match version {
-        Some(10..=31) => {
+        Some(10..=32) => {
             matches!(
                 value.get("reminderStyle").and_then(|v| v.as_str()),
                 Some("breathe" | "sweep" | "pulse" | "beam" | "none")
@@ -351,13 +351,13 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         }
         _ => true,
     };
-    let shape_valid = !matches!(version, Some(12..=31))
+    let shape_valid = !matches!(version, Some(12..=32))
         || matches!(
             value.get("expandedShape").and_then(|v| v.as_str()),
             Some("classic" | "soft" | "asymmetric" | "oval" | "flat")
         );
     let idle_style_valid = match version {
-        Some(27 | 31) => matches!(
+        Some(27 | 31 | 32) => matches!(
             value.get("idleStyle").and_then(|v| v.as_str()),
             Some("capsule" | "card" | "grouped" | "minimal")
         ),
@@ -368,7 +368,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let hotkeys_valid = match version {
-        Some(13..=31) => {
+        Some(13..=32) => {
             value.get("hotkeyFocus").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyWater").is_some_and(hotkey_setting_valid)
                 && value.get("hotkeyIsland").is_some_and(hotkey_setting_valid)
@@ -380,7 +380,7 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
         _ => true,
     };
     let notice_valid = match version {
-        Some(14..=31) => {
+        Some(14..=32) => {
             value
                 .get("noticeExpand")
                 .and_then(|v| v.as_bool())
@@ -458,10 +458,15 @@ fn validate_appearance(value: &serde_json::Value) -> Result<(), String> {
                 value.get("islandMascot").and_then(|v| v.as_str()),
                 Some("classic" | "golden")
             ))
-        || (version == Some(31)
+        || (version >= Some(31)
             && !matches!(
                 value.get("islandMaterial").and_then(|v| v.as_str()),
                 Some("solid" | "glass")
+            ))
+        || (version >= Some(32)
+            && !matches!(
+                value.get("islandMascotPlacement").and_then(|v| v.as_str()),
+                Some("inline" | "peek" | "peek-center" | "peek-right")
             ))
         || !idle_style_valid
         || !shape_valid
@@ -2488,6 +2493,27 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
             v31
+        );
+        let mut v32 = v31.clone();
+        v32["version"] = serde_json::json!(32);
+        assert!(save_appearance_value(&conn, &v32).is_err());
+        for placement in ["inline", "peek", "peek-center", "peek-right"] {
+            v32["islandMascotPlacement"] = serde_json::json!(placement);
+            assert!(save_appearance_value(&conn, &v32).is_ok());
+        }
+        let mut malformed = v32.clone();
+        malformed["islandMascotPlacement"] = serde_json::json!("unknown");
+        assert!(save_appearance_value(&conn, &malformed).is_err());
+        let stored: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='appearance'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap(),
+            v32
         );
     }
 }

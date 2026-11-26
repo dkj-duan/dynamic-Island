@@ -12,6 +12,7 @@ mod chat_shortcut;
 mod hotkeys;
 mod lyrics;
 mod mail;
+mod mascot_peek;
 #[cfg(target_os = "windows")]
 mod netease_log;
 #[cfg(target_os = "windows")]
@@ -1286,6 +1287,7 @@ fn set_island_panel_bounds(
     width: f64,
     height: f64,
     settled: bool,
+    peek: bool,
 ) -> Result<(), String> {
     if window.label() != "island"
         || !x.is_finite()
@@ -1304,7 +1306,9 @@ fn set_island_panel_bounds(
         let scale = window.scale_factor().map_err(|e| e.to_string())? * island_scale();
         // The margin carries the CSS drop shadow and the accent halo; without
         // it the rounded contour would be clipped by a hard rectangle.
-        let pad = 24.0 * scale;
+        // A narrow margin keeps the rounded edge antialiased in peek mode
+        // while keeping the companion's exposed area outside the hit region.
+        let pad = if peek { scale } else { 24.0 * scale };
         let size = window.outer_size().map_err(|e| e.to_string())?;
         let left = (x * scale - pad).floor().clamp(0.0, size.width as f64) as i32;
         let top = (y * scale - pad).floor().clamp(0.0, size.height as f64) as i32;
@@ -1353,7 +1357,7 @@ fn set_island_panel_bounds(
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = (x, y, width, height, settled);
+        let _ = (x, y, width, height, settled, peek);
         Ok(())
     }
 }
@@ -1752,6 +1756,8 @@ pub fn run() {
             quit_app,
             set_island_expanded,
             set_island_panel_bounds,
+            mascot_peek::set_island_peek,
+            mascot_peek::get_island_peek,
             set_fullscreen_avoid,
             hotkeys::apply_hotkeys,
             notifications::get_notification_access,

@@ -68,7 +68,8 @@ function hasIdleWidgetData(
   appearance: AppearanceSettings,
   data: IdleData,
 ): boolean {
-  if (id === "clock" || id === "mascot") return true;
+  if (id === "clock") return true;
+  if (id === "mascot") return appearance.islandMascotPlacement === "inline";
   if (id === "music") return data.music != null;
   if (id === "quota") return !!data.quota;
   if (id === "water") return !!data.water;
@@ -129,6 +130,8 @@ export function previewIdleWidgets(
   appearance: AppearanceSettings,
 ): IdleWidgetId[] {
   return appearance.idleWidgets.filter(
-    (id) => IDLE_WIDGET_MODES[id] !== "change",
+    (id) =>
+      IDLE_WIDGET_MODES[id] !== "change" &&
+      (id !== "mascot" || appearance.islandMascotPlacement === "inline"),
   );
 }

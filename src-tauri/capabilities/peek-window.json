@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "peek-window",
+  "description": "Companion window events",
+  "windows": ["peek"],
+  "permissions": ["core:event:default"]
+}

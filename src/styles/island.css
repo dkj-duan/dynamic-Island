@@ -28,6 +28,102 @@ html.island-window #root {
   transform-origin: center bottom;
 }
 
+.island-peek-window,
+.island-preview-peek {
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.island-peek-window {
+  width: 100%;
+  height: 100%;
+}
+
+:is(.island-peek-window, .island-preview-peek)[data-side] {
+  /* Tuck the shoulder behind the shell and keep a little of the round corner. */
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    89% 14%,
+    84% 30%,
+    84% 70%,
+    89% 86%,
+    100% 100%,
+    0 100%
+  );
+}
+
+:is(.island-peek-window, .island-preview-peek)[data-side="right"] {
+  transform: scaleX(-1);
+}
+
+:is(.island-peek-window, .island-preview-peek)[data-side] .peek-mascot {
+  transform: translateX(4px);
+}
+
+.peek-mascot {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 9 / 7;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+:is(.island-peek-window, .island-preview-peek)[data-side]
+  .peek-mascot[data-mascot="golden"] {
+  aspect-ratio: 5 / 6;
+}
+
+.peek-mascot img {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1200%;
+  max-width: none;
+  transform: translateY(calc(var(--peek-first) * -100% / 12));
+  animation: peek-mascot-frames var(--peek-tempo, 4.2s) steps(1, end) infinite;
+}
+
+.peek-mascot[data-pose="listening"] {
+  --peek-tempo: 960ms;
+}
+
+.peek-mascot[data-pose="water"] {
+  --peek-tempo: 1.7s;
+}
+
+.peek-mascot[data-pose="celebrate"] {
+  --peek-tempo: 830ms;
+}
+
+.peek-mascot[data-pose="attention"] {
+  --peek-tempo: 720ms;
+}
+
+@keyframes peek-mascot-frames {
+  0%,
+  100% {
+    transform: translateY(calc(var(--peek-first) * -100% / 12));
+  }
+
+  25%,
+  75% {
+    transform: translateY(calc(var(--peek-middle) * -100% / 12));
+  }
+
+  50% {
+    transform: translateY(calc(var(--peek-last) * -100% / 12));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peek-mascot img {
+    animation: none;
+    transform: translateY(calc(var(--peek-middle) * -100% / 12));
+  }
+}
+
 /* The island carries several looping animations (mascot poses, disc spin,
    wave bars). While the window is not on screen — the webview surface is
    hidden or a fullscreen app owns the display — pause every loop so
@@ -4797,6 +4893,19 @@ html.island-window #root {
   --panel-shadow:
     inset 0 1px 0 var(--island-divider), inset 0 0 24px rgb(150 190 225 / 0.06),
     0 3px 12px rgb(0 0 0 / 0.3);
+}
+
+/* Peek mode has a tight native region so the companion stays click-through.
+   Keep lighting inside the rounded shell to avoid a cropped outer shadow. */
+.desktop-island[data-peek="on"] .island-panel {
+  border-color: color-mix(
+    in srgb,
+    var(--panel-border, transparent) 45%,
+    transparent
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--island-divider) 60%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--island-divider) 35%, transparent);
 }
 
 /* The expanded panel carries the same glass so opening the island does not
