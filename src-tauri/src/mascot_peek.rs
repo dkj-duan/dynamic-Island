@@ -168,6 +168,14 @@ fn companion_geometry(
     if let Some((screen, bounds)) = monitor {
         let screen_right = screen.x + bounds.width as i32;
         if y < screen.y {
+            let visible_top = top.max(screen.y);
+            let visible_bottom = (origin.y + ((anchor.y + anchor.height) * scale).round() as i32)
+                .min(screen.y + bounds.height as i32);
+            let visible_height = visible_bottom - visible_top;
+            let available_height = visible_height - 2 * scale.round() as i32;
+            if available_height <= 0 {
+                return None;
+            }
             let left = origin.x + (anchor.x * scale).round() as i32;
             let right = origin.x + ((anchor.x + anchor.width) * scale).round() as i32;
             let (side_width, side_height, side_overlap) = match mascot {
@@ -175,7 +183,7 @@ fn companion_geometry(
                 Character::Golden => (38.0, 42.0, 7.0),
             };
             let width = (side_width * scale).round() as u32;
-            let height = (side_height * scale).round() as u32;
+            let height = ((side_height * scale).round() as i32).min(available_height);
             let overlap = (side_overlap * scale).round() as i32;
             let outside = width as i32 - overlap;
             let left_room = left - screen.x;
@@ -195,15 +203,9 @@ fn companion_geometry(
                 Side::Left => left - outside,
                 Side::Right => right - overlap,
             };
-            let centered_y = origin.y
-                + ((anchor.y + (anchor.height - side_height) / 2.0) * scale).round() as i32;
-            let bottom_limit = screen.y + bounds.height as i32 - height as i32;
-            if bottom_limit < screen.y {
-                return None;
-            }
             return Some(PeekGeometry {
-                position: PhysicalPosition::new(x, centered_y.clamp(screen.y, bottom_limit)),
-                size: PhysicalSize::new(width, height),
+                position: PhysicalPosition::new(x, visible_top + (visible_height - height) / 2),
+                size: PhysicalSize::new(width, height as u32),
                 side: Some(side),
             });
         }
@@ -334,8 +336,8 @@ mod tests {
                 monitor
             ),
             Some(PeekGeometry {
-                position: PhysicalPosition::new(89, 0),
-                size: PhysicalSize::new(38, 42),
+                position: PhysicalPosition::new(89, 1),
+                size: PhysicalSize::new(38, 36),
                 side: Some(Side::Left),
             })
         );
@@ -353,5 +355,30 @@ mod tests {
                 side: None,
             })
         );
+    }
+
+    #[test]
+    fn golden_side_peek_fits_the_visible_capsule_at_different_scales() {
+        let monitor = Some((PhysicalPosition::new(0, 0), PhysicalSize::new(1920, 1080)));
+        let origin = PhysicalPosition::new(100, -13);
+        for scale in [0.8_f64, 1.0, 1.25, 1.4] {
+            for panel_height in [32.0, 38.0, 42.0, 44.0] {
+                let anchor = PeekAnchor {
+                    x: 20.0,
+                    y: 13.0,
+                    width: 200.0,
+                    height: panel_height,
+                    placement: Placement::Right,
+                };
+                let geometry =
+                    companion_geometry(&anchor, Character::Golden, scale, origin, monitor)
+                        .expect("side companion fits");
+                let top = (origin.y + (anchor.y * scale).round() as i32).max(0);
+                let bottom = origin.y + ((anchor.y + anchor.height) * scale).round() as i32;
+                assert_eq!(geometry.side, Some(Side::Right));
+                assert!(geometry.position.y > top);
+                assert!(geometry.position.y + (geometry.size.height as i32) < bottom);
+            }
+        }
     }
 }

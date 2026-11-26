@@ -1597,8 +1597,10 @@
 }
 
 .island-preview-peek[data-side] {
-  top: calc(50% - 15px);
+  inset-block: 0;
+  margin-block: auto;
   width: 38px;
+  height: min(var(--peek-side-height, 30px), calc(100% - 2px));
 }
 
 .island-preview-peek[data-side="left"] {
@@ -1612,7 +1614,7 @@
 }
 
 .island-preview-fit[data-peek-mascot="golden"] {
-  min-height: 42px;
+  --peek-side-height: 42px;
 }
 
 .island-preview-fit[data-peek-mascot="golden"][data-peek-side="left"] {
@@ -1621,11 +1623,6 @@
 
 .island-preview-fit[data-peek-mascot="golden"][data-peek-side="right"] {
   padding-right: 31px;
-}
-
-.island-preview-fit[data-peek-mascot="golden"] .island-preview-peek {
-  top: calc(50% - 21px);
-  height: 42px;
 }
 
 .appearance-page .island-style-cards {
