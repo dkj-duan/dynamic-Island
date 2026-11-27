@@ -1455,7 +1455,7 @@ fn apply_fullscreen_visibility(
     hidden_by_fs: bool,
     fullscreen: bool,
 ) {
-    ISLAND_HIDDEN_BY_FS.store(hidden_by_fs, std::sync::atomic::Ordering::SeqCst);
+    FULLSCREEN_VISIBILITY_DIRTY.store(true, std::sync::atomic::Ordering::SeqCst);
     // Hide through the layered alpha instead of ShowWindow: tearing the
     // window down with hide()/show() makes WebView2 rebuild its transparent
     // composition, which after fullscreen round-trips froze the window into
@@ -1463,7 +1463,13 @@ fn apply_fullscreen_visibility(
     // composition; the emptied hit region keeps it from swallowing clicks.
     let target = window.clone();
     let _ = window.run_on_main_thread(move || {
-        set_island_alpha_hidden(&target, hidden_by_fs);
+        // Ignore stale queued transitions after a rapid foreground or settings change.
+        let desired = FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst)
+            && FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst);
+        if desired == hidden_by_fs && set_island_alpha_hidden(&target, desired) {
+            ISLAND_HIDDEN_BY_FS.store(desired, std::sync::atomic::Ordering::SeqCst);
+            FULLSCREEN_VISIBILITY_DIRTY.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
     });
     let _ = tauri::Emitter::emit_to(
         window.app_handle(),
@@ -1473,19 +1479,23 @@ fn apply_fullscreen_visibility(
     );
 }
 
+#[cfg(target_os = "windows")]
+static FULLSCREEN_VISIBILITY_DIRTY: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 /// Fades the island in or out of sight without ShowWindow. While hidden the
 /// hit region is emptied so the invisible surface cannot intercept clicks
 /// meant for the fullscreen app; unhide restores the last reported panel
 /// region (an empty region matches the startup state until the next report).
 #[cfg(target_os = "windows")]
-fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) {
+fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) -> bool {
     use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GWL_EXSTYLE, GetWindowLongPtrW, LWA_ALPHA, SetLayeredWindowAttributes, SetWindowLongPtrW,
         WS_EX_LAYERED,
     };
     let Ok(hwnd) = window.hwnd() else {
-        return;
+        return false;
     };
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd.0, GWL_EXSTYLE) as u32;
@@ -1495,7 +1505,7 @@ fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) {
         // A layered window without alpha stops rendering entirely; set the
         // alpha together with the style, every time.
         if SetLayeredWindowAttributes(hwnd.0, 0, if hidden { 0 } else { 255 }, LWA_ALPHA) == 0 {
-            return;
+            return false;
         }
         let region = if hidden {
             CreateRectRgn(0, 0, 0, 0)
@@ -1511,12 +1521,15 @@ fn set_island_alpha_hidden(window: &tauri::WebviewWindow, hidden: bool) {
         if region.is_null() && !hidden {
             // No stored region: clearing the region matches the startup
             // state, and the next bounds report tightens it again.
-            SetWindowRgn(hwnd.0, std::ptr::null_mut(), 1);
-        } else if SetWindowRgn(hwnd.0, region, 1) == 0 && !region.is_null() {
-            // SetWindowRgn failed; the region still belongs to us.
+            return SetWindowRgn(hwnd.0, std::ptr::null_mut(), 1) != 0;
+        } else if region.is_null() {
+            return false;
+        } else if SetWindowRgn(hwnd.0, region, 1) == 0 {
             DeleteObject(region);
+            return false;
         }
     }
+    true
 }
 
 /// Explorer can promote the taskbar above other topmost windows when another
@@ -1596,15 +1609,13 @@ fn spawn_fullscreen_watch(app: tauri::AppHandle) {
             };
             let fullscreen = foreground_covers_island_monitor(&window);
             let avoid = FULLSCREEN_AVOID.load(std::sync::atomic::Ordering::SeqCst);
-            if fullscreen == FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
-                continue;
-            }
-            FULLSCREEN_ACTIVE.store(fullscreen, std::sync::atomic::Ordering::SeqCst);
-            if avoid {
-                apply_fullscreen_visibility(&window, fullscreen, fullscreen);
-            } else if ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst) {
-                // The switch was turned off mid-fullscreen: bring the island back.
-                apply_fullscreen_visibility(&window, false, false);
+            let previous = FULLSCREEN_ACTIVE.swap(fullscreen, std::sync::atomic::Ordering::SeqCst);
+            let desired = avoid && fullscreen;
+            if previous != fullscreen
+                || desired != ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst)
+                || FULLSCREEN_VISIBILITY_DIRTY.load(std::sync::atomic::Ordering::SeqCst)
+            {
+                apply_fullscreen_visibility(&window, desired, fullscreen && avoid);
             }
         }
     });
@@ -1618,8 +1629,9 @@ fn set_fullscreen_avoid(window: tauri::WebviewWindow, enabled: bool) -> Result<(
     }
     FULLSCREEN_AVOID.store(enabled, std::sync::atomic::Ordering::SeqCst);
     let hidden = ISLAND_HIDDEN_BY_FS.load(std::sync::atomic::Ordering::SeqCst);
-    if !enabled && hidden {
-        apply_fullscreen_visibility(&window, false, false);
+    let desired = enabled && FULLSCREEN_ACTIVE.load(std::sync::atomic::Ordering::SeqCst);
+    if desired != hidden {
+        apply_fullscreen_visibility(&window, desired, desired);
     }
     Ok(())
 }
